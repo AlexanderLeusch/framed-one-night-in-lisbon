@@ -116,23 +116,125 @@ const plateTex = canvasTex(256, 256, (g, w, h) => {
   }
   grime(g, w, h, 8, 'rgba(60,40,20,.25)', 60, false);
 }, [2, 2]);
-// Scratched graffiti on the stall wall, including the clue
-const graffitiTex = canvasTex(1024, 640, (g, w, h) => {
-  g.clearRect(0, 0, w, h);
-  const scratch = (text, x, y, size, rot, alpha) => {
-    g.save(); g.translate(x, y); g.rotate(rot); g.font = `700 ${size}px "Arial Narrow", Arial, sans-serif`;
-    for (let k = 0; k < 3; k++){ g.strokeStyle = `rgba(230,232,225,${alpha * (1 - k * .25)})`; g.lineWidth = 1.4; g.strokeText(text, (rnd() - .5) * 2, (rnd() - .5) * 2); }
-    g.restore();
+// ### A single-stroke alphabet for writing by hand (scratched with a key, traced with a finger): each letter is a few
+// ### strokes in a box one unit high (y down, 0 at the top), as [width, stroke, stroke, ...], a stroke being a list of
+// ### points. Only the letters the room writes are here.
+const HAND_FONT = (() => {
+  const arc = (cx, cy, rx, ry, a0, a1) => { const p = [], n = Math.max(4, Math.ceil(Math.abs(a1 - a0) / 18)); for (let i = 0; i <= n; i++){ const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; p.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]); } return p; };
+  return {
+    A: [.6, [[0, 1], [.3, 0], [.6, 1]], [[.12, .62], [.48, .62]]],
+    B: [.55, [[0, 1], [0, 0]], [[0, 0], [.32, 0], ...arc(.32, .25, .2, .25, -90, 90), [0, .5]], [[0, .5], [.34, .5], ...arc(.34, .75, .21, .25, -90, 90), [0, 1]]],
+    C: [.55, arc(.32, .5, .3, .5, -40, -320)],
+    D: [.58, [[0, 0], [0, 1]], [[0, 0], [.22, 0], ...arc(.22, .5, .34, .5, -90, 90), [0, 1]]],
+    E: [.5, [[.5, 0], [0, 0], [0, 1], [.5, 1]], [[0, .5], [.4, .5]]],
+    F: [.5, [[.5, 0], [0, 0], [0, 1]], [[0, .5], [.4, .5]]],
+    H: [.55, [[0, 0], [0, 1]], [[.55, 0], [.55, 1]], [[0, .5], [.55, .5]]],
+    I: [.12, [[.06, 0], [.06, 1]]],
+    J: [.45, [[.42, 0], [.42, .74], ...arc(.22, .74, .2, .26, 0, 180)]],
+    K: [.52, [[0, 0], [0, 1]], [[.5, 0], [0, .62]], [[.16, .46], [.52, 1]]],
+    L: [.45, [[0, 0], [0, 1], [.45, 1]]],
+    N: [.56, [[0, 1], [0, 0], [.56, 1], [.56, 0]]],
+    O: [.62, arc(.31, .5, .31, .5, -90, 270)],
+    P: [.52, [[0, 1], [0, 0], [.3, 0], ...arc(.3, .26, .22, .26, -90, 90), [0, .52]]],
+    R: [.55, [[0, 1], [0, 0], [.3, 0], ...arc(.3, .26, .22, .26, -90, 90), [0, .52]], [[.24, .52], [.55, 1]]],
+    S: [.52, [...arc(.27, .25, .25, .25, -25, -270), ...arc(.27, .75, .26, .25, -90, 145)]],
+    T: [.56, [[0, 0], [.56, 0]], [[.28, 0], [.28, 1]]],
+    U: [.55, [[0, 0], [0, .68], ...arc(.275, .68, .275, .32, 180, 0), [.55, 0]]],
+    W: [.78, [[0, 0], [.18, 1], [.39, .32], [.6, 1], [.78, 0]]],
+    Y: [.56, [[0, 0], [.28, .5], [.56, 0]], [[.28, .5], [.28, 1]]],
+    1: [.3, [[0, .2], [.2, 0], [.2, 1]]],
+    9: [.5, [...arc(.25, .28, .24, .28, 0, 360), [.49, .3], [.44, .75], [.3, 1], [.05, .95]]],
+    _: [.5, [[0, 1.02], [.5, 1.02]]],
+    '.': [.1, [[.03, .95], [.06, 1]]],
+    '?': [.5, [...arc(.25, .25, .24, .25, -170, 60), [.26, .5], [.26, .7]], [[.26, .92], [.27, .97]]]
   };
-  scratch('SHE WAS UNSINKABLE', 70, 150, 74, -.03, .85);
-  scratch('SHE SAILED ONLY ONCE', 90, 260, 66, .02, .85);
-  scratch('THE YEAR OPENS THE FLOOR', 60, 370, 62, -.015, .9);
-  scratch('IIII IIII IIII II', 640, 520, 44, 0, .5);
-  scratch('J.R. WAS HERE', 80, 560, 40, .05, .45);
-  scratch('NO WAY OUT?', 660, 80, 42, -.06, .4);
-  g.strokeStyle = 'rgba(230,232,225,.35)'; g.lineWidth = 1;
-  for (let i = 0; i < 40; i++){ const x = rnd() * w, y = rnd() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - .5) * 120, y + (rnd() - .5) * 30); g.stroke(); }
-});
+})();
+// ### How wide handWrite writes text at a letter height of size pixels.
+const handWidth = (text, size) => [...text].reduce((a, ch) => a + (ch === ' ' ? .45 : HAND_FONT[ch] ? HAND_FONT[ch][0] + .2 : 0), -.2) * size;
+// ### Writes text by hand with HAND_FONT, the baseline starting at x, y and turned by rot: each letter a little off (moved,
+// ### sized and slanted by rng), each point of it off by up to jitter of the letter height. stroke(points) draws one
+// ### stroke in canvas pixels, so the same writing can be scratched, traced or pressed in.
+function handWrite(text, x, y, size, rot, rng, jitter, stroke){
+  const c = Math.cos(rot), s = Math.sin(rot);
+  let cx = 0;
+  for (const ch of text){
+    if (ch === ' '){ cx += size * .45; continue; }
+    const glyph = HAND_FONT[ch];
+    if (!glyph) continue;
+    const dx = (rng() - .5) * size * .05, dy = (rng() - .5) * size * .06, sc = 1 + (rng() - .5) * .1, tilt = (rng() - .5) * .08;
+    for (let k = 1; k < glyph.length; k++){
+      stroke(glyph[k].map(([gx, gy]) => {
+        const lx = cx + dx + gx * size * sc + (1 - gy) * size * tilt + (rng() - .5) * jitter * size, ly = dy + (gy - 1) * size * sc + (rng() - .5) * jitter * size;
+        return [x + lx * c - ly * s, y + lx * s + ly * c];
+      }));
+    }
+    cx += (glyph[0] * sc + .2) * size;
+  }
+}
+// ### Turns a height picture (grey, light is high) into a normal map. perMetre is the picture's pixels per metre and
+// ### depthMm how far white stands above black, so the slopes come out the same at any resolution.
+function normalFromHeight(src, perMetre, depthMm){
+  const w = src.width, h = src.height, hd = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const nc = c.getContext('2d'), out = nc.createImageData(w, h), o = out.data, k = depthMm / 1000 * perMetre / 2;
+  const at = (x, y) => hd[(Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))) * 4] / 255;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
+    const dx = (at(x + 1, y) - at(x - 1, y)) * k, dy = (at(x, y + 1) - at(x, y - 1)) * k, l = Math.hypot(dx, dy, 1), i = (y * w + x) * 4;
+    o[i] = (-dx / l * .5 + .5) * 255; o[i + 1] = (dy / l * .5 + .5) * 255; o[i + 2] = (1 / l * .5 + .5) * 255; o[i + 3] = 255;
+  }
+  nc.putImageData(out, 0, 0);
+  return c;
+}
+// ### Polylines on a canvas: each stroke offset by (ox, oy), with round ends.
+function polylines(g, strokes, ox, oy){
+  g.lineCap = g.lineJoin = 'round'; g.beginPath();
+  for (const pts of strokes){ g.moveTo(pts[0][0] + ox, pts[0][1] + oy); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0] + ox, pts[i][1] + oy); }
+  g.stroke();
+}
+// ### Graffiti scratched into the stall's paint with a key or a screw, including the clue. Every letter is a few strokes,
+// ### each gone over two or three times and never quite along the same line, slipping on at the end now and then. A
+// ### fresh scratch is bare steel, bright at the bottom of the groove, with the paint pushed up into a pale burr along
+// ### one side and a dark shadow along the other; old ones are filled with grime. The groove's depth is a normal map,
+// ### its bare steel is shinier than the paint. The picture covers 1.05 x 0.66 m at about a millimetre a pixel.
+const graffitiMaps = (() => {
+  const grnd = mulberry32(1517), W2 = 1024, H2 = 640;
+  for (let i = 0; i < 196; i++) rnd();   // the room's random numbers, as many as the old graffiti took, so the textures after it keep their look
+  const fresh = [], old = [];
+  const scratch = (list, wid) => pts => {
+    const passes = 2 + (grnd() < .55 ? 1 : 0);
+    for (let p = 0; p < passes; p++){
+      const q = pts.map(([x, y]) => [x + (grnd() - .5) * 1.8, y + (grnd() - .5) * 1.8]);
+      if (grnd() < .25){ const a = q[q.length - 2], b = q[q.length - 1], k = .1 + grnd() * .25; q.push([b[0] + (b[0] - a[0]) * k, b[1] + (b[1] - a[1]) * k]); }   // the key slips on
+      list.push({ pts: q, w: wid * (.75 + grnd() * .5) });
+    }
+  };
+  handWrite('SHE WAS UNSINKABLE', 70, 150, 56, -.03, grnd, .025, scratch(fresh, 2.1));
+  handWrite('SHE SAILED ONLY ONCE', 90, 260, 52, .02, grnd, .025, scratch(fresh, 2.1));
+  handWrite('THE YEAR OPENS THE FLOOR', 60, 370, 50, -.015, grnd, .025, scratch(fresh, 2.2));
+  handWrite('IIII IIII IIII II', 640, 520, 36, 0, grnd, .03, scratch(old, 1.8));
+  handWrite('J.R. WAS HERE', 80, 560, 30, .05, grnd, .03, scratch(old, 1.5));
+  handWrite('NO WAY OUT?', 660, 80, 32, -.06, grnd, .03, scratch(fresh, 1.5));
+  for (let i = 0; i < 40; i++){ const x = grnd() * W2, y = grnd() * H2; (grnd() < .5 ? old : fresh).push({ pts: [[x, y], [x + (grnd() - .5) * 120, y + (grnd() - .5) * 30]], w: .9 + grnd() * .6 }); }
+  const layer = (g, list, style, grow, ox, oy) => { g.strokeStyle = style; for (const s of list){ g.lineWidth = s.w * grow; polylines(g, [s.pts], ox, oy); } };
+  // the colour: shadow and burr round the grooves, then the grooves, bright steel for the fresh ones and grime for the old
+  const map = canvasTex(W2, H2, g => {
+    g.clearRect(0, 0, W2, H2);
+    const all = fresh.concat(old);
+    layer(g, all, 'rgba(18,20,18,.5)', 1.8, .9, 1.2);
+    layer(g, all, 'rgba(214,222,214,.36)', .8, -.8, -.9);
+    layer(g, old, 'rgba(70,74,68,.82)', 1, 0, 0);
+    layer(g, fresh, 'rgba(176,184,182,.95)', 1, 0, 0);
+    layer(g, fresh, 'rgba(238,242,240,.7)', .35, 0, 0);
+  });
+  // the depth: the grooves cut into the paint, the burr raised beside them
+  const height = document.createElement('canvas'); height.width = W2; height.height = H2;
+  { const g = height.getContext('2d'); g.fillStyle = '#808080'; g.fillRect(0, 0, W2, H2); layer(g, fresh.concat(old), '#b8b8b8', .8, -.9, -.9); layer(g, fresh, '#202020', 1, 0, 0); layer(g, old, '#505050', 1, 0, 0); }
+  // roughness (g) and metalness (b): the bare steel is smooth metal, the paint and the grime are not
+  const sheen = canvasTex(W2, H2, g => { g.fillStyle = 'rgb(0,215,0)'; g.fillRect(0, 0, W2, H2); layer(g, fresh, 'rgb(0,90,225)', 1, 0, 0); layer(g, old, 'rgb(0,190,40)', 1, 0, 0); });
+  sheen.encoding = THREE.LinearEncoding;
+  const normal = new THREE.CanvasTexture(normalFromHeight(height, W2 / 1.05, .5)); normal.anisotropy = ANISO;
+  return { map, normal, sheen };
+})();
 // Scratches in the tiles beside the door: the date the "unsinkable" ship went down, the year gouged out. Once its mini game
 // is won, the last two digits of the code show under it (paintScratches is called again with won = true).
 const paintScratches = (g, w, h, won) => {
@@ -165,11 +267,25 @@ const paintSteam = (g, w, h, won) => {
   g.fillStyle = gr; g.fillRect(0, 0, w, h);
   for (let i = 0; i < 3000; i++){ g.fillStyle = `rgba(255,255,255,${rnd() * .25})`; g.beginPath(); g.arc(rnd() * w, rnd() * h, rnd() * 3, 0, 7); g.fill(); }
   g.globalCompositeOperation = 'destination-out';
-  g.font = '800 132px "Arial Narrow", Arial, sans-serif'; g.textAlign = 'center'; g.lineWidth = 16; g.lineJoin = 'round';
-  g.strokeStyle = 'rgba(0,0,0,1)';
-  if (won){ g.font = '800 96px "Arial Narrow", Arial, sans-serif'; g.strokeText('UNSINKABLE?', w / 2, h * .36); g.font = '800 150px "Arial Narrow", Arial, sans-serif'; g.strokeText('1 9 _ _', w / 2, h * .8); }
-  else g.strokeText('UNSINKABLE?', w / 2, h * .58);
-  for (let i = 0; i < 9; i++){ const x = 160 + rnd() * (w - 320), y = h * .6; g.fillRect(x, y, 5, 40 + rnd() * 90); }
+  // traced with a fingertip: a soft, half-wiped edge round a clear stroke
+  const srnd = mulberry32(won ? 1913 : 1912), strokes = [];
+  const line = (text, y, size) => handWrite(text, (w - handWidth(text, size)) / 2, y, size, -.015, srnd, .02, pts => strokes.push(pts));
+  if (won){ line('UNSINKABLE?', h * .36, 70); line('1 9 _ _', h * .8, 108); }
+  else line('UNSINKABLE?', h * .58, 96);
+  g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 18; polylines(g, strokes, 0, 0);
+  g.strokeStyle = 'rgba(0,0,0,1)'; g.lineWidth = 11; polylines(g, strokes, 0, 0);
+  // the water gathers at the bottom of a stroke and runs down in a thin clear streak with a drop at its end
+  g.fillStyle = g.strokeStyle = 'rgba(0,0,0,.85)';
+  for (const pts of strokes){
+    if (srnd() > .25) continue;
+    const [x, y] = pts.reduce((a, p) => p[1] > a[1] ? p : a), len = 10 + srnd() * 45, wob = (srnd() - .5) * 5;
+    g.lineWidth = 1.6 + srnd(); g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + wob, y + len / 2, x + wob * .5, y + len); g.stroke();
+    g.beginPath(); g.arc(x + wob * .5, y + len + 1.5, 2.2 + srnd(), 0, 7); g.fill();
+  }
+  for (let i = 0; i < 9; i++){   // and a few more down the lower part of the steam
+    const x = 160 + rnd() * (w - 320), y = h * (.62 + (x % 37) / 400), len = 40 + rnd() * 90;
+    g.lineWidth = 1.4; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 2, y + len / 2, x - 1, y + len); g.stroke(); g.beginPath(); g.arc(x - 1, y + len + 1.5, 2.2, 0, 7); g.fill();
+  }
   g.globalCompositeOperation = 'source-over';
 };
 const steamTex = canvasTex(1024, 512, (g, w, h) => paintSteam(g, w, h, false));
@@ -275,6 +391,80 @@ const speakerTex = canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#a4abad'; g
 for (const t of [aoTex, blobTex, stainTex, grilleTex, speakerTex]) t.anisotropy = 1;
 ceilingTex.anisotropy = partitionTex.anisotropy = 4;
 
+// ### Powder-coated steel for the stall. Each panel (the partition, the two pilasters, the door) gets a picture of its own
+// ### from corner to corner, about 3 mm a pixel: the old mottled coat above as the ground, the fine orange peel of the
+// ### powder coat, paint chipped to bare steel and red primer along the edges, kicked-in dents, scratches, black scuffs
+// ### of rubber soles low down, dirt and mop splashes rising from the floor, streaks of dried water and greasy patches
+// ### where hands push. The relief is a normal map; roughness and metalness come from one more picture (bare steel and
+// ### grease are smooth, dirt is rough). foot is how high above the floor the panel starts, grips are [u, height] where
+// ### hands push.
+const panelRnd = mulberry32(5150);   // its own random numbers, so the rest of the room keeps its look
+function panelMaterial(wm, hm, foot, grips = []){
+  const R = panelRnd, D = COARSE ? 170 : 320, w = Math.max(32, Math.round(wm * D)), h = Math.max(32, Math.round(hm * D)), area = wm * hm;
+  const mk = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  const col = mk(), hgt = mk(), rgh = mk(), g = col.getContext('2d'), e = hgt.getContext('2d'), r = rgh.getContext('2d');
+  const Y = m => (hm - (m - foot)) * D;   // the canvas row at a height of m metres above the floor
+  const blob = (c, x, y, rad, colour) => { const gr = c.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, colour); gr.addColorStop(1, colour.replace(/[\d.]+\)$/, '0)')); c.fillStyle = gr; c.fillRect(x - rad, y - rad, rad * 2, rad * 2); };
+  g.drawImage(partitionTex.image, 0, 0, w, h);
+  e.fillStyle = '#808080'; e.fillRect(0, 0, w, h);
+  r.fillStyle = 'rgb(0,118,80)'; r.fillRect(0, 0, w, h);
+  // the paint's own shifts of colour, and the orange peel of the powder coat
+  for (let i = 0; i < area * 30; i++) blob(g, R() * w, R() * h, D * (.05 + R() * .2), R() < .5 ? 'rgba(150,165,155,.06)' : 'rgba(40,48,44,.07)');
+  for (let i = 0; i < w * h / 26; i++){ const v = 128 + (R() - .5) * 34 | 0; e.fillStyle = `rgb(${v},${v},${v})`; e.beginPath(); e.arc(R() * w, R() * h, .8 + R() * 1.6, 0, 7); e.fill(); }
+  // chips along the edges: bare steel inside a rim of red primer, a little lower than the paint
+  for (let i = 0; i < (wm + hm) * 2 * 12; i++){
+    const side = R() * 4 | 0, t = R(), d = Math.pow(R(), 2) * D * .018, x = side < 2 ? t * w : side === 2 ? d : w - d, y = side === 0 ? d : side === 1 ? h - d : t * h;
+    const pts = [], n = 5 + R() * 4 | 0, rad = 1.5 + R() * R() * D * .012;
+    for (let k = 0; k < n; k++){ const a = k / n * 6.283, rr = rad * (.5 + R() * .7); pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]); }
+    const path = c => { c.beginPath(); c.moveTo(...pts[0]); for (const q of pts) c.lineTo(...q); c.closePath(); };
+    path(g); g.strokeStyle = 'rgba(122,62,42,.75)'; g.lineWidth = 1.5; g.stroke(); g.fillStyle = 'rgb(138,144,146)'; g.fill();
+    path(e); e.fillStyle = '#5a5a5a'; e.fill(); path(r); r.fillStyle = 'rgb(0,95,200)'; r.fill();
+  }
+  // dents where the panel was kicked, mostly low down
+  for (let i = 0; i < Math.max(1, area * 2.2); i++){
+    const x = R() * w, y = Y(foot + .1 + R() * Math.min(hm * .6, 1)), rad = D * (.015 + R() * .03);
+    blob(e, x, y, rad, 'rgba(40,40,40,.7)'); blob(g, x, y + rad * .3, rad, 'rgba(20,24,22,.1)');
+  }
+  // scratches: fine pale ones in the paint, a few down to the steel
+  for (let i = 0; i < area * 16; i++){
+    const x = R() * w, y = R() * h, l = D * (.015 + R() * R() * .16), a = R() * 6.283, deep = R() < .2;
+    const line = (c, style, lw) => { c.strokeStyle = style; c.lineWidth = lw; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); c.stroke(); };
+    line(g, deep ? 'rgba(170,176,176,.6)' : 'rgba(190,200,192,.22)', deep ? 1.1 : .7);
+    line(e, deep ? '#4a4a4a' : '#6c6c6c', 1);
+    if (deep) line(r, 'rgb(0,100,190)', 1);
+  }
+  // black scuffs of rubber soles between 5 and 40 cm above the floor
+  for (let i = 0; i < wm * 6; i++){
+    const x = R() * w, y = Y(.05 + R() * R() * .4), l = D * (.03 + R() * .12), a = (R() - .5) * 1.4, bend = (R() - .5) * l * .6, x1 = x + Math.cos(a) * l, y1 = y + Math.sin(a) * l;
+    if (y < 0 || y > h) continue;
+    for (const [c, st, lw] of [[g, `rgba(22,22,22,${.12 + R() * .22})`, 1.5 + R() * 4], [r, 'rgb(0,80,60)', 4]]){ c.strokeStyle = st; c.lineWidth = lw; c.lineCap = 'round'; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo((x + x1) / 2 - Math.sin(a) * bend, (y + y1) / 2 + Math.cos(a) * bend, x1, y1); c.stroke(); }
+  }
+  // dirt rising from the floor, splashes of mop water and the tide line they leave, dull and rough
+  const dirt = g.createLinearGradient(0, Y(0), 0, Y(.55)); dirt.addColorStop(0, 'rgba(66,54,36,.5)'); dirt.addColorStop(1, 'rgba(66,54,36,0)');
+  g.fillStyle = dirt; g.fillRect(0, 0, w, h);
+  const dull = r.createLinearGradient(0, Y(0), 0, Y(.4)); dull.addColorStop(0, 'rgba(0,200,60,.7)'); dull.addColorStop(1, 'rgba(0,200,60,0)');
+  r.fillStyle = dull; r.fillRect(0, 0, w, h);
+  for (let i = 0; i < wm * 160; i++){ const y = Y(Math.pow(R(), 2) * .16); if (y < 0 || y > h) continue; g.fillStyle = `rgba(60,48,32,${.15 + R() * .3})`; g.beginPath(); g.arc(R() * w, y, .6 + R() * 2.2, 0, 7); g.fill(); }
+  if (foot < .05){ g.strokeStyle = 'rgba(70,58,40,.35)'; g.lineWidth = 2; g.beginPath(); for (let x = 0; x <= w; x += 6) g.lineTo(x, Y(.09 + Math.sin(x * .05) * .006 + (R() - .5) * .004)); g.stroke(); }
+  // streaks of dried water running down
+  for (let i = 0; i < area * 6; i++){ const x = R() * w, y = R() * h * .7, l = D * (.1 + R() * .35); g.strokeStyle = `rgba(48,54,50,${.03 + R() * .04})`; g.lineWidth = 1 + R() * 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (R() - .5) * 4, y + l); g.stroke(); }
+  // greasy patches where hands push: darker and smoother
+  for (const [u, m] of grips) for (let k = 0; k < 6; k++){ const x = u * w + (R() - .5) * D * .1, y = Y(m + (R() - .5) * .2), rad = D * (.03 + R() * .05); blob(g, x, y, rad, 'rgba(30,34,30,.18)'); blob(r, x, y, rad, 'rgba(0,70,80,.6)'); }
+  const tex = (c, srgb, aniso) => { const t = new THREE.CanvasTexture(c); if (srgb) t.encoding = THREE.sRGBEncoding; t.anisotropy = aniso; return t; };
+  const rm = tex(rgh, false, 2);
+  return new THREE.MeshStandardMaterial({ map: tex(col, true, ANISO), normalMap: tex(normalFromHeight(hgt, D, .35), false, 4), roughnessMap: rm, metalnessMap: rm, roughness: 1, metalness: 1 });
+}
+// ### A partition panel w x h metres and t thick: a rounded rectangle with crimped, rounded edges, its corner at the
+// ### origin and its faces towards +z and -z. Both faces and the edges show the panel's own picture from corner to corner.
+function panelGeo(w, h, t, r = .012){
+  const b = Math.min(.006, t / 3), s = new THREE.Shape(); roundedRect(s, b, b, w - b, h - b, r);
+  const geo = new THREE.ExtrudeGeometry(s, { depth: t - 2 * b, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 2, curveSegments: 6 });
+  geo.translate(0, 0, -(t - 2 * b) / 2);
+  const p = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, clamp(p.getX(i) / w, 0, 1), clamp(p.getY(i) / h, 0, 1));
+  return geo;
+}
+
 // ---------- Scanned textures (Poly Haven, CC0) ----------
 // ### Real photographed surfaces from Poly Haven's free asset library (polyhaven.com, all CC0), fetched once through its
 // ### API and kept in room-1-escape/textures: a scratched hangar floor of poured concrete, a painted cinder-block wall,
@@ -337,7 +527,6 @@ const M = {
   stain: new THREE.MeshStandardMaterial({ map: stainTex, transparent: true, depthWrite: false, roughness: .9, polygonOffset: true, polygonOffsetFactor: -3 }),
   mirror: new THREE.MeshStandardMaterial({ color: 0xdfe4e6, metalness: 1, roughness: .12 }),
   door: new THREE.MeshStandardMaterial({ color: 0x3e4b54, metalness: .55, roughness: .55 }),
-  partition: new THREE.MeshStandardMaterial({ map: partitionTex, metalness: .35, roughness: .5 }),
   plate: new THREE.MeshStandardMaterial({ map: plateTex, metalness: .75, roughness: .4 }),
   dark: new THREE.MeshStandardMaterial({ color: 0x0c0d0e, roughness: 1 }),
   pipe: new THREE.MeshStandardMaterial({ color: 0x59605c, metalness: .6, roughness: .45 }),
@@ -345,7 +534,7 @@ const M = {
   tube: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe9d2, emissiveIntensity: 2.4 }),
   corridor: new THREE.MeshBasicMaterial({ map: corridorTex }),
   guard: new THREE.MeshBasicMaterial({ map: guardTex, transparent: true, opacity: 0, depthWrite: false }),
-  graffiti: new THREE.MeshStandardMaterial({ map: graffitiTex, transparent: true, roughness: .8, depthWrite: false }),
+  graffiti: new THREE.MeshStandardMaterial({ map: graffitiMaps.map, normalMap: graffitiMaps.normal, roughnessMap: graffitiMaps.sheen, metalnessMap: graffitiMaps.sheen, roughness: 1, metalness: 1, transparent: true, depthWrite: false }),
   scratches: new THREE.MeshStandardMaterial({ map: scratchesTex, transparent: true, roughness: .8, depthWrite: false }),
   steam: new THREE.MeshStandardMaterial({ map: steamTex, transparent: true, opacity: 0, roughness: 1, depthWrite: false }),
   sign: new THREE.MeshStandardMaterial({ map: signTex, roughness: .8 }),
@@ -505,6 +694,246 @@ const WATER = (() => {
   };
 })();
 
+// ---------- The steel mirror ----------
+// ### The mirror over the sinks is a sheet of polished stainless steel, as in every prison (glass would be a weapon), and
+// ### it really mirrors the washroom. When it is in view the room is drawn once more, at 45 % of the width and height of
+// ### the screen, by a camera mirrored behind the wall (three.js's Reflector again, with an oblique near plane that cuts
+// ### away everything behind the mirror). Steel is no glass: the picture is darker and a little cool, and soft, blurred
+// ### more where the scanned scratches say the steel is worn and more across than up and down; the sheet bows a little between
+// ### its screws, so the picture wavers. Limescale splashed up from the sinks, wiped smears, fingerprints and a few deep
+// ### scratches lie on top and scatter the light. You see yourself in it, hazy: a figure of inmate 4471 (head, striped
+// ### uniform, arms) stands where you stand only while the mirror's picture is drawn, and your own hands are drawn into
+// ### that picture from where they really are. The picture is only redrawn while the mirror is in view, and at most 20
+// ### times a second while you stand still at the sinks (5 from further away).
+const MIRROR = (() => {
+  const P0 = new THREE.Vector3(-3.985, 1.6, 0), N = new THREE.Vector3(1, 0, 0), SIZE = [2.2, .72];
+  const mrnd = mulberry32(1356);   // its own random numbers, so the rest of the room keeps its look
+  const rt = new THREE.WebGLRenderTarget(16, 16, { encoding: THREE.sRGBEncoding, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+  const texMat = new THREE.Matrix4(), glow = new THREE.Color(0);
+  // ### What lies on the steel (rgb its colour, alpha how much): dull, milky edges where the polish has gone, rings of
+  // ### limescale and drips splashed up from the two sinks (most of them low down), wiped smears, greasy fingerprints
+  // ### near the edges and a few deep scratches. The sinks are at u = 0.2 and 0.8.
+  const dirt = canvasTex(1024, 336, (g, w, h) => {
+    const edge = (x0, y0, x1, y1, a) => { const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, `rgba(200,204,198,${a})`); gr.addColorStop(1, 'rgba(200,204,198,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); };
+    edge(0, 0, 0, 30, .3); edge(0, h, 0, h - 70, .5); edge(0, 0, 36, 0, .32); edge(w, 0, w - 36, 0, .32);
+    for (let i = 0; i < 560; i++){
+      const near = mrnd() < .7, x = near ? (mrnd() < .5 ? .2 : .8) * w + (mrnd() - .5) * w * .32 : mrnd() * w;
+      const y = h - Math.pow(mrnd(), 1.8) * h * .9, r = .8 + mrnd() * mrnd() * 6, a = .16 + mrnd() * .3;
+      g.strokeStyle = `rgba(234,236,228,${a})`; g.lineWidth = .7 + mrnd(); g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke();
+      g.fillStyle = `rgba(222,226,218,${a * .35})`; g.fill();
+      if (mrnd() < .12) g.fillRect(x - .6, y, 1.2, 6 + mrnd() * 28);   // a drop that ran down
+    }
+    g.lineCap = 'round';
+    for (let i = 0; i < 7; i++){   // wiped with a sleeve: a few broad arcs
+      const r = 70 + mrnd() * 120, a = .05 + mrnd() * .06;
+      g.save(); g.translate(mrnd() * w, h * (.25 + mrnd() * .55)); g.rotate((mrnd() - .5) * .8);
+      for (let k = 0; k < 5; k++){ g.strokeStyle = `rgba(210,212,204,${a})`; g.lineWidth = 5 + mrnd() * 9; g.beginPath(); g.arc(0, r + k * 6, r + k * 6, -Math.PI / 2 - .55, -Math.PI / 2 + .55); g.stroke(); }
+      g.restore();
+    }
+    for (let i = 0; i < 10; i++){   // fingerprints where hands steady themselves on the edge
+      const x = (mrnd() < .5 ? mrnd() * .1 : 1 - mrnd() * .1) * w, y = h * (.3 + mrnd() * .6), t = mrnd();
+      g.strokeStyle = 'rgba(196,194,186,.13)'; g.lineWidth = .9;
+      for (let r = 2; r < 10; r += 1.5){ g.beginPath(); g.ellipse(x, y, r * .72, r, t, 0, 7); g.stroke(); }
+    }
+    for (let i = 0; i < 26; i++){   // deep scratches catch the light
+      const x = mrnd() * w, y = mrnd() * h, l = 20 + mrnd() * 170, a = (mrnd() - .5) * 1.2;
+      g.strokeStyle = `rgba(252,252,248,${.2 + mrnd() * .35})`; g.lineWidth = .7 + mrnd() * .6;
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * l / 2 + (mrnd() - .5) * 12, y + Math.sin(a) * l / 2 + (mrnd() - .5) * 12, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+  });
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { tRefl: { value: rt.texture }, tWear: { value: SCAN('steel-scratches-rough.jpg', false) }, tDirt: { value: dirt }, texMat: { value: texMat }, glow: { value: glow } },
+    vertexShader: `
+      uniform mat4 texMat; varying vec4 vProj; varying vec2 vUv;
+      void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vUv = uv; vProj = texMat * w; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `
+      uniform sampler2D tRefl, tWear, tDirt; uniform vec3 glow; varying vec4 vProj; varying vec2 vUv;
+      vec3 tap(vec4 p, vec2 o){ return sRGBToLinear(texture2DProj(tRefl, p + vec4(o * p.w, 0.0, 0.0))).rgb; }
+      void main(){
+        // the sheet bows a little between its screws, so the picture wavers
+        vec2 bow = vec2(sin(vUv.x * 19.0 + 1.3) * 0.6 + sin(vUv.x * 47.0 + vUv.y * 9.0) * 0.25, sin(vUv.y * 9.0 + vUv.x * 7.0) * 0.5 + sin(vUv.x * 31.0) * 0.2) * 0.0022;
+        vec4 p = vProj; p.xy += bow * p.w;
+        // never sharp: blurred more where the scanned scratches say the steel is worn
+        float wear = clamp((texture2D(tWear, vUv * vec2(3.05, 1.0)).r - 0.2) * 5.0, 0.0, 1.0);
+        // (a spiral of taps, turned differently at every pixel, so the blur is smooth grain; wider across, as polishing
+        // leaves its marks along the sheet)
+        float r = 0.0022 + wear * 0.005, spin = fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453) * 6.2832;
+        vec3 c = vec3(0.0);
+        for (int i = 0; i < 12; i++){ float k = (float(i) + 0.5) / 12.0, a = float(i) * 2.39996 + spin; c += tap(p, vec2(cos(a) * 1.6, sin(a) * 0.75) * sqrt(k) * r) / 12.0; }
+        // steel gives back about 60 % of the light, a little cool, and less where it is worn dull
+        c *= vec3(0.6, 0.63, 0.65) * (1.08 - wear * 0.3);
+        // limescale, smears and scratches scatter the light: there the picture is a wide, pale blur
+        vec4 d = texture2D(tDirt, vUv); d.rgb = sRGBToLinear(vec4(d.rgb, 1.0)).rgb;
+        vec3 wide = (tap(p, vec2(0.018, 0.0)) + tap(p, vec2(-0.018, 0.0)) + tap(p, vec2(0.0, 0.022)) + tap(p, vec2(0.0, -0.022))) * 0.25;
+        c = mix(c, wide * d.rgb * 0.75 + 0.004, d.a);
+        gl_FragColor = linearToOutputTexel(vec4(c + glow, 1.0));
+      }`
+  });
+  mat.emissive = glow;   // hover() lights a hotspot through its emissive colour; here that colour is a uniform
+
+  // ### The figure in the mirror, built the first time the mirror is drawn: a head with a painted face (a buzz cut, brows,
+  // ### eyes, nose, mouth and stubble round a sphere whose u = 0.75 looks forward), ears and a nose, the neck, a chest in
+  // ### the striped uniform with its number patch, the shoulders and the upper arms down to the elbows of your real arms.
+  function buildSelf(){
+    const frnd = mulberry32(4472), g = new THREE.Group(); g.visible = false; scene.add(g);
+    const SKIN = '#b4846a', face = canvasTex(512, 256, (c, w, h) => {
+      c.fillStyle = SKIN; c.fillRect(0, 0, w, h);
+      for (let i = 0; i < 40; i++){ const x = frnd() * w, y = frnd() * h, r = 8 + frnd() * 30, gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, frnd() < .5 ? 'rgba(150,80,60,.12)' : 'rgba(225,180,150,.1)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = gr; c.fillRect(x - r, y - r, r * 2, r * 2); }
+      // stubble round the mouth and along the jaw, then the buzz cut, low at the nape and high at the forehead
+      for (let i = 0; i < 2600; i++){ const u = .58 + frnd() * .34, v = .6 + frnd() * .32; if (Math.abs(u - .75) > .1 + (v - .6) * .3 && v < .8) continue; c.fillStyle = `rgba(48,38,32,${.12 + frnd() * .2})`; c.fillRect(u * w, v * h, 1.2, 1.2); }
+      for (let x = 0; x < w; x++){
+        const d = Math.min(Math.abs(x / w - .75), 1 - Math.abs(x / w - .75)) / .5, end = (.27 + Math.pow(d, 1.3) * .36) * h;
+        const gr = c.createLinearGradient(0, end - 6, 0, end); gr.addColorStop(0, 'rgba(40,31,24,.82)'); gr.addColorStop(1, 'rgba(40,31,24,0)');
+        c.fillStyle = 'rgba(40,31,24,.82)'; c.fillRect(x, 0, 1, end - 6); c.fillStyle = gr; c.fillRect(x, end - 6, 1, 6);
+      }
+      for (let i = 0; i < 3000; i++){ const x = frnd() * w, y = frnd() * h * .6; c.fillStyle = frnd() < .5 ? 'rgba(20,15,12,.25)' : 'rgba(180,140,115,.12)'; c.fillRect(x, y, 1, 1); }
+      for (const s of [-1, 1]){
+        const x = (.75 + s * .068) * w, y = .544 * h;
+        let gr = c.createRadialGradient(x, y, 0, x, y, 20); gr.addColorStop(0, 'rgba(70,40,30,.5)'); gr.addColorStop(1, 'rgba(70,40,30,0)');
+        c.save(); c.translate(x, y); c.scale(1, .55); c.translate(-x, -y); c.fillStyle = gr; c.fillRect(x - 20, y - 20, 40, 40); c.restore();   // the socket
+        c.fillStyle = 'rgba(222,212,200,.9)'; c.beginPath(); c.ellipse(x, y, 12, 4.2, 0, 0, 7); c.fill();
+        c.fillStyle = '#3a2a1e'; c.beginPath(); c.ellipse(x - s * 1.5, y, 4.6, 3.6, 0, 0, 7); c.fill();
+        c.strokeStyle = 'rgba(50,30,22,.8)'; c.lineWidth = 1.6; c.beginPath(); c.ellipse(x, y + 1, 12.5, 5, 0, Math.PI * 1.05, Math.PI * 1.95); c.stroke();   // the upper lid
+        c.strokeStyle = 'rgba(40,31,24,.85)'; c.lineWidth = 4; c.beginPath(); c.moveTo(x - 15, y - 13); c.quadraticCurveTo(x, y - 19 + s, x + 15, y - 14); c.stroke();   // the brow
+      }
+      const nx = .75 * w;
+      c.strokeStyle = 'rgba(110,62,46,.35)'; c.lineWidth = 2; for (const s of [-1, 1]){ c.beginPath(); c.moveTo(nx + s * 7, .56 * h); c.lineTo(nx + s * 9, .655 * h); c.stroke(); }
+      c.fillStyle = 'rgba(60,30,24,.7)'; for (const s of [-1, 1]){ c.beginPath(); c.ellipse(nx + s * 6, .668 * h, 3, 1.8, 0, 0, 7); c.fill(); }
+      c.fillStyle = 'rgba(150,80,70,.6)'; c.beginPath(); c.ellipse(nx, .748 * h, 11, 3, 0, 0, 7); c.fill();
+      c.strokeStyle = 'rgba(80,38,32,.85)'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(nx - 13, .738 * h); c.quadraticCurveTo(nx, .732 * h, nx + 13, .738 * h); c.stroke();
+      const jaw = c.createLinearGradient(0, .8 * h, 0, h); jaw.addColorStop(0, 'rgba(60,35,25,0)'); jaw.addColorStop(1, 'rgba(60,35,25,.45)'); c.fillStyle = jaw; c.fillRect(0, .8 * h, w, .2 * h);
+    });
+    const skin = new THREE.MeshStandardMaterial({ map: face, roughness: .6, envMapIntensity: .3 });
+    const plain = new THREE.MeshStandardMaterial({ color: new THREE.Color(SKIN).convertSRGBToLinear(), roughness: .6, envMapIntensity: .3 });
+    const cloth = HAND_MAT.sleeve.clone();
+    for (const k of ['map', 'bumpMap']){ cloth[k] = HAND_MAT.sleeve[k].clone(); cloth[k].repeat.set(2, 4.2); cloth[k].needsUpdate = true; }
+    const mesh = (geo, m, parent) => { const o = new THREE.Mesh(geo, m); (parent || g).add(o); return o; };
+    // the head turns with the camera; the eyes are its origin
+    const head = new THREE.Group(); head.rotation.order = 'YXZ'; g.add(head);
+    const skull = new THREE.SphereGeometry(1, 32, 24), sp = skull.attributes.position;
+    for (let i = 0; i < sp.count; i++){ const y = sp.getY(i), k = y < 0 ? 1 - .2 * Math.min(1, -y * 1.3) : 1; sp.setXYZ(i, sp.getX(i) * k * .078, y * .108, sp.getZ(i) * (y < 0 ? 1 + .06 * y : 1) * .098); }
+    skull.computeVertexNormals();
+    mesh(skull, skin, head).position.set(0, .015, .075);
+    mesh(new THREE.ConeGeometry(.014, .042, 10).rotateX(-Math.PI / 2 - .35), plain, head).position.set(0, -.036, -.03);
+    for (const s of [-1, 1]) mesh(new THREE.SphereGeometry(1, 12, 10).scale(.013, .031, .021), plain, head).position.set(s * .077, -.02, .085);
+    // the body turns with the head, a little behind it; the eyes are its origin too
+    const body = new THREE.Group(); g.add(body);
+    mesh(new THREE.CylinderGeometry(.05, .055, .12, 16), plain, body).position.set(0, -.14, .082);
+    const chest = plainColours(new THREE.LatheGeometry([[.0, -.62], [.15, -.62], [.165, -.5], [.17, -.35], [.18, -.2], [.19, -.1], [.18, -.05], [.14, -.02], [.075, 0], [.065, .006]].map(([r, y]) => new THREE.Vector2(r, y)), 28).scale(1, 1, .62));
+    mesh(chest, cloth, body).position.set(0, -.2, .075);
+    const patch = mesh(new THREE.PlaneGeometry(.1, .05), new THREE.MeshStandardMaterial({ roughness: .9, map: canvasTex(128, 64, (c, w, h) => {
+      c.fillStyle = '#d8d2bf'; c.fillRect(0, 0, w, h); c.fillStyle = '#1d1c1a'; c.font = '800 44px "Arial Narrow", Arial, sans-serif'; c.textAlign = 'center'; c.fillText('4471', w / 2, h * .78);
+      c.fillStyle = 'rgba(90,70,40,.18)'; c.fillRect(0, h * .7, w, h * .3);
+    }) }), body);
+    patch.position.set(-.085, -.35, -.032); patch.rotation.y = Math.PI + .35;
+    // the arms: shoulder, upper arm and elbow; a forearm and a fist only stand in while your real hands are out of sight
+    const limb = (r0, r1) => plainColours(new THREE.CylinderGeometry(r1, r0, 1, 14, 1, true).translate(0, .5, 0));
+    const shoulder = [], upper = [], elbow = [], fore = [], fist = [];
+    for (let i = 0; i < 2; i++){
+      shoulder.push(mesh(plainColours(new THREE.SphereGeometry(.056, 14, 10)), cloth));
+      upper.push(mesh(limb(.05, .044), HAND_MAT.sleeve));
+      elbow.push(mesh(plainColours(new THREE.SphereGeometry(.045, 12, 8)), HAND_MAT.sleeve));
+      fore.push(mesh(limb(.043, .038), HAND_MAT.sleeve));
+      fist.push(mesh(new THREE.SphereGeometry(1, 12, 8).scale(.042, .05, .03), plain));
+    }
+    return { g, head, body, shoulder, upper, elbow, fore, fist, elbowAt: [new THREE.Vector3(), new THREE.Vector3()], yaw: cam.yaw };
+  }
+  const _s = new THREE.Vector3(), _w = new THREE.Vector3(), _e = new THREE.Vector3(), _y = new THREE.Vector3(0, 1, 0), _m = new THREE.Matrix4();
+  // ### Stretches a limb mesh (its own y from 0 to 1) from a to b.
+  const reach = (m, a, b) => { const len = a.distanceTo(b); m.position.copy(a); m.quaternion.setFromUnitVectors(_y.set(0, 1, 0), _e.subVectors(b, a).divideScalar(len || 1)); m.scale.set(1, len, 1); };
+  // ### Puts the figure where you stand: the head exactly as you look, the body turning after it, and each arm bent at
+  // ### the elbow from the shoulder to where your real hand is (hanging down when your hands are out of sight).
+  function poseSelf(me, eye, dt){
+    me.yaw += wrapAngle(cam.yaw - me.yaw) * (1 - Math.exp(-dt * 2.5));
+    me.head.position.copy(eye); me.head.rotation.set(clamp(cam.pitch, -.7, .5) * .85, -cam.yaw, camera.rotation.z);
+    me.body.position.copy(eye); me.body.rotation.set(0, -me.yaw, 0); me.body.updateMatrixWorld(true);
+    const c = Math.cos(me.yaw), s = Math.sin(me.yaw);
+    ['r', 'l'].forEach((key, i) => {
+      const h = HANDS[key], side = key === 'r' ? 1 : -1, shown = h.arm.visible;
+      me.body.localToWorld(_s.set(side * .19, -.235, .075));
+      if (shown) _w.copy(h.p).applyMatrix4(camera.matrixWorld);
+      else me.body.localToWorld(_w.set(side * .22, -.8, .02));
+      // the elbow bends out, down and back (the pole: right * side, down, behind)
+      me.elbowAt[i].copy(twoBone(_s, _w, UPPER_ARM, FOREARM, new THREE.Vector3(c * side * .8 - s * .3, -1, s * side * .8 + c * .3)));
+      me.shoulder[i].position.copy(_s); me.elbow[i].position.copy(me.elbowAt[i]); reach(me.upper[i], _s, me.elbowAt[i]);
+      me.fore[i].visible = me.fist[i].visible = !shown;
+      if (!shown){ reach(me.fore[i], me.elbowAt[i], _w); me.fist[i].position.copy(_w); }
+    });
+  }
+  // ### Your real hands, drawn into the mirror's picture: for that one picture each forearm is turned from the wrist to
+  // ### the figure's elbow and its sleeve cut to that length, then everything is put back as it was.
+  const keep = [];
+  function bendArms(me, on){
+    ['r', 'l'].forEach((key, i) => {
+      const a = HANDS[key].arm, sleeves = a.children.filter(o => o.material === HAND_MAT.sleeve);
+      if (!on){ a.quaternion.copy(keep[i].q); sleeves.forEach((o, k) => { o.scale.z = keep[i].z[k]; }); return; }
+      keep[i] = { q: a.quaternion.clone(), z: sleeves.map(o => o.scale.z) };
+      const elbowC = _e.copy(me.elbowAt[i]).applyMatrix4(camera.matrixWorldInverse);
+      _m.lookAt(elbowC, a.position, _y.set(0, 1, 0).transformDirection(camera.matrixWorldInverse)); a.quaternion.setFromRotationMatrix(_m);
+      const fl = elbowC.distanceTo(a.position) / .485;
+      sleeves.forEach(o => { o.scale.z = fl; });
+    });
+  }
+
+  const mcam = new THREE.PerspectiveCamera(), handCamM = new THREE.PerspectiveCamera(); handCamM.matrixAutoUpdate = false;
+  const frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), box = new THREE.Box3().setFromCenterAndSize(P0, new THREE.Vector3(.04, SIZE[1], SIZE[0]));
+  const camPos = new THREE.Vector3(), view = new THREE.Vector3(), look = new THREE.Vector3(), rot = new THREE.Matrix4();
+  const plane = new THREE.Plane(), clip = new THREE.Vector4(), q = new THREE.Vector4(), size = new THREE.Vector2(), lastView = new THREE.Matrix4();
+  let lastT = -1, me = null;
+  const api = {
+    P0, SIZE, mat, rt,
+    hide: [],   // the mirror itself and the steam on it, which must not show in their own picture
+    resize(){ renderer.getDrawingBufferSize(size); const k = COARSE ? .35 : .45; rt.setSize(Math.max(1, size.x * k | 0), Math.max(1, size.y * k | 0)); lastT = -1; },
+    // ### Draws the mirror's picture again when the mirror is in view and you stand in front of it, and the view has
+    // ### changed or a twentieth of a second has passed (your hands and the steam move even while you stand still; from
+    // ### further away than the sinks, a fifth of a second).
+    update(t){
+      if (camera.position.y < .1) return;
+      camPos.setFromMatrixPosition(camera.matrixWorld);
+      if (camPos.x < P0.x + .05) return;
+      pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(pv);
+      if (!frustum.intersectsBox(box)) return;
+      const still = camera.matrixWorld.elements.every((v, i) => Math.abs(v - lastView.elements[i]) < 1e-4);
+      if (lastT >= 0 && still && t - lastT < (camPos.x < P0.x + 2.6 ? .05 : .2)) return;
+      const dt = lastT >= 0 ? Math.min(.25, t - lastT) : 1;
+      lastView.copy(camera.matrixWorld); lastT = t;
+      // the mirrored camera (three.js Reflector, for the plane x = -3.985 facing into the room)
+      view.subVectors(P0, camPos).reflect(N).negate().add(P0);
+      rot.extractRotation(camera.matrixWorld);
+      look.set(0, 0, -1).applyMatrix4(rot).add(camPos);
+      look.subVectors(P0, look).reflect(N).negate().add(P0);
+      mcam.position.copy(view); mcam.up.set(0, 1, 0).applyMatrix4(rot).reflect(N);
+      mcam.lookAt(look); mcam.far = camera.far; mcam.updateMatrixWorld();
+      mcam.projectionMatrix.copy(camera.projectionMatrix);
+      texMat.set(.5, 0, 0, .5, 0, .5, 0, .5, 0, 0, .5, .5, 0, 0, 0, 1).multiply(mcam.projectionMatrix).multiply(mcam.matrixWorldInverse);
+      // oblique near plane: the camera sees nothing behind the mirror
+      plane.setFromNormalAndCoplanarPoint(N, P0).applyMatrix4(mcam.matrixWorldInverse);
+      clip.set(plane.normal.x, plane.normal.y, plane.normal.z, plane.constant);
+      const e = mcam.projectionMatrix.elements;
+      q.set((Math.sign(clip.x) + e[8]) / e[0], (Math.sign(clip.y) + e[9]) / e[5], -1, (1 + e[10]) / e[14]);
+      clip.multiplyScalar(2 / clip.dot(q));
+      e[2] = clip.x; e[6] = clip.y; e[10] = clip.z + 1; e[14] = clip.w;
+      // you, where you stand, then your hands drawn into the same picture from where they are
+      if (!me) me = buildSelf();
+      poseSelf(me, camPos, dt);
+      for (const o of api.hide) o.visible = false;
+      me.g.visible = true;
+      renderer.setRenderTarget(rt); renderer.render(scene, mcam);
+      me.g.visible = false;
+      if (HANDS.r.arm.visible){
+        handCamM.matrix.multiplyMatrices(camera.matrixWorldInverse, mcam.matrixWorld); handCamM.matrixWorldNeedsUpdate = true;
+        handCamM.projectionMatrix.copy(mcam.projectionMatrix); handCamM.projectionMatrixInverse.copy(mcam.projectionMatrix).invert();
+        bendArms(me, true);
+        renderer.autoClear = false; renderer.render(handScene, handCamM); renderer.autoClear = true;
+        bendArms(me, false);
+      }
+      renderer.setRenderTarget(null);
+      for (const o of api.hide) o.visible = true;
+    }
+  };
+  return api;
+})();
+
 // ---------- The washroom ----------
 // ### The room is 8 m wide (x -4..4), 6 m deep (z -3..3) and 3 m high. The steel door is in the south wall, the sinks on the
 // ### west wall, the toilet stall in the north-east corner with the hatch in its floor, the mop in the south-east corner.
@@ -515,6 +944,11 @@ const cyl = (rt, rb, h, mat, x, y, z, seg = 20) => { const m = new THREE.Mesh(ne
 const plane = (w, h, mat, x, y, z, ry = 0, rx = 0) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); m.receiveShadow = true; room.add(m); return m; };
 // ### Decals that lie flat on the floor: soft shadows, stains and puddles.
 const flat = (w, d, mat, x, z, y = .003) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); room.add(m); return m; };
+// ### A rectangle with rounded corners, added to a shape or path (for extruded parts).
+function roundedRect(s, x0, y0, x1, y1, r){
+  s.moveTo(x0 + r, y0); s.lineTo(x1 - r, y0); s.quadraticCurveTo(x1, y0, x1, y0 + r); s.lineTo(x1, y1 - r); s.quadraticCurveTo(x1, y1, x1 - r, y1);
+  s.lineTo(x0 + r, y1); s.quadraticCurveTo(x0, y1, x0, y1 - r); s.lineTo(x0, y0 + r); s.quadraticCurveTo(x0, y0, x0 + r, y0);
+}
 // ### A soft shadow along the line where two surfaces meet: dark at the edge (pos), fading towards fade, facing normal.
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 function aoEdge(len, w, pos, fade, normal){
@@ -775,29 +1209,100 @@ doorLight.position.set(0, 2.3, 4.1); doorLight.target.position.set(0, 0, .3); ro
 // ### the scene while they shine: the door light during the briefing scene, the tunnel light from the moment the hatch opens.
 doorLight.visible = false;
 
-// Sinks with a polished steel mirror, an empty soap dish and the hot tap
-box(.5, .06, 2.6, M.steel, -3.75, .86, 0);
-box(.5, .12, 2.6, M.steel, -3.75, .78, 0);
-const basins = [];
-for (const z of [-.65, .65]){
-  const b = new THREE.Mesh(new THREE.CylinderGeometry(.19, .13, .12, 24, 1, true), M.steel); b.position.set(-3.73, .83, z); add(b); basins.push(b);
-  // the basin seen from above: polished steel with a rolled rim and the drain in the middle
-  cyl(.19, .19, .004, M.bowl, -3.73, .891, z, 32); cyl(.03, .03, .002, M.dark, -3.73, .894, z, 16);
-  { const rim = new THREE.Mesh(new THREE.TorusGeometry(.19, .012, 8, 40), M.steel); rim.rotation.x = Math.PI / 2; rim.position.set(-3.73, .894, z); add(rim); }
-  const sp = cyl(.025, .025, .18, M.steel, -3.94, .98, z, 10); sp.rotation.z = Math.PI / 2;
-  cyl(.03, .03, .05, M.steel, -3.96, 1.05, z + .12, 10);
+// ### The sinks: one stainless-steel unit bolted to the west wall, the kind every prison has (no edge to break off,
+// ### nothing to unscrew). A deck with two deep pressed bowls and a rolled front edge, an apron that hides the plumbing,
+// ### a splashback with a metering push button for cold and hot (the red one) and a short spout over each bowl, and a
+// ### pressed soap dish between them. The hot tap really runs: a stream falls into the bowl under it and splashes there.
+const SINK = { x: -3.75, top: .89, bx: -3.73, bowls: [-.65, .65], wall: -3.975 };
+const bowls = [], hotButton = [];
+{
+  // the deck, cut out for the bowls (shape y becomes -z), its edges rounded off
+  const ds = new THREE.Shape(); roundedRect(ds, -.242, -1.292, .242, 1.292, .02);
+  for (const z of SINK.bowls){ const hole = new THREE.Path(); hole.absellipse(SINK.bx - SINK.x, -z, .148, .186, 0, Math.PI * 2, true); ds.holes.push(hole); }
+  const dg = new THREE.ExtrudeGeometry(ds, { depth: .02, bevelEnabled: true, bevelThickness: .008, bevelSize: .008, bevelSegments: 3, curveSegments: 28 });
+  dg.rotateX(-Math.PI / 2); dg.translate(SINK.x, SINK.top - .028, 0); add(new THREE.Mesh(dg, M.steel));
+  // the bowls, pressed in one piece: steep sides rounding into a flat bottom, a chrome drain with a slotted strainer
+  for (const z of SINK.bowls){
+    const pts = [[0, -.155], [.045, -.153], [.09, -.146], [.125, -.128], [.152, -.1], [.17, -.066], [.18, -.036], [.185, -.014], [.19, -.006]];
+    const geo = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, SINK.top + y)), 44); geo.scale(.8, 1, 1); geo.translate(SINK.bx, 0, z);
+    bowls.push(add(new THREE.Mesh(geo, M.bowl)));
+    cyl(.026, .026, .004, M.chrome, SINK.bx, SINK.top - .153, z, 24); cyl(.019, .019, .002, M.dark, SINK.bx, SINK.top - .15, z, 20);
+    for (const a of [0, Math.PI / 2]) box(.034, .002, .004, M.chrome, SINK.bx, SINK.top - .149, z).rotation.y = a;
+    // under the bowl: the tailpiece and the waste pipe into the wall, and the supply pipe
+    cyl(.018, .018, .19, M.pipe, SINK.bx, SINK.top - .25, z, 12);
+    cyl(.022, .022, .27, M.pipe, -3.865, SINK.top - .345, z, 12).rotation.z = Math.PI / 2;
+    pipe(.72, -3.85, .36, z + (z < 0 ? -.1 : .1));
+  }
+  // a rolled front edge, an apron down to the knees and closed ends, so nothing can be hidden under the bowls
+  cyl(.016, .016, 2.6, M.steel, -3.5, SINK.top - .014, 0, 16).rotation.x = Math.PI / 2;
+  box(.012, .25, 2.6, M.steel, -3.506, SINK.top - .155, 0);
+  for (const s of [-1, 1]) box(.494, .25, .012, M.steel, -3.753, SINK.top - .155, s * 1.294);
+  cyl(.008, .008, 2.6, M.steel, -3.503, SINK.top - .28, 0, 10).rotation.x = Math.PI / 2;
+  // the splashback with its rounded top, and a cove where it meets the deck
+  box(.025, .22, 2.6, M.steel, -3.9875, SINK.top + .11, 0);
+  cyl(.0125, .0125, 2.6, M.steel, -3.9875, SINK.top + .22, 0, 12).rotation.x = Math.PI / 2;
+  cyl(.009, .009, 2.6, M.steel, SINK.wall, SINK.top + .002, 0, 8).rotation.x = Math.PI / 2;
+  // over each bowl a short chrome spout with its aerator, a push button for cold (blue dot) and one for hot (red dot)
+  const dot = c => new THREE.MeshStandardMaterial({ color: c, roughness: .45 });
+  const red = dot(0xb33a2c), blue = dot(0x2c5a9a);
+  for (const z of SINK.bowls){
+    const curve = new THREE.CubicBezierCurve3(v3(SINK.wall - .002, SINK.top + .1, z), v3(-3.9, SINK.top + .108, z), v3(-3.82, SINK.top + .1, z), v3(-3.805, SINK.top + .066, z));
+    add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, .0105, 10), M.chrome));
+    cyl(.022, .022, .006, M.chrome, SINK.wall + .003, SINK.top + .1, z, 16).rotation.z = Math.PI / 2;
+    cyl(.012, .0115, .014, M.chrome, -3.805, SINK.top + .058, z, 14); cyl(.0085, .0085, .002, M.dark, -3.805, SINK.top + .0505, z, 12);
+    for (const [dz, mat] of [[.12, red], [-.12, blue]]){
+      const bz = z - Math.sign(z) * dz, y = SINK.top + .145;
+      cyl(.034, .034, .008, M.dullSteel, SINK.wall + .004, y, bz, 22).rotation.z = Math.PI / 2;
+      const b = cyl(.022, .024, .02, M.chrome, SINK.wall + .016, y, bz, 22), c = cyl(.011, .011, .002, mat, SINK.wall + .027, y, bz, 16);
+      b.rotation.z = c.rotation.z = Math.PI / 2;
+      if (z < 0 && mat === red) hotButton.push(b, c);
+    }
+  }
+  // the soap dish, pressed into a shallow tray, empty
+  box(.11, .005, .17, M.dullSteel, -3.88, SINK.top + .003, 0);
+  for (const s of [-1, 1]){ box(.11, .016, .005, M.dullSteel, -3.88, SINK.top + .008, s * .083); box(.005, .016, .17, M.dullSteel, -3.88 + s * .053, SINK.top + .008, 0); }
 }
-const hotTap = cyl(.034, .034, .05, new THREE.MeshStandardMaterial({ color: 0xb33a2c, roughness: .5 }), -3.96, 1.05, -.53, 12);
-hot('tap', hotTap, basins[0]);
-pipe(.8, -3.85, .4, -.65); pipe(.8, -3.85, .4, .65);
-const mirror = plane(2.2, .72, M.mirror, -3.985, 1.6, 0, Math.PI / 2);
+hot('tap', ...hotButton, bowls[0]);
+// ### The mirror: a sheet of polished steel (MIRROR draws its picture) on a backing plate, in a frame of steel channel held
+// ### by tamper-proof screws. The steam lies on it, under the frame.
+const mirror = plane(MIRROR.SIZE[0], MIRROR.SIZE[1], MIRROR.mat, MIRROR.P0.x, MIRROR.P0.y, MIRROR.P0.z, Math.PI / 2);
 box(.01, .8, 2.28, M.dullSteel, -3.996, 1.6, 0);
+for (const s of [-1, 1]){ box(.026, .04, 2.24, M.steel, -3.983, 1.6 + s * .37, 0); box(.026, .78, .04, M.steel, -3.983, 1.6, s * 1.1); }
+for (const [y, z] of [[-.37, -1.1], [-.37, -.55], [-.37, 0], [-.37, .55], [-.37, 1.1], [.37, -1.1], [.37, -.55], [.37, 0], [.37, .55], [.37, 1.1], [0, -1.1], [0, 1.1]]){
+  cyl(.008, .008, .004, M.chrome, -3.968, 1.6 + y, z, 10).rotation.z = Math.PI / 2; cyl(.0025, .0025, .005, M.dark, -3.968, 1.6 + y, z, 6).rotation.z = Math.PI / 2;
+}
 const steam = plane(2.2, .72, M.steam, -3.975, 1.6, 0, Math.PI / 2); steam.renderOrder = 2;
 hot('read:mirror', mirror, steam); hot('play:mirror', mirror, steam);
-box(.12, .025, .2, M.dullSteel, -3.85, .905, 0);
+mirror.material = MIRROR.mat;   // hot() gave it a copy, but the mirror's picture is bound to the one material
+MIRROR.hide.push(mirror, steam);
 const steamPuffs = [];
 const puffTex = canvasTex(64, 64, (g, w) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, w); });
 for (let i = 0; i < 14; i++){ const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, transparent: true, opacity: 0, depthWrite: false })); s.userData.t = i / 14; room.add(s); steamPuffs.push(s); }
+// ### The running hot tap: a thin stream from the spout down into the bowl, its surface sliding downwards, and a
+// ### splash where it lands. Shown while the tap is on.
+const tapStream = (() => {
+  const wrnd = mulberry32(2803), top = SINK.top + .05, bottom = SINK.top - .145, x = -3.805, z = SINK.bowls[0];
+  const tex = canvasTex(32, 256, (g, w, h) => {
+    g.fillStyle = 'rgba(235,242,245,.45)'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 90; i++){ g.fillStyle = `rgba(255,255,255,${.2 + wrnd() * .6})`; g.fillRect(wrnd() * w, wrnd() * h, 1 + wrnd() * 3, 6 + wrnd() * 40); }
+    for (let i = 0; i < 40; i++){ g.fillStyle = `rgba(120,140,150,${.1 + wrnd() * .2})`; g.fillRect(wrnd() * w, wrnd() * h, 1 + wrnd() * 2, 4 + wrnd() * 20); }
+  }, [1, 1]);
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(.0042, .0055, top - bottom, 12, 1, true), new THREE.MeshStandardMaterial({ map: tex, color: 0xdbe6ea, roughness: .05, metalness: .4, transparent: true, depthWrite: false }));
+  mesh.position.set(x, (top + bottom) / 2, z); mesh.visible = false; room.add(mesh);
+  const splash = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: 0xe8f0f2, transparent: true, opacity: 0, depthWrite: false }));
+  splash.position.set(x, bottom + .012, z); room.add(splash);
+  return {
+    // ### Moves the water on: the stream's surface slides down and the splash flickers while the tap runs.
+    update(dt, t){
+      mesh.visible = splash.visible = !!S.steam;
+      if (!mesh.visible) return;
+      tex.offset.y = (tex.offset.y + dt * 2.2) % 1;
+      const k = REDUCED ? 0 : 1;
+      mesh.rotation.y = Math.sin(t * 13) * .3 * k; mesh.scale.x = mesh.scale.z = 1 + Math.sin(t * 37) * .08 * k;
+      splash.material.opacity = .28 + Math.sin(t * 29) * .08 * k; splash.scale.setScalar(.035 + Math.sin(t * 23) * .006 * k);
+    }
+  };
+})();
 
 // ---------- Mop and bucket ----------
 // ### A janitor's round bucket of yellow moulded plastic in the south-east corner, a quarter full of grey mop water, and a
@@ -990,8 +1495,12 @@ hot('read:scratches', scratches); hot('play:scratches', scratches);
 
 // The toilet stall: partitions, steel toilet, graffiti, the crooked tile and the hatch in the floor
 const SX0 = 1.5, SZ1 = -.7;
-box(.04, 1.9, 2.3, M.partition, SX0, 1.1, -1.85);
-box(.3, 1.9, .04, M.partition, SX0 + .15, 1.1, SZ1); box(.3, 1.9, .04, M.partition, 3.85, 1.1, SZ1);
+// the partition stands on two feet 15 cm off the floor; the pilasters run from the floor to the headrail
+{
+  const side = add(new THREE.Mesh(panelGeo(2.285, 1.9, .04), panelMaterial(2.285, 1.9, .15)));
+  side.position.set(SX0, .15, SZ1); side.rotation.y = Math.PI / 2;   // its own x runs to -z, its front faces into the stall
+  for (const [x, grips] of [[SX0, [[1, 1.12]]], [3.7, [[0, 1.3]]]]) add(new THREE.Mesh(panelGeo(.3, 2.03, .04), panelMaterial(.3, 2.03, .02, grips))).position.set(x, .02, SZ1);
+}
 box(2.54, .06, .06, M.dullSteel, 2.75, 2.06, SZ1);
 for (const z of [-2.9, SZ1 + .05]) box(.06, .14, .06, M.dullSteel, SX0, .07, z);
 // steel edge caps on the partitions and wall brackets that hold them
@@ -1003,8 +1512,7 @@ for (const x of [SX0 + .15, 3.85]) box(.32, .12, .07, M.steel, x, .06, SZ1);   /
   const pivot = new THREE.Group(); pivot.position.set(3.7, 0, SZ1 + .025); pivot.rotation.y = 1.72; room.add(pivot);
   const put = m => { m.castShadow = m.receiveShadow = true; pivot.add(m); return m; };
   const bx = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return put(m); };
-  bx(.86, 1.62, .03, M.partition, -.45, 1.04, 0);
-  bx(.86, .012, .036, M.dullSteel, -.45, 1.85, 0); bx(.86, .012, .036, M.dullSteel, -.45, .23, 0); bx(.012, 1.62, .036, M.dullSteel, -.88, 1.04, 0);
+  put(new THREE.Mesh(panelGeo(.86, 1.62, .03), panelMaterial(.86, 1.62, .23, [[.08, 1.12], [.5, 1.5]]))).position.set(-.88, .23, 0);
   for (const y of [.42, 1.04, 1.66]){ const h = new THREE.Mesh(new THREE.CylinderGeometry(.011, .011, .12, 10), M.steel); h.position.set(-.005, y, .02); put(h); }
   bx(.1, .035, .02, M.steel, -.8, 1.12, .028); bx(.025, .02, .03, M.steel, -.77, 1.12, .045);
   bx(.03, .06, .015, M.steel, -.45, 1.62, -.024); const hook = new THREE.Mesh(new THREE.TorusGeometry(.022, .006, 6, 12, Math.PI), M.steel); hook.position.set(-.45, 1.58, -.045); hook.rotation.set(0, Math.PI / 2, Math.PI); put(hook);
@@ -1430,7 +1938,7 @@ function updateDust(dt, t){
     cyl(.02, .02, .06, M.black, X, .9, Z, 10); box(.12, .025, .04, M.black, X + .03, .935, Z);
     { const hose = new THREE.Mesh(new THREE.TorusGeometry(.07, .008, 6, 16, Math.PI * 1.2), M.black); hose.position.set(X + .07, .78, Z + .02); hose.rotation.y = Math.PI / 2; add(hose); }
     box(.16, .05, .1, M.dullSteel, X, .45, Z + .04); box(.05, .5, .01, M.dullSteel, X, .6, Z + .095);
-    box(.08, .16, .08, M.steel, -3.955, 1.1, 0); box(.02, .02, .03, M.black, -3.91, 1.015, 0);
+    box(.08, .16, .08, M.steel, -3.935, 1.1, 0); box(.02, .02, .03, M.black, -3.89, 1.015, 0);   // on the splashback
   }
   { // ### The wet-floor sign by the showers: a folding A-frame of moulded yellow plastic, as cleaners use them. Two panels
     // ### with rounded tops hang from one hinge pin along the top, so they meet there without a gap, and splay out to the
@@ -2225,7 +2733,7 @@ function drawHands(){
 // ### Clicking an object in the 3D view does the same as its marker. With a keyboard you walk with the arrow keys; only a
 // ### touch screen shows the "Walk to" buttons that glide you to another part of the room.
 const ANCHORS = {
-  'take:mop': [3.6, .66, 2.66], 'wedge': [.38, 1.02, 2.86], 'tap': [-3.94, 1.08, -.53],
+  'take:mop': [3.6, .66, 2.66], 'wedge': [.38, 1.02, 2.86], 'tap': [-3.95, 1.07, -.53],
   'read:mirror': [-3.97, 1.75, .45], 'play:mirror': [-3.97, 1.75, .45], 'read:graffiti': [1.53, 1.5, -1.9], 'play:tile': [2.62, .58, -2.97], 'take:carkey': [2.62, .58, -2.97],
   'read:scratches': [1.75, 1.3, 2.95], 'play:scratches': [1.75, 1.3, 2.95],
   'lock': [2.2, .1, -1.1], 'go:hatch': [2.2, .06, -1.75]
@@ -3226,6 +3734,7 @@ function frame(now){
   M.steam.opacity += (st * .92 - M.steam.opacity) * Math.min(1, dt * .45);
   if (waterGain) waterGain.gain.value += ((S.steam && !paused && !tapBuf ? .05 : 0) - waterGain.gain.value) * Math.min(1, dt * 4);
   if (ac){ updateTap(dt); updateApiVent(); }
+  tapStream.update(dt, clock);
   steamPuffs.forEach(s => { s.userData.t = (s.userData.t + dt * .25) % 1; const t = s.userData.t; s.position.set(-3.73 + Math.sin(t * 9 + s.id) * .05, .9 + t * 1.1, -.65 + Math.cos(t * 7 + s.id) * .08); s.scale.setScalar(.15 + t * .5); s.material.opacity = S.steam ? Math.sin(t * Math.PI) * .35 : Math.max(0, s.material.opacity - dt); s.visible = s.material.opacity > .003; });
   // the guard's silhouette in the window
   guardShow = Math.max(0, guardShow - dt);
@@ -3262,9 +3771,10 @@ function frame(now){
   // while a mini game runs the room behind the card stands still, so it is not drawn again and the game runs smoothly;
   // a new size is applied just before drawing: resizing after it would clear the picture and show a black frame
   if (!mini){
-    if (sizeDirty){ sizeDirty = false; renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); WATER.resize(); }
+    if (sizeDirty){ sizeDirty = false; renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); WATER.resize(); MIRROR.resize(); }
     camera.updateMatrixWorld();
     WATER.update(clock, dt);
+    MIRROR.update(clock);
     renderer.render(scene, camera);
     drawHands();
   }
@@ -3277,7 +3787,7 @@ function frame(now){
 // ### sharpness never pumps up and down.
 const PR_MAX = Math.min(window.devicePixelRatio || 1, COARSE ? 1.5 : 2), PR_MIN = Math.min(PR_MAX, .75);
 let pixelRatio = Math.min(PR_MAX, 1.5), perfT = 0, perfN = 0, perfGood = 0, perfWait = 4, sizeDirty = false;
-renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight, false); WATER.resize();
+renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight, false); WATER.resize(); MIRROR.resize();
 function adaptResolution(elapsed){
   if (elapsed > .25 || document.hidden || !overlay.hidden) return;   // a hitch (a tab switch, a card) says nothing about the graphics card
   perfT += elapsed; perfN++;
