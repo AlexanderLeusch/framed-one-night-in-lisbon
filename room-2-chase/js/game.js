@@ -2044,7 +2044,7 @@ function buildCity(){
   // ### tall twin piers that carries the six lanes from the low streets by the river up to the deck, 42 m above the ground. Here
   // ### it starts behind the golden gate at the south-west corner of the Baixa, runs west along the river, passes under the side
   // ### span of the bridge, and climbs round in a loop to meet the deck at the north anchorage. It lies outside the force field,
-  // ### so nobody can drive on it; only the finale takes the car up its first stretch (CITY.approach.at gives the way).
+  // ### so nobody can drive on it: it is scenery, the road the finale's jump to the bridge stands for.
   {
     const DECK = 42.12, R = 50, X0 = -144, Z0 = 144, bdx = Math.cos(1.2), bdz = Math.sin(1.2);
     const N = { x: -400 - 350 * bdx, z: 410 - 350 * bdz };  // the north end of the bridge deck
@@ -2062,7 +2062,6 @@ function buildCity(){
       else { const k = LEN - s; x = N.x - k * bdx; z = N.z - k * bdz; h = Math.atan2(bdx, bdz); }
       return { x: x - Math.cos(h) * side, z: z + Math.sin(h) * side, y: rise(s), h, slope: (rise(s + 1) - rise(s - 1)) / 2 };
     };
-    CITY.approach = { len: LEN, at };
     // half the width of the road: as wide as the river avenue at the gate, as wide as the bridge deck further up
     const hw = s => 7 + 1.5 * sstep(8, 60, s);
     // pulls a cross-section ([side, up] points, up measured from the road) along the road and returns the triangles
@@ -5750,18 +5749,17 @@ function witnessCard(){
     </div>`, 'story');
 }
 
-// ### The finale: through the gate the car drives itself, slowly, up the approach road to the bridge (nobody can drive there
-// ### otherwise: it lies outside the force field). After a few seconds the picture fades, and you are on the 25 de Abril bridge with Marta beside you, driving south
+// ### The finale: through the gate the picture fades, and you are on the 25 de Abril bridge with Marta beside you, driving south
 // ### over the Tejo as the first light comes up behind the towers. The road is yours: no police, no helicopter, heroic music. Then
 // ### the result card. A black plane in front of the camera does the fades. In the story, this ends act 1 (the bridge leads out of
 // ### the city towards the highway); in a free ride it is the end of the run.
-const FINALE = Object.freeze({ ramp: 6.5, rampSpeed: 13, fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 14.2, dawnFrom: 1.2, dawnTo: 11.5, shot: 5 });
+const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 14.2, dawnFrom: 1.2, dawnTo: 11.5, shot: 5 });
 const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12 };
 const fader = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 fader.position.z = -0.6; fader.renderOrder = 9999; fader.frustumCulled = false; camera.add(fader); scene.add(camera);
 function startFinale(){
   state = 'finale';
-  Object.assign(finale, { on: true, done: false, t: 0, placed: false, s: clamp(gate.x - car.x, 0, 10), px: car.x, pz: car.z, h0: car.heading });
+  Object.assign(finale, { on: true, done: false, t: 0, placed: false });
   hud.classList.add('off');
   held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
 }
@@ -5775,20 +5773,11 @@ function onBridge(along, side, up){ return CITY.bridge.localToWorld(new THREE.Ve
 function updateFinale(dt){
   const F = FINALE, f = finale;
   f.t += dt;
-  const t = f.t - F.ramp;  // counted from the moment the picture starts to fade on the approach
+  const t = f.t;
   if (!f.placed){
-    // through the gate the game takes the wheel: within a second and a half the car is in its lane on the approach, and it
-    // climbs slowly towards the bridge; then into the dark
-    const w = sstep(0, 1.5, f.t);
-    car.speed += (F.rampSpeed - car.speed) * Math.min(1, dt * 1.6);
-    f.px += Math.sin(f.h0) * car.speed * (1 - w) * dt; f.pz += Math.cos(f.h0) * car.speed * (1 - w) * dt;
-    f.s += Math.max(3, car.speed) * dt;
-    const q = CITY.approach.at(f.s, F.lane * sstep(10, 70, f.s));
-    car.x = f.px + (q.x - f.px) * w; car.z = f.pz + (q.z - f.pz) * w;
-    car.y = groundH(car.x, car.z) * (1 - w) + q.y * w;
-    car.heading = f.h0 + wrapAngle(q.h - f.h0) * w;
-    car.pitch = Math.atan(q.slope) * w; car.steer = 0; car.wheelRot += car.speed * dt;
-    fader.material.opacity = clamp(t / F.fade, 0, 1);
+    // through the gate, into the dark
+    car.x += Math.sin(car.heading) * car.speed * dt; car.z += Math.cos(car.heading) * car.speed * dt;
+    fader.material.opacity = Math.min(1, t / F.fade);
     chaseCam(dt);
     if (t < F.fade) return;
     f.placed = true;

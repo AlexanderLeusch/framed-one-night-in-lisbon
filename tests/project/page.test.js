@@ -241,12 +241,10 @@ test('the city is Lisbon: the gate stands at the south-west corner, towards the 
   assert.match(game, /gp = \{ x: -144, z: 144 \}/, 'the gate is where Rua do Crucifixo meets the river avenue');
   assert.equal(Core.streetAt(-144, 144, Math.PI / 2), 'Avenida Infante Dom Henrique');
   assert.match(game, /gp = \{ x: -144, z: 144 \}; gateRot = -Math\.PI \/ 2;/, 'the gate faces west, up the approach road to the bridge');
-  // behind the gate the approach road starts where the gate stands; the finale drives the car up it, slowly, before the bridge
+  // behind the gate the approach road starts where the gate stands; it is scenery, the finale goes straight to the bridge
   assert.match(game, /X0 = -144, Z0 = 144/, 'the approach road starts at the gate');
-  assert.match(game, /CITY\.approach = \{ len: LEN, at \}/);
-  assert.match(game, /FINALE = Object\.freeze\(\{ ramp: 6\.5, rampSpeed: 13, /, 'a slow drive up the approach comes first');
-  assert.match(game, /CITY\.approach\.at\(f\.s, /, 'the finale follows the approach road');
-  assert.match(game, /onBridge\(F\.start, F\.lane\)/, 'then the car is placed on the bridge, where it always was');
+  assert.ok(!/CITY\.approach/.test(game), 'the car never drives on the approach road');
+  assert.match(game, /onBridge\(F\.start, F\.lane\)/,'through the gate the car is placed on the bridge, where it always was');
   assert.match(game, /arco\(80\)/, 'the Arco da Rua Augusta still stands over Rua Augusta');
   assert.match(game, /hidden in Lisbon’s Baixa/);
   assert.ok(!/downtown/i.test(game), 'no leftover from the old unnamed city');
