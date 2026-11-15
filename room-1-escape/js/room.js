@@ -1138,53 +1138,253 @@ const hallFloorTex = canvasTex(256, 256, (g, w, h) => {
   const gr = g.createRadialGradient(w / 2, h * .3, 4, w / 2, h * .3, w * .7); gr.addColorStop(0, '#b7c3cb'); gr.addColorStop(1, '#4c5962');
   g.fillStyle = gr; g.fillRect(0, 0, w, h);
 });
-// ### Officer Hale in 3D: a low-poly prison guard in a dark slate uniform with a peaked cap and badge, a moustache, a cross
-// ### belt, a ring of keys on his belt and laced boots. His left arm hangs, his right arm reaches out to pull the door shut.
-// ### Built from boxes and cylinders, one material per colour; haleFade() fades the whole figure in and out.
-function limb(a, b, r0, r1){
-  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A), len = d.length();
-  const g = new THREE.CylinderGeometry(r1, r0, len, 7);
-  g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())));
-  g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
-  return g;
-}
+// ### Officer Hale in 3D: a prison guard in his fifties, built to look like a real man rather than a toy. His uniform is
+// ### a scanned navy wool twill (Poly Haven "Poly Wool Herringbone"), his shirt collar a scanned poplin weave ("Stretch
+// ### Poplin"), his boots, duty belt and cap visor scanned leather ("Brown Leather", dyed black here); all three were
+// ### fetched once through Poly Haven's free API and are kept in room-1-escape/textures. No free library offers a skin
+// ### scan, so his skin is painted in code: a weathered face with grey stubble, a grey moustache, eye bags, crow's feet
+// ### and the lines from nose to mouth, round a head shaped from a sphere (brow, cheekbones, jaw and chin). Every part is
+// ### smooth-shaded and rounded: a tapered torso and trousers turned on a lathe, shoulders, elbows and knees as joints,
+// ### hands with fingers and a thumb. On the uniform: shoulder boards, a breast badge, a name plate, a shoulder radio,
+// ### a duty belt with a key ring, a handcuff case and a baton. His left arm hangs, his right arm reaches out to pull the
+// ### door shut. haleFade() fades the whole figure in and out.
 function buildHale(){
-  const mat = (color, o) => new THREE.MeshStandardMaterial(Object.assign({ color, flatShading: true, roughness: .8, transparent: true, opacity: 0 }, o));
-  const HM = { uniform: mat(0x2c343e, { emissive: 0x0a0d12 }), shirt: mat(0x8b9097), leather: mat(0x17181b, { roughness: .5 }), metal: mat(0xb9bdc2, { roughness: .35, metalness: .8 }),
-    skin: mat(0xc89878, { roughness: .75 }), hair: mat(0x5b3b26, { roughness: .9 }), cap: mat(0x252c35, { roughness: .6 }) };
-  const g = new THREE.Group();
-  const put = (geo, m, x = 0, y = 0, z = 0) => { geo.translate(x, y, z); const mesh = new THREE.Mesh(geo, HM[m]); mesh.castShadow = true; g.add(mesh); return mesh; };
-  const bx = (w, h, d, m, x, y, z) => put(new THREE.BoxGeometry(w, h, d), m, x, y, z);
-  const cy = (rt, rb, h, m, x, y, z, n, sz) => { const geo = new THREE.CylinderGeometry(rt, rb, h, n || 8); if (sz) geo.scale(1, 1, sz); return put(geo, m, x, y, z); };
+  const hrnd = mulberry32(1912), g = new THREE.Group(), mats = [];
+  const mat = o => { const m = new THREE.MeshStandardMaterial(Object.assign({ transparent: true, opacity: 0 }, o)); mats.push(m); return m; };
+  // the scanned surfaces; every piece gets planar UVs in metres divided by the size of one scan (see worldUV)
+  const scanned = (color, normal, rough, o) => mat(Object.assign({ map: SCAN(color, true), normalMap: SCAN(normal, false), roughnessMap: SCAN(rough, false) }, o));
+  const wool = scanned('uniform-wool-color.jpg', 'uniform-wool-normal.jpg', 'uniform-wool-rough.jpg', { roughness: 1, normalScale: new THREE.Vector2(.9, .9), envMapIntensity: .25 });
+  wool.color.setRGB(.11, .135, .2);   // the grey scan dyed navy (linear)
+  const leather = scanned('leather-color.jpg', 'leather-normal.jpg', 'leather-rough.jpg', { roughness: .75, normalScale: new THREE.Vector2(.6, .6), envMapIntensity: .7 });
+  leather.color.setRGB(.42, .42, .44);
+  const poplin = mat({ color: 0x9db3c8, roughness: .8, normalMap: SCAN('shirt-poplin-normal.jpg', false), normalScale: new THREE.Vector2(.8, .8), envMapIntensity: .2 });
+  const tie = mat({ color: 0x15181d, roughness: .55, envMapIntensity: .3 });
+  const metal = mat({ color: 0xc9c2a8, roughness: .3, metalness: 1, envMapIntensity: 1.1 });
+  const steel = mat({ color: 0xb9bec2, roughness: .35, metalness: 1, envMapIntensity: 1 });
+  const plastic = mat({ color: 0x18191b, roughness: .45, envMapIntensity: .4 });
+  const SKIN = '#c08c72', skinPlain = mat({ color: SKIN, roughness: .58, envMapIntensity: .25 });
+  const hairM = mat({ color: 0x4a4540, roughness: .95, envMapIntensity: .1 });
+  const TILE = new Map([[wool, .27], [leather, .4], [poplin, .29]]);
+  // ### Planar UVs from the piece's own position, in units of one scan: u runs across the front and round the sides
+  // ### (x + z), v up the figure, so the weave keeps its real size on every part, whatever its shape.
+  const worldUV = (geo, tile) => {
+    const p = geo.attributes.position, n = geo.attributes.normal, uv = new Float32Array(p.count * 2);
+    for (let i = 0; i < p.count; i++){
+      const side = Math.abs(n.getX(i)) > Math.abs(n.getZ(i));
+      uv[i * 2] = (side ? p.getZ(i) : p.getX(i)) / tile; uv[i * 2 + 1] = (Math.abs(n.getY(i)) > .85 ? p.getZ(i) : p.getY(i)) / tile;
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    return geo;
+  };
+  const put = (geo, m, parent) => {
+    if (TILE.has(m)) worldUV(geo, TILE.get(m));
+    const mesh = new THREE.Mesh(geo, m); mesh.castShadow = true; (parent || g).add(mesh); return mesh;
+  };
+  const V = (x, y, z) => new THREE.Vector3(x, y, z), UP = V(0, 1, 0);
+  // a smooth tapered tube from a to b, ending in round caps, so joints between two tubes have no seams or gaps
+  const tube = (a, b, r0, r1, m, caps = true) => {
+    const d = b.clone().sub(a), len = d.length(), geo = new THREE.CylinderGeometry(r1, r0, len, 18, 3, true);
+    geo.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, d.clone().normalize())));
+    geo.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    put(geo, m);
+    if (caps){ put(new THREE.SphereGeometry(r0, 18, 12).translate(a.x, a.y, a.z), m); put(new THREE.SphereGeometry(r1, 18, 12).translate(b.x, b.y, b.z), m); }
+  };
+  // a body of revolution from [radius, height] pairs, flattened front to back by sz
+  const lathe = (pts, sz, m, segs = 32) => put(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), segs).scale(1, 1, sz), m);
+  const blob = (rx, ry, rz, x, y, z, m, parent) => put(new THREE.SphereGeometry(1, 16, 12).scale(rx, ry, rz).translate(x, y, z), m, parent);
+  const rbox = (w, h, d, x, y, z, m, rx = 0, rz = 0) => { const geo = new THREE.BoxGeometry(w, h, d); geo.rotateX(rx); geo.rotateZ(rz); geo.translate(x, y, z); return put(geo, m); };
+
+  // ---- boots and trousers
   for (const s of [-1, 1]){
-    bx(.15, .14, .3, 'leather', s * .11, .07, .04); bx(.16, .12, .17, 'leather', s * .11, .2, -.01);           // boots
-    put(limb([s * .11, .24, 0], [s * .12, .92, 0], .095, .12), 'uniform');                                     // trouser legs
-    bx(.12, .03, .11, 'uniform', s * .24, 1.545, 0); bx(.025, .025, .02, 'metal', s * .25, 1.565, .03);         // epaulettes
-    bx(.12, .11, .025, 'uniform', s * .1, 1.36, .145); bx(.022, .022, .015, 'metal', s * .1, 1.395, .16);      // chest pockets
+    const x = s * .1;
+    rbox(.105, .028, .3, x, .014, .045, leather);                                        // sole and heel
+    blob(.056, .055, .13, x, .065, .06, leather);                                        // the foot, round over the toes
+    blob(.05, .03, .06, x, .065, .155, leather);                                         // toe cap
+    tube(V(x, .06, 0), V(x, .21, -.005), .058, .054, leather, false);                    // boot shaft
+    tube(V(x, .17, 0), V(x * 1.05, .52, .01), .062, .066, wool);                         // lower leg, the hem over the boot
+    tube(V(x * 1.05, .52, .01), V(x, .93, 0), .066, .088, wool);                         // thigh
+    rbox(.004, .7, .004, x, .55, .072, wool);                                            // the pressed crease
   }
-  // left arm hanging, right arm reaching out for the door
-  put(limb([-.27, 1.5, 0], [-.3, 1.18, .02], .075, .065), 'uniform'); put(limb([-.3, 1.18, .02], [-.29, .92, .07], .065, .055), 'uniform');
-  bx(.08, .1, .07, 'skin', -.29, .86, .08);
-  put(limb([.27, 1.5, 0], [.37, 1.31, .27], .075, .065), 'uniform'); put(limb([.37, 1.31, .27], [.41, 1.2, .55], .065, .055), 'uniform');
-  bx(.08, .07, .1, 'skin', .42, 1.18, .61);
-  cy(.235, .215, .6, 'uniform', 0, 1.25, 0, 8, .66);                                                             // jacket
-  cy(.215, .24, .24, 'uniform', 0, .85, 0, 8, .7);                                                               // jacket skirt
-  cy(.222, .222, .07, 'leather', 0, .98, 0, 8, .72); bx(.09, .065, .02, 'metal', 0, .98, .165);                  // belt, buckle
-  const cross = new THREE.BoxGeometry(.05, .62, .02); cross.rotateZ(-.62); put(cross, 'leather', .03, 1.27, .155); // cross belt
-  for (const y of [1.18, 1.3]) bx(.025, .025, .015, 'metal', 0, y, .16);                                         // buttons
-  cy(.075, .09, .08, 'shirt', 0, 1.585, .01); bx(.045, .2, .015, 'leather', 0, 1.47, .155);                      // collar, tie
-  put(new THREE.TorusGeometry(.045, .008, 5, 12), 'metal', -.13, .91, .16);                                       // key ring
-  for (let k = 0; k < 4; k++){ bx(.014, .1, .01, 'metal', -.105 - k * .016, .83, .165); bx(.03, .014, .01, 'metal', -.112 - k * .016, .785, .165); }
-  // head
-  cy(.05, .055, .1, 'skin', 0, 1.63, 0, 6);
-  const skull = new THREE.IcosahedronGeometry(.115, 0); skull.scale(.95, 1.15, 1.05); put(skull, 'skin', 0, 1.75, .01);
-  bx(.035, .05, .04, 'skin', 0, 1.74, .12);                                                                       // nose
-  for (const s of [-1, 1]) bx(.025, .05, .035, 'skin', s * .11, 1.75, 0);                                        // ears
-  bx(.11, .028, .035, 'hair', 0, 1.7, .115); bx(.22, .09, .12, 'hair', 0, 1.79, -.05);                           // moustache, hair
-  cy(.15, .125, .08, 'cap', 0, 1.89, -.005, 10); cy(.122, .122, .04, 'leather', 0, 1.84, 0, 10);                 // cap
-  const visor = new THREE.CylinderGeometry(.12, .12, .015, 10, 1, false, -Math.PI / 2, Math.PI); visor.rotateX(.18); put(visor, 'leather', 0, 1.825, .04);
-  bx(.03, .03, .015, 'metal', 0, 1.89, .14);                                                                      // cap badge
-  return { g, mats: Object.values(HM) };
+  lathe([[.0, .82], [.16, .82], [.18, .9], [.178, .97], [.17, 1.0], [0, 1.0]], .7, wool); // seat of the trousers
+
+  // ---- the uniform shirt: chest, waist and shoulders turned on a lathe, tucked in at the belt
+  const TORSO = [[.176, .95], [.178, 1.02], [.186, 1.12], [.2, 1.26], [.208, 1.36], [.205, 1.44], [.18, 1.5], [.13, 1.55], [.08, 1.585], [.066, 1.61]], SZ = .64;
+  lathe([[0, .95], ...TORSO, [0, 1.61]], SZ, wool, 40);
+  // ### How far the shirt's surface stands out in front at a height and a sideways offset, so the placket, the tie, the
+  // ### pockets and the badge lie on the chest instead of floating in front of it or sinking in.
+  const rAt = y => { for (let i = 1; i < TORSO.length; i++) if (y <= TORSO[i][1]){ const [r0, y0] = TORSO[i - 1], [r1, y1] = TORSO[i]; return r0 + (r1 - r0) * (y - y0) / (y1 - y0); } return TORSO[TORSO.length - 1][0]; };
+  const surfZ = (y, x = 0) => { const r = rAt(y); return SZ * Math.sqrt(Math.max(0, r * r - x * x)); };
+  // a strip that lies on the chest from height y0 to y1, its half width given by hw(t) for t from 0 (bottom) to 1 (top)
+  const onChest = (cx, y0, y1, hw, off, m) => {
+    const geo = new THREE.PlaneGeometry(1, 1, 4, 14), p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++){ const t = p.getY(i) + .5, y = y0 + (y1 - y0) * t, x = cx + p.getX(i) * 2 * hw(t); p.setXYZ(i, x, y, surfZ(y, x) + off); }
+    geo.computeVertexNormals(); return put(geo, m);
+  };
+  onChest(0, .99, 1.5, () => .016, .002, wool);                                         // the button placket
+  for (const y of [1.06, 1.17]) blob(.007, .007, .004, 0, y, surfZ(y) + .004, metal);   // buttons below the tie
+  for (const s of [-1, 1]){
+    onChest(s * .095, 1.27, 1.39, () => .054, .005, wool);                               // breast pockets
+    onChest(s * .095, 1.375, 1.415, t => .056 - (1 - t) * .004, .009, wool);           // pocket flaps
+    blob(.006, .006, .004, s * .095, 1.385, surfZ(1.385, s * .095) + .012, metal);
+    rbox(.13, .016, .1, s * .17, 1.515, .0, wool, 0, -s * .38);                          // shoulder boards
+    blob(.007, .007, .007, s * .125, 1.537, .02, metal);
+  }
+  // the badge over the left pocket: a gold shield; the name plate over the right
+  const shield = new THREE.Shape(); shield.moveTo(0, .03); shield.lineTo(.022, .022); shield.lineTo(.02, -.01); shield.quadraticCurveTo(.012, -.026, 0, -.034); shield.quadraticCurveTo(-.012, -.026, -.02, -.01); shield.lineTo(-.022, .022); shield.closePath();
+  const badge = new THREE.ExtrudeGeometry(shield, { depth: .004, bevelEnabled: true, bevelThickness: .002, bevelSize: .002, bevelSegments: 2 });
+  badge.rotateX(-.25); badge.translate(.095, 1.45, surfZ(1.45, .095) + .002); put(badge, metal);
+  const plate = canvasTex(128, 32, (c, w, h) => { c.fillStyle = '#1a1c20'; c.fillRect(0, 0, w, h); c.fillStyle = '#e8e2cf'; c.font = '700 24px "Arial Narrow", Arial, sans-serif'; c.textAlign = 'center'; c.fillText('D. HALE', w / 2, 24); });
+  const plateM = mat({ map: plate, roughness: .4, envMapIntensity: .5 });
+  const pg = new THREE.PlaneGeometry(.075, .018); pg.rotateX(-.2); pg.translate(-.095, 1.435, surfZ(1.435, .095) + .004); put(pg, plateM);
+  // shirt collar, tie knot and tie
+  lathe([[.07, 1.58], [.073, 1.62], [.067, 1.645]], .95, poplin, 24).material.side = THREE.DoubleSide;
+  for (const s of [-1, 1]){ const c = new THREE.BoxGeometry(.045, .055, .004); c.rotateZ(s * .9); c.rotateX(-.5); c.translate(s * .026, 1.585, .074); put(c, poplin); }
+  blob(.014, .017, .011, 0, 1.585, .078, tie);
+  onChest(0, 1.15, 1.57, t => .028 - t * .016, .007, tie);                               // the tie, widening downwards
+  { const tip = new THREE.BufferGeometry(), z = surfZ(1.15) + .007;
+    tip.setAttribute('position', new THREE.Float32BufferAttribute([-.028, 1.15, z, .028, 1.15, z, 0, 1.115, surfZ(1.115) + .007], 3)); tip.computeVertexNormals(); put(tip, tie); }
+
+  // ---- the duty belt and what hangs on it
+  put(new THREE.CylinderGeometry(.187, .187, .052, 40, 1, true).scale(1, 1, .7).translate(0, .98, 0), leather).material.side = THREE.DoubleSide;
+  rbox(.06, .045, .012, 0, .98, .133, steel);                                            // buckle
+  rbox(.04, .028, .014, 0, .98, .136, leather);
+  { const ring = new THREE.TorusGeometry(.03, .004, 8, 24); ring.translate(-.15, .93, .1); put(ring, steel);
+    const krnd = mulberry32(4471);
+    for (let k = 0; k < 5; k++){ const a = -.5 + k * .25 + (krnd() - .5) * .1, key = new THREE.BoxGeometry(.012, .055, .003); key.translate(0, -.03, 0); key.rotateZ(a); key.translate(-.15 + Math.sin(a) * .028, .905, .104 + k * .002); put(key, k % 2 ? metal : steel); } }
+  rbox(.07, .055, .035, .16, .955, .065, leather, 0, 0);                                 // handcuff case
+  rbox(.06, .06, .03, -.175, .965, -.045, plastic);                                      // radio pack at the back
+  tube(V(.185, .99, -.02), V(.2, .55, -.03), .016, .014, plastic, true);                 // baton
+  // the radio microphone clipped to the left shoulder board, its coiled cord down to the back
+  rbox(.032, .05, .02, -.155, 1.47, .095, plastic, -.2);
+  tube(V(-.17, 1.45, .08), V(-.19, 1.2, -.12), .004, .004, plastic, false);
+
+  // ---- arms and hands
+  const hand = (wrist, dir, s, curl) => {
+    // a hand in its own frame (pointing down -y, the palm facing -x * s), turned to the forearm's direction; each finger
+    // has two joints that bend by curl and twice curl
+    const h = new THREE.Group(); g.add(h);
+    h.position.copy(wrist); h.quaternion.setFromUnitVectors(V(0, -1, 0), dir.clone().normalize());
+    const part = geo => { const m = new THREE.Mesh(geo, skinPlain); m.castShadow = true; h.add(m); };
+    part(new THREE.SphereGeometry(1, 18, 12).scale(.021, .048, .04).translate(0, -.042, 0));         // palm and back of the hand
+    const seg = (a, b, r) => { const d = b.clone().sub(a), geo = new THREE.CylinderGeometry(r * .92, r, d.length(), 10);
+      geo.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, d.clone().normalize())));
+      geo.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); part(geo); part(new THREE.SphereGeometry(r * .95, 10, 8).translate(b.x, b.y, b.z)); };
+    [.058, .066, .062, .05].forEach((l, f) => {
+      const z = -.026 + f * .0175, r = .0088 - f * .0006, k = V(0, -.082, z);
+      const m = k.clone().add(V(-s * Math.sin(curl) * l * .55, -Math.cos(curl) * l * .55, 0));
+      const tip = m.clone().add(V(-s * Math.sin(curl * 2) * l * .45, -Math.cos(curl * 2) * l * .45, 0));
+      part(new THREE.SphereGeometry(r, 10, 8).translate(k.x, k.y, k.z)); seg(k, m, r); seg(m, tip, r * .92);
+    });
+    const t0 = V(-s * .01, -.03, .03), t1 = t0.clone().add(V(-s * .022, -.03, .016)), t2 = t1.clone().add(V(-s * .018, -.022, .004));
+    seg(t0, t1, .011); seg(t1, t2, .0095);
+  };
+  for (const s of [-1, 1]) blob(.068, .07, .072, s * .2, 1.455, 0, wool);                // shoulders
+  // left arm hanging, slightly bent
+  tube(V(-.205, 1.45, 0), V(-.235, 1.17, -.02), .058, .05, wool);
+  tube(V(-.235, 1.17, -.02), V(-.24, .93, .04), .05, .04, wool);
+  tube(V(-.24, .95, .035), V(-.241, .925, .041), .044, .043, wool, false);              // cuff
+  hand(V(-.241, .918, .043), V(-.01, -1, .2), -1, .45);
+  // right arm reaching out for the door
+  tube(V(.205, 1.45, 0), V(.32, 1.29, .24), .058, .05, wool);
+  tube(V(.32, 1.29, .24), V(.39, 1.2, .5), .05, .04, wool);
+  tube(V(.385, 1.205, .48), V(.392, 1.198, .505), .044, .043, wool, false);
+  hand(V(.393, 1.197, .51), V(.25, -.12, 1), 1, .75);
+
+  // ---- neck and head
+  tube(V(0, 1.57, -.008), V(0, 1.68, .0), .062, .055, skinPlain, false);
+  const head = new THREE.Group(); head.position.set(0, 1.745, .01); head.rotation.x = .04; g.add(head);
+  const RX = .078, RY = .112, RZ = .098;
+  // ### The face, painted on the sphere's own map: u = 0.75 is the front (the sphere is turned round to face +z), v runs
+  // ### from the crown (0) to the chin (1). U(x, y) and Vv(y) find the spot on the map for a point on the face.
+  const Vv = y => Math.acos(Math.max(-1, Math.min(1, y / RY))) / Math.PI;
+  const U = (x, y) => .75 - Math.asin(Math.max(-1, Math.min(1, x / (RX * Math.sqrt(Math.max(.05, 1 - (y / RY) ** 2)))))) / (Math.PI * 2);
+  const face = canvasTex(1024, 512, (c, w, h) => {
+    const P = (x, y) => [U(x, y) * w, Vv(y) * h], blobAt = (x, y, r, col, sy = 1) => { c.save(); c.translate(x, y); c.scale(1, sy); const gr = c.createRadialGradient(0, 0, 0, 0, 0, r); gr.addColorStop(0, col); gr.addColorStop(1, col.replace(/[\d.]+\)$/, '0)')); c.fillStyle = gr; c.fillRect(-r, -r, r * 2, r * 2); c.restore(); };
+    c.fillStyle = SKIN; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 90; i++) blobAt(hrnd() * w, hrnd() * h, 10 + hrnd() * 40, hrnd() < .55 ? 'rgba(165,85,65,.1)' : 'rgba(225,185,155,.1)');
+    for (let i = 0; i < 9000; i++){ c.fillStyle = `rgba(110,60,45,${hrnd() * .08})`; c.fillRect(hrnd() * w, hrnd() * h, 1.5, 1.5); }   // pores
+    // a weathered red over the cheeks and the nose
+    for (const s of [-1, 1]){ const [x, y] = P(s * .045, -.03); blobAt(x, y, 46, 'rgba(175,90,70,.12)', .7); }
+    { const [x, y] = P(0, -.02); blobAt(x, y, 22, 'rgba(170,85,66,.12)'); }
+    // short grey hair at the back and sides, cut high above the ears (the cap covers the top)
+    for (let x = 0; x < w; x++){
+      const d = Math.min(Math.abs(x / w - .75), 1 - Math.abs(x / w - .75)) / .5, end = (.16 + Math.pow(d, 1.6) * .5) * h;
+      c.fillStyle = 'rgba(120,114,106,.92)'; c.fillRect(x, 0, 1, end - 10);
+      const gr = c.createLinearGradient(0, end - 10, 0, end); gr.addColorStop(0, 'rgba(120,114,106,.92)'); gr.addColorStop(1, 'rgba(120,114,106,0)'); c.fillStyle = gr; c.fillRect(x, end - 10, 1, 10);
+    }
+    for (let i = 0; i < 9000; i++){ const x = hrnd() * w, y = hrnd() * h * .62; c.fillStyle = hrnd() < .5 ? 'rgba(60,55,50,.25)' : 'rgba(205,200,192,.22)'; c.fillRect(x, y, 1, 2); }
+    // forehead lines
+    c.strokeStyle = 'rgba(120,62,48,.25)'; c.lineWidth = 1.4;
+    for (const y of [.06, .072, .084]){ const [x0, yy] = P(-.04, y), [x1] = P(.04, y); c.beginPath(); c.moveTo(x0, yy); c.quadraticCurveTo((x0 + x1) / 2, yy - 4, x1, yy); c.stroke(); }
+    // the eyes: sockets, bags, whites, grey-blue irises, lids, crow's feet, heavy brows
+    for (const s of [-1, 1]){
+      const [x, y] = P(s * .031, .012);
+      blobAt(x, y, 28, 'rgba(80,42,32,.55)', .6);
+      blobAt(x, y + 14, 20, 'rgba(120,70,62,.28)', .45);
+      c.strokeStyle = 'rgba(110,60,46,.4)'; c.lineWidth = 1.3; c.beginPath(); c.ellipse(x, y + 9, 13, 5, 0, .15 * Math.PI, .85 * Math.PI); c.stroke();
+      c.fillStyle = 'rgba(178,160,148,.95)'; c.beginPath(); c.ellipse(x, y, 11.5, 3.9, 0, 0, 7); c.fill();
+      c.fillStyle = '#3f4c55'; c.beginPath(); c.arc(x - s * 1.2, y + .3, 4, 0, 7); c.fill();
+      c.fillStyle = '#121212'; c.beginPath(); c.arc(x - s * 1.2, y + .3, 1.9, 0, 7); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.8)'; c.fillRect(x - s * 1.2 + 1, y - 1.5, 1.2, 1.2);
+      c.strokeStyle = 'rgba(45,25,20,.9)'; c.lineWidth = 2.2; c.beginPath(); c.ellipse(x, y + 1, 13.5, 5.4, 0, Math.PI * 1.04, Math.PI * 1.96); c.stroke();
+      c.strokeStyle = 'rgba(120,70,55,.35)'; c.lineWidth = 1.2; c.beginPath(); c.ellipse(x, y - 1, 15, 8, 0, Math.PI * 1.1, Math.PI * 1.9); c.stroke();   // the lid fold
+      c.strokeStyle = 'rgba(115,62,48,.3)'; c.lineWidth = 1;
+      for (const a of [-.35, 0, .35]){ c.beginPath(); c.moveTo(x - s * 16, y + a * 6); c.lineTo(x - s * 27, y + a * 14); c.stroke(); }
+      c.lineCap = 'round';
+      for (let k = 0; k < 70; k++){ const t = hrnd(), bx = x - 17 + t * 34, by = y - 13 - Math.sin(t * Math.PI) * 4 + (s * (t - .5)) * 2 + (hrnd() - .5) * 3; c.strokeStyle = `rgba(${hrnd() < .3 ? '150,142,132' : '52,44,38'},.85)`; c.lineWidth = 1.8; c.beginPath(); c.moveTo(bx, by); c.lineTo(bx + s * (t - .5) * 4 + 3, by - 1.5); c.stroke(); }
+    }
+    // nose shadow, the lines from the nose to the mouth, the mouth under the moustache
+    { const [x, y] = P(0, -.04); c.fillStyle = 'rgba(70,35,28,.55)'; for (const s of [-1, 1]){ c.beginPath(); c.ellipse(x + s * 6, y + 6, 3.4, 2, 0, 0, 7); c.fill(); } }
+    for (const s of [-1, 1]){ const [x0, y0] = P(s * .018, -.035), [x1, y1] = P(s * .04, -.075); c.strokeStyle = 'rgba(110,58,45,.4)'; c.lineWidth = 2.2; c.beginPath(); c.moveTo(x0, y0); c.quadraticCurveTo(x1 + s * 2, (y0 + y1) / 2, x1, y1); c.stroke(); }
+    { const [x, y] = P(0, -.066); c.fillStyle = 'rgba(140,84,72,.6)'; c.beginPath(); c.ellipse(x, y + 4, 14, 3.4, 0, 0, 7); c.fill(); c.strokeStyle = 'rgba(70,32,28,.8)'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(x - 15, y + 2); c.quadraticCurveTo(x, y + 3.5, x + 15, y + 2); c.stroke(); }
+    // the moustache: grey hairs combed down and out from under the nose
+    { const [x, y] = P(0, -.05); c.lineCap = 'round';
+      for (let k = 0; k < 900; k++){ const t = hrnd() * 2 - 1, bx = x + t * 24, by = y - 5 + Math.abs(t) * 5 + hrnd() * 7; c.strokeStyle = `rgba(${hrnd() < .6 ? '62,56,50' : '128,120,112'},.85)`; c.lineWidth = 1.4; c.beginPath(); c.moveTo(bx, by); c.lineTo(bx + t * 3, by + 4 + hrnd() * 3); c.stroke(); } }
+    // grey stubble over the jaw, the chin and the upper lip
+    for (let i = 0; i < 14000; i++){
+      const u = .55 + hrnd() * .4, v = .58 + hrnd() * .4, du = Math.abs(u - .75);
+      if (v < .66 && du < .1) continue;                                    // not on the cheeks under the eyes
+      if (v < .58 + du * .4) continue;
+      c.fillStyle = `rgba(${hrnd() < .5 ? '80,70,62' : '150,142,132'},${.12 + hrnd() * .22})`; c.fillRect(u * w, v * h, 1.2, 1.2);
+    }
+    const jaw = c.createLinearGradient(0, .82 * h, 0, h); jaw.addColorStop(0, 'rgba(70,40,30,0)'); jaw.addColorStop(1, 'rgba(70,40,30,.4)'); c.fillStyle = jaw; c.fillRect(0, .82 * h, w, .18 * h);
+  });
+  const skinFace = mat({ map: face, roughness: .62, envMapIntensity: .2 });
+  // ### The skull: a sphere turned to face +z and shaped: narrower at the temples, a brow ridge, cheekbones, eye
+  // ### sockets, a strong jaw and a square chin.
+  const skull = new THREE.SphereGeometry(1, 48, 36); skull.rotateY(Math.PI);
+  { const p = skull.attributes.position;
+    for (let i = 0; i < p.count; i++){
+      let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const front = Math.max(0, z), jawK = y < -.1 ? 1 - .08 * Math.min(1, (-y - .1) * 1.6) : 1;
+      x *= jawK * (y > .45 ? 1 - (y - .45) * .12 : 1);
+      if (y < -.55) z += front * (-.55 - y) * .25;                                           // the chin
+      z += front * .07 * Math.exp(-(((y - .22) / .1) ** 2)) * Math.exp(-((x / .55) ** 2));   // the brow ridge
+      for (const s of [-1, 1]){
+        const ex = s * .4, ey = .1; z -= front * .06 * Math.exp(-(((x - ex) / .18) ** 2 + ((y - ey) / .13) ** 2));   // eye sockets
+        z += front * .04 * Math.exp(-(((x - s * .52) / .2) ** 2 + ((y + .14) / .14) ** 2));                            // cheekbones
+      }
+      if (z < 0) z *= 1.05;
+      p.setXYZ(i, x * RX, y * RY, z * RZ);
+    }
+    skull.computeVertexNormals(); }
+  put(skull, skinFace, head);
+  // the nose: bridge, tip and the wings of the nostrils
+  { const n = new THREE.SphereGeometry(1, 16, 12); n.scale(.0105, .024, .012); n.rotateX(-.3); n.translate(0, -.016, RZ - .002); put(n, skinPlain, head); }
+  blob(.0105, .0095, .0095, 0, -.035, RZ + .006, skinPlain, head);
+  for (const s of [-1, 1]) blob(.0065, .006, .007, s * .0095, -.038, RZ - .004, skinPlain, head);
+  // the ears
+  for (const s of [-1, 1]){ const e = new THREE.SphereGeometry(1, 14, 10); e.scale(.007, .027, .016); e.rotateY(-s * .3); e.translate(s * (RX - .002), -.008, -.008); put(e, skinPlain, head); }
+  // a grey moustache, thick and trimmed
+  for (const s of [-1, 1]){ const m = new THREE.SphereGeometry(1, 14, 10); m.scale(.02, .0065, .005); m.rotateZ(s * .3); m.translate(s * .013, -.049, RZ - .008); put(m, hairM, head); }
+  // ---- the peaked cap: band, a crown that widens to its top, the black leather visor, a chin strap and the cap badge
+  const cap = new THREE.Group(); cap.position.set(0, .045, -.004); cap.rotation.x = -.08; head.add(cap);
+  put(new THREE.CylinderGeometry(.086, .084, .04, 32, 1, true).scale(1, 1, 1.18).translate(0, .015, 0), wool, cap).material.side = THREE.DoubleSide;
+  put(new THREE.LatheGeometry([[.086, .035], [.11, .062], [.122, .075], [.118, .082], [.06, .088], [0, .089]].map(([r, y]) => new THREE.Vector2(r, y)), 32).scale(1, 1, 1.12), wool, cap);
+  { const v = new THREE.CylinderGeometry(.092, .092, .006, 32, 1, false, -Math.PI / 2, Math.PI); v.scale(1, 1, .75); v.rotateX(.3); v.translate(0, -.002, .06); put(v, leather, cap); }
+  put(new THREE.CylinderGeometry(.0875, .0875, .009, 32, 1, true, -Math.PI * .45, Math.PI * .9).scale(1, 1, 1.18).translate(0, .008, 0), leather, cap);
+  { const b = new THREE.ExtrudeGeometry(shield, { depth: .003, bevelEnabled: true, bevelThickness: .0015, bevelSize: .0015, bevelSegments: 1 }); b.scale(.75, .75, 1); b.rotateX(-.2); b.translate(0, .05, .105); put(b, metal, cap); }
+  return { g, mats };
 }
 const shadowTex = canvasTex(128, 256, (g, w, h) => {
   const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(0,0,0,.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
