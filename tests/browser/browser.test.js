@@ -109,6 +109,9 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
   profile = fs.mkdtempSync(path.join(os.tmpdir(), 'shard-heist-'));
   chrome = spawn(CHROME, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
     '--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--window-size=1280,800', '--autoplay-policy=no-user-gesture-required',
+    // a desktop with a mouse on every machine: on a laptop with a touchscreen, headless Chrome (no mouse) would report a touch
+    // device, and the escape room would rightly show its touch controls instead of the arrow keys the tests use
+    '--blink-settings=primaryPointerType=4,availablePointerTypes=4,primaryHoverType=2,availableHoverTypes=2',
     // Ubuntu CI machines block Chrome's sandbox; the page is our own local game, so running without it there is fine
     ...(process.env.CI ? ['--no-sandbox'] : []), 'about:blank']);
   const port = await new Promise((resolve, reject) => {
