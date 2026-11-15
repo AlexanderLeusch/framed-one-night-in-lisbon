@@ -3396,7 +3396,7 @@ function startClimb(){
   }
   const hand = side => ({ pos: gripAt(side, .035), moving: true, curl: .2 });
   climb = { t: REDUCED ? CLIMB.end : 0, moves, from: { pos: cam.pos.clone(), yaw: wrapAngle(cam.yaw), pitch: cam.pitch }, hands: !REDUCED,
-    grabbed: -1, landed: -1, stepped: -1, let: -1, off: 0, bodyYaw: 0,
+    grabbed: -1, landed: -1, stepped: -1, let: -1, off: 0, bodyYaw: 0, release: 0,
     hand: { r: hand(1), l: hand(-1) }, foot: { r: footAt(1, -.6), l: footAt(-1, -.9) } };
   ladderSound('cloth', .35); ladderSound('creak2', .3, .85, .5);
 }
@@ -3455,7 +3455,7 @@ function updateClimb(dt){
     pose.pos.copy(last).lerp(bottom, easeIO(clamp(v * 1.6, 0, 1)));
     pose.yaw = Math.PI * easeIO(clamp((v - .2) / .8, 0, 1)); pose.pitch = -.5 + .4 * e;
     c.bodyYaw = pose.yaw;
-    if (v > .2) c.hands = false;
+    c.release = smoothStep(.05, .4, v);   // the hands let go and the boots step down onto the stone
     if (c.off === 0){ c.off = 1; ladderSound('creak1', .3, .7); if (!ladderSound('floor', .6, .9)) noise(.16, .16, 'lowpass', 220); dustFall(14, x, TUN.floor + .3, C.eyeZ - .1, .4); }
     if (c.off === 1 && v > .3){ c.off = 2; ladderSound('floor', .45, 1.05); ladderSound('cloth', .14, 1.2); }
     if (c.off === 2 && v > .62){ c.off = 3; ladderSound('floor', .35, .95); }
@@ -3633,7 +3633,7 @@ function placeLimb(m, A, B){
   _a.copy(A).applyMatrix4(_inv); _b.copy(B).applyMatrix4(_inv).sub(_a);
   const len = _b.length(); m.position.copy(_a); m.quaternion.setFromUnitVectors(AXIS_Y, _b.divideScalar(len || 1)); m.scale.set(1, len, 1);
 }
-const FOREARM = .29, UPPER_ARM = .31, THIGH = .46, SHIN = .46;
+const FOREARM = .29, UPPER_ARM = .31, THIGH = .46, SHIN = .46, ARM_REACH = .58, LEG_REACH = .9;
 // ### The hands on the ladder and the body they belong to. Each hand closes round its rung: the wrist sits so that the
 // ### rung lies across the palm at the base of the fingers, and the hands are fixed to the rungs in the world, so they
 // ### stay put while you sink. Each forearm runs from the wrist to an elbow found from the shoulder (two bones), so the
@@ -3651,29 +3651,37 @@ function climbHands(dt){
   _qy.setFromAxisAngle(AXIS_Y, -by);
   ME.g.visible = true;
   HANDS.scaled = true;
+  const follow = climb.t > 1.2 ? 1 : 1 - Math.exp(-dt * (8 + climb.t * 60));
   for (const key of ['r', 'l']){
     const h = HANDS[key], g = climb.hand[key], side = key === 'r' ? 1 : -1, i = key === 'r' ? 0 : 1;
     // the rung sits across the palm: the wrist is a hand's breadth back along the forearm and a little to the back of the hand
     const zl = _a.copy(AXIS_Z).applyQuaternion(h.arm.quaternion), yl = _b.copy(AXIS_Y).applyQuaternion(h.arm.quaternion);
     _hv.copy(g.pos).applyMatrix4(_inv).addScaledVector(zl, .075).addScaledVector(yl, .032); _hv.y -= HANDS.down * .35;
-    const P = h.p.toArray(), V = h.v.toArray(), T = _hv.toArray();
-    for (let n = 0; n < 3; n++) [P[n], V[n]] = spring(P[n], V[n], T[n], g.moving ? 420 : 2600, g.moving ? 36 : 100, dt);
-    h.p.fromArray(P); h.v.fromArray(V); h.w.set(0, 0, 0);
-    h.arm.position.copy(h.p);
-    // the elbow, bent out and down, between the shoulder and the wrist
+    if (climb.release){   // at the bottom the hands let go and hang at your sides
+      const hang = neck.clone().addScaledVector(right, side * .24).addScaledVector(fwd, .06).add(new THREE.Vector3(0, -.62, 0)).applyMatrix4(_inv);
+      _hv.lerp(hang, climb.release); g.moving = climb.release < 1; g.curl = .35;
+    }
+    // an arm reaches no further than its length: a hold still out of reach is reached for, and taken once it is near
     const shoulder = neck.clone().addScaledVector(right, side * .19).add(new THREE.Vector3(0, -.03, 0));
-    const wristW = h.p.clone().applyMatrix4(camera.matrixWorld);
+    const wristW = _hv.clone().applyMatrix4(camera.matrixWorld), reach = wristW.clone().sub(shoulder);
+    if (reach.length() > ARM_REACH) wristW.copy(shoulder).addScaledVector(reach.normalize(), ARM_REACH);
+    _hv.copy(wristW).applyMatrix4(_inv);
+    // the hands glide in from where they hung at the start of the climb, then follow their holds exactly, so the arm
+    // never comes apart from the hand or the shoulder
+    h.p.lerp(_hv, follow); h.v.set(0, 0, 0); h.w.set(0, 0, 0);
+    h.arm.position.copy(h.p);
+    wristW.copy(h.p).applyMatrix4(camera.matrixWorld);
     const elbow = twoBone(shoulder, wristW, UPPER_ARM, FOREARM, right.clone().multiplyScalar(side * .8).add(new THREE.Vector3(0, -1, 0)).addScaledVector(fwd, -.3));
     // the forearm points to the elbow, the back of the hand faces up and towards you, the thumb a little inwards
     const elbowC = toCam(elbow);
     _up.set(0, 1, 0).transformDirection(_inv).add(_ax.copy(h.p).normalize().negate());
     _m4.lookAt(elbowC, h.p, _up);
     _qw.setFromRotationMatrix(_m4).multiply(new THREE.Quaternion().setFromAxisAngle(AXIS_Z, -side * (g.moving ? .5 : .25)));
-    h.arm.quaternion.slerp(_qw, 1 - Math.exp(-dt * (g.moving ? 12 : 28)));
+    h.arm.quaternion.copy(_qw);   // the forearm always points straight at the elbow
     h.r.set(h.arm.rotation.x, h.arm.rotation.y, h.arm.rotation.z);   // so the usual springs carry on from here afterwards
     h.arm.visible = HANDS.down < .98;
     // the sleeve reaches exactly to the elbow
-    const fl = clamp(elbowC.distanceTo(h.p) / .485, .4, 1.2);
+    const fl = elbowC.distanceTo(h.p) / .485;
     h.arm.children.forEach(o => { if (o.material === HAND_MAT.sleeve) o.scale.z = fl; });
     placeLimb(ME.upper[i], elbow, shoulder);
     ME.elbow[i].position.copy(elbowC); ME.shoulder[i].position.copy(toCam(shoulder));
@@ -3686,7 +3694,15 @@ function climbHands(dt){
       poseFingers(h, side, g.moving ? .12 : 0);
     }
     // the leg on this side: hip, knee bent towards the ladder, boot on its rung
-    const hip = hips.clone().addScaledVector(right, side * .1), ankle = climb.foot[key];
+    // (while you let yourself down into the hatch the boots come off the floor below you onto the rungs, and a boot
+    // still out of reach hangs from the leg, stretched towards its rung)
+    const hip = hips.clone().addScaledVector(right, side * .1), ankle = climb.foot[key].clone();
+    const stand = hip.clone().addScaledVector(fwd, .06).add(new THREE.Vector3(0, -.86, 0));
+    stand.y = Math.max(stand.y, climb.t < CLIMB.mount ? .1 : TUN.floor + .1);
+    if (climb.t < CLIMB.mount) ankle.lerpVectors(stand, ankle, smoothStep(.3, .95, climb.t / CLIMB.mount));
+    if (climb.release) ankle.lerp(stand, smoothStep(0, .7, climb.release));
+    const leg = ankle.clone().sub(hip);
+    if (leg.length() > LEG_REACH) ankle.copy(hip).addScaledVector(leg.normalize(), LEG_REACH);
     const knee = twoBone(hip, ankle, THIGH, SHIN, fwd.clone().addScaledVector(right, side * .25));
     placeLimb(ME.thigh[i], hip, knee); placeLimb(ME.shin[i], knee, ankle);
     ME.hip[i].position.copy(toCam(hip)); ME.knee[i].position.copy(toCam(knee));
