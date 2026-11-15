@@ -806,7 +806,7 @@ const MIRROR = (() => {
     const skin = new THREE.MeshStandardMaterial({ map: face, roughness: .6, envMapIntensity: .3 });
     const plain = new THREE.MeshStandardMaterial({ color: new THREE.Color(SKIN).convertSRGBToLinear(), roughness: .6, envMapIntensity: .3 });
     const cloth = HAND_MAT.sleeve.clone();
-    for (const k of ['map', 'bumpMap']){ cloth[k] = HAND_MAT.sleeve[k].clone(); cloth[k].repeat.set(2, 4.2); cloth[k].needsUpdate = true; }
+    cloth.map = HAND_MAT.sleeve.map.clone(); cloth.map.repeat.set(2, 4.2); cloth.map.needsUpdate = true;   // (the linen's normal and roughness maps follow the map's repeat)
     const mesh = (geo, m, parent) => { const o = new THREE.Mesh(geo, m); (parent || g).add(o); return o; };
     // the head turns with the camera; the eyes are its origin
     const head = new THREE.Group(); head.rotation.order = 'YXZ'; g.add(head);
@@ -2246,6 +2246,28 @@ function prisonCloth(w, h, repeat, rib = 1){
   bump.encoding = THREE.LinearEncoding;
   return { map, bump };
 }
+// ### The uniform is woven of coarse linen: a CC0 scan from Poly Haven (Rough Linen, fetched through its API) gives every
+// ### thread. Its shades are laid over the painted stripes once the picture has loaded, and its normal and roughness
+// ### maps give the weave its relief and its matt and shiny threads. The stripes keep their own repeat; the weave
+// ### follows it, about one scan to each stripe pair.
+const LINEN = { img: null, waiting: [] };
+function linenCloth(cloth, mat, strength = 1){
+  const paint = () => {
+    const c = cloth.map.image, g = c.getContext('2d');
+    g.save(); g.globalCompositeOperation = 'overlay'; g.globalAlpha = .85 * strength; g.drawImage(LINEN.img, 0, 0, c.width, c.height); g.restore();
+    cloth.map.needsUpdate = true;
+  };
+  if (LINEN.img) paint();
+  else {
+    if (!LINEN.waiting.length){ const im = new Image(); im.onload = () => { LINEN.img = im; LINEN.waiting.splice(0).forEach(f => f()); }; im.src = 'textures/uniform-linen-detail.jpg'; }
+    LINEN.waiting.push(paint);
+  }
+  mat.bumpMap = null;
+  mat.normalMap = SCAN('uniform-linen-normal.jpg', false); mat.normalScale = new THREE.Vector2(.7 * strength, .7 * strength);
+  mat.roughnessMap = SCAN('uniform-linen-rough.jpg', false); mat.roughness = 1;
+  mat.needsUpdate = true;
+  return mat;
+}
 // ### The prisoner's uniform, hung on a hook on the north wall under the red lamp: a striped jacket hung by its collar,
 // ### and the matching trousers hung behind it by the waistband, their legs showing under the jacket. The jacket is a
 // ### tube of cloth built point by point: gathered at the collar, the shoulders sagging down to either side, soft folds
@@ -2682,7 +2704,7 @@ const HAND_MAT = {
   nail: new THREE.MeshStandardMaterial({ color: 0xd9b3a0, roughness: .35 }),
   // the real hands: the skin above, matt but with a soft sheen
   real: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .58, envMapIntensity: .35, skinning: true, map: SKIN.map, bumpMap: SKIN.bump, bumpScale: .00025 }),
-  sleeve: (() => { const c = prisonCloth(256, 256, [1, 3.2], .25); return new THREE.MeshStandardMaterial({ color: 0xc8c8c8, roughness: .97, side: THREE.DoubleSide, map: c.map, bumpMap: c.bump, bumpScale: .0004, vertexColors: true }); })()
+  sleeve: (() => { const c = prisonCloth(256, 256, [1, 3.2], .25); return linenCloth(c, new THREE.MeshStandardMaterial({ color: 0xc8c8c8, side: THREE.DoubleSide, map: c.map, vertexColors: true }), .8); })()
 };
 // ### The cuff and the sleeve, running from the wrist (the origin) back out of the picture along +z. The sleeve is a tube
 // ### of cloth with soft folds, pushed up into rings of wrinkles behind the cuff and at the elbow.
@@ -3739,7 +3761,7 @@ function buildBody(){
     g.fillStyle = 'rgba(255,255,255,.45)'; g.fillRect(3, 0, 5, h); g.fillRect(504, 0, 5, h);
     g.fillStyle = 'rgba(0,0,0,.4)'; for (let y = 0; y < h; y += 9){ g.fillRect(6, y + 5, 1.5, 4); g.fillRect(505, y, 1.5, 4); }
   }]]){ paint(tex.image.getContext('2d'), 512); tex.needsUpdate = true; }
-  const mat = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, roughness: .95, map: cloth.map, bumpMap: cloth.bump, bumpScale: .0006, side: THREE.DoubleSide, vertexColors: true });
+  const mat = linenCloth(cloth, new THREE.MeshStandardMaterial({ color: 0xc8c8c8, map: cloth.map, side: THREE.DoubleSide, vertexColors: true }));
   // where the uniform has picked up dust: round the hems and the knees from the ladder and the floor, in patches
   const patchy = (a, y) => .65 + .35 * Math.sin(a * 3 + y * 11) * Math.sin(a * 5 - y * 7);
   const smooth = smoothStep;
@@ -3770,7 +3792,9 @@ function buildBody(){
   const two = f => [f(), f()];
   // the chest: hips (y = -1) to the base of the neck (y = 0), a body's outline, scaled to 38 by 22 cm
   const torso = add(new THREE.Group());
-  const chest = mesh(clothTube([[0, .92], [.25, .84], [.6, .97], [.85, 1], [.95, .8], [1, .46]], [[.22, .12, .05], [.62, .3, .02]], 28, 40,
+  // (the shirt: its hem hangs loose a hand's breadth over the trousers, a little belly above it, the chest, the shoulders)
+  const CHEST = [[0, 1.02], [.05, .97], [.14, .9], [.3, .87], [.42, .9], [.6, .97], [.85, 1], [.95, .8], [1, .46]];
+  const chest = mesh(clothTube(CHEST, [[.22, .12, .05], [.62, .3, .02]], 28, 40,
     (y, a) => (1 - smooth(0, .35, y)) * .35 * patchy(a, y)).translate(0, -1, 0), mat, torso);
   const collar = mesh(plainColours(new THREE.TorusGeometry(.083, .013, 8, 28).rotateX(Math.PI / 2)), mat, torso); collar.scale.set(1, 1, .6); collar.position.y = -.01;
   // the inmate number stencilled on a cloth patch on the chest
@@ -3779,6 +3803,12 @@ function buildBody(){
     c.fillStyle = '#1d1c1b'; c.font = '700 80px "Arial Narrow", Arial, sans-serif'; c.textAlign = 'center'; c.fillText('4471', w / 2, h * .8);
   }) }), torso);
   patch.position.set(-.07, -.17, -.112); patch.rotation.set(-.12, Math.PI, 0);
+  // the buttons down the front of the shirt, on a placket of doubled cloth
+  const button = new THREE.MeshStandardMaterial({ color: 0x2c2a27, roughness: .45 });
+  for (let k = 0; k < 6; k++){
+    const q = .1 + k * .15, r = profileAt(CHEST, 1 - q) * .11;
+    const b = mesh(new THREE.CylinderGeometry(.0065, .0065, .003, 12).rotateX(Math.PI / 2), button, torso); b.position.set(0, -q * CHEST_LEN, -r - .004);
+  }
   // a boot: upper, sole with its heel, and the laces criss-crossing between two rows of brass eyelets on the leather
   const upperTop = t => .075 - .088 * smoothStep(.3, .72, t) - .012 * smoothStep(.85, 1, t);
   const boot = () => {
@@ -3805,12 +3835,12 @@ function buildBody(){
   };
   return { g, torso, chest,
     shoulder: two(() => ball(.064)),
-    upper: two(() => mesh(clothTube([[0, .05], [.5, .057], [1, .064]], [[.1, .2, .09], [.9, .12, .04]], 24, 36, (y, a) => (1 - smooth(0, .3, y)) * .25 * patchy(a, y)))),
+    upper: two(() => mesh(clothTube([[0, .05], [.35, .057], [.75, .064], [1, .066]], [[.1, .2, .09], [.9, .12, .04]], 24, 36, (y, a) => (1 - smooth(0, .3, y)) * .25 * patchy(a, y)))),
     elbow: two(() => ball(.049)),
     hip: two(() => ball(.083)),
-    thigh: two(() => mesh(clothTube([[0, .088], [.25, .086], [.7, .072], [1, .064]], [[.0, .12, .05], [.86, .17, .08]], 24, 36, (y, a) => smooth(.7, 1, y) * .55 * patchy(a, y)))),
+    thigh: two(() => mesh(clothTube([[0, .09], [.15, .089], [.5, .079], [.8, .068], [1, .063]], [[.0, .12, .05], [.86, .17, .08]], 24, 36, (y, a) => smooth(.7, 1, y) * .55 * patchy(a, y)))),
     knee: two(() => ball(.064, .45)),
-    shin: two(() => mesh(clothTube([[0, .063], [.28, .069], [.62, .062], [.9, .058], [.97, .063], [1, .06]], [[.1, .14, .05], [.88, .14, .1]], 24, 36,
+    shin: two(() => mesh(clothTube([[0, .062], [.15, .066], [.33, .071], [.6, .062], [.9, .057], [.97, .063], [1, .06]], [[.1, .14, .05], [.88, .14, .1]], 24, 36,
       (y, a) => ((1 - smooth(0, .18, y)) * .5 + smooth(.5, 1, y) * .9) * patchy(a, y), [1, 0]))),
     boot: two(boot) };
 }
@@ -3833,6 +3863,7 @@ function placeLimb(m, A, B){
   _a.copy(A).applyMatrix4(_inv); _b.copy(B).applyMatrix4(_inv).sub(_a);
   const len = _b.length(); m.position.copy(_a); m.quaternion.setFromUnitVectors(AXIS_Y, _b.divideScalar(len || 1)); m.scale.set(1, len, 1);
 }
+const CHEST_LEN = .6 * 1.12;   // the shirt from the neck to its hem
 const FOREARM = .29, UPPER_ARM = .31, THIGH = .46, SHIN = .46, ARM_REACH = .58, LEG_REACH = .9;
 // ### The hands on the ladder and the body they belong to. Each hand closes round its rung: the wrist sits so that the
 // ### rung lies across the palm at the base of the fingers, and the hands are fixed to the rungs in the world, so they
@@ -3911,7 +3942,7 @@ function climbHands(dt){
     const boot = ME.boot[i]; boot.position.copy(toCam(ankle)); boot.quaternion.copy(_qc).multiply(_qy);
   }
   // the chest: an oval of 38 by 22 cm from the base of the neck to the hips, turned with the body
-  ME.torso.position.copy(toCam(neck)); ME.torso.quaternion.copy(_qc).multiply(_qy); ME.chest.scale.set(.19, neck.y - hips.y, .11);
+  ME.torso.position.copy(toCam(neck)); ME.torso.quaternion.copy(_qc).multiply(_qy); ME.chest.scale.set(.19, (neck.y - hips.y) * 1.12, .11);
 }
 // ### Puts the sleeves back to their own length and hides the body once you have let go of the ladder.
 function leaveLadder(){
