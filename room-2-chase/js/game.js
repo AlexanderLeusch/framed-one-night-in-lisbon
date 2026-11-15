@@ -1617,8 +1617,9 @@ function buildCity(){
   // The hills around the valley: Bairro Alto in the west, the castle hill in the east, the Avenida in the north
   const HILLS = [[330, -110, 175, 64, 240], [-345, -60, 150, 60, 320], [0, -470, 340, 45, 190]];
   // ### A hill is a bell, flat at its foot and round on top, so it never stands up like a wall. It only starts outside the street grid
-  // ### of the Baixa, and the flat city meets it at the edge.
-  const hillH = (x, z) => sstep(186, 216, Math.max(Math.abs(x), Math.abs(z))) * Math.max(0, ...HILLS.map(([cx, cz, rx, ry, rz]) => ry * Math.pow(Math.max(0, 1 - ((x - cx) / rx) ** 2 - ((z - cz) / rz) ** 2), 1.4)));
+  // ### of the Baixa, and the flat city meets it at the edge. Towards the river it runs out before the bank, where the road up to
+  // ### the bridge passes.
+  const hillH = (x, z) => sstep(186, 216, Math.max(Math.abs(x), Math.abs(z))) * (1 - sstep(30, 132, z)) * Math.max(0, ...HILLS.map(([cx, cz, rx, ry, rz]) => ry * Math.pow(Math.max(0, 1 - ((x - cx) / rx) ** 2 - ((z - cz) / rz) ** 2), 1.4)));
   // ### The real surface of the hills: the dome plus small banks and terraces of up to about 2 m, and what each spot is.
   // ### Streets wind along the slope at fixed heights, gardens sit in patches, everything else is built up.
   const hillBump = (x, z) => 1.3 * Math.sin(x * 0.13 + z * 0.07) * Math.sin(z * 0.11 - x * 0.05) + 0.7 * Math.sin(x * 0.37 + z * 0.29) * Math.sin(z * 0.23 + 1.7);
@@ -1656,19 +1657,21 @@ function buildCity(){
     const lights = [], hr = mulberry32(77);
     for (const [hx, hz, rx, , rz] of HILLS) for (let k = 0; k < 170; k++){
       const a = hr() * Math.PI * 2, q = Math.sqrt(hr()) * 0.95, x = hx + Math.cos(a) * q * rx, z = hz + Math.sin(a) * q * rz;
-      if (Math.max(Math.abs(x), Math.abs(z)) >= 200 && z <= 145) lights.push(x, hillSurf(x, z) + 3, z);
+      if (Math.max(Math.abs(x), Math.abs(z)) >= 200 && z <= 124) lights.push(x, hillSurf(x, z) + 3, z);
     }
     // street lamps along the winding streets of the slopes
     const lr = mulberry32(78);
     for (const [hx, hz, rx, , rz] of HILLS) for (let k = 0; k < 2400; k++){
       const a = lr() * Math.PI * 2, q = Math.sqrt(lr()) * 0.95, x = hx + Math.cos(a) * q * rx, z = hz + Math.sin(a) * q * rz, y = hillSurf(x, z);
-      if (Math.max(Math.abs(x), Math.abs(z)) >= 200 && z <= 145 && hillKind(x, y, z) === 'street' && lr() < 0.3) lights.push(x, y + 4.5, z);
+      if (Math.max(Math.abs(x), Math.abs(z)) >= 200 && z <= 124 && hillKind(x, y, z) === 'street' && lr() < 0.3) lights.push(x, y + 4.5, z);
     }
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lights, 3));
     grp.add(new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTexture, color: 0xffcf8c, size: 2.0, sizeAttenuation: true, transparent: true, opacity: LAMP_HALO, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })));
   }
+  // west of the Baixa the road up to the bridge runs along the river: a house that would stand on it moves up the slope instead
+  const clearOfApproach = (x, z) => x < -150 && z > 118 ? 118 - (z - 118) * 2 : z;
   for (let n = 0; n < 240; n++){
-    const a = rng() * Math.PI * 2, r = 205 + rng() * 240, x = Math.cos(a) * r, z = Math.sin(a) * r;
+    const a = rng() * Math.PI * 2, r = 205 + rng() * 240, x = Math.cos(a) * r, z = clearOfApproach(x, Math.sin(a) * r);
     if (Math.max(Math.abs(x), Math.abs(z)) < 200 || z > 145 || (x > 186 && x < 220 && Math.abs(z) < 8)) continue;
     const w = 12 + Math.floor(rng() * 4) * 3, d = 12 + Math.floor(rng() * 4) * 3, h = (3 + Math.floor(rng() * 3)) * FLOOR;
     const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]].map(([sx, sz]) => hillSurf(x + sx * w / 2, z + sz * d / 2)), base = Math.max(...corners), low = Math.min(...corners);
@@ -1679,7 +1682,7 @@ function buildCity(){
   }
   // Houses climbing the hills, so the slopes are not empty at night
   for (const [hx, hz, rx, , rz] of HILLS) for (let n = 0; n < 190; n++){
-    const a = rng() * Math.PI * 2, q = Math.sqrt(rng()) * 0.96, x = hx + Math.cos(a) * q * rx, z = hz + Math.sin(a) * q * rz;
+    const a = rng() * Math.PI * 2, q = Math.sqrt(rng()) * 0.96, x = hx + Math.cos(a) * q * rx, z = clearOfApproach(x, hz + Math.sin(a) * q * rz);
     if (Math.max(Math.abs(x), Math.abs(z)) < 200 || z > 145 || (x > 186 && x < 220 && Math.abs(z) < 8)) continue;
     const w = 10 + Math.floor(rng() * 3) * 3, d = 10 + Math.floor(rng() * 3) * 3, h = (2 + Math.floor(rng() * 3)) * FLOOR;
     // the foundations reach below the lowest corner of the plot, so no house hangs over a steep slope
@@ -1697,7 +1700,7 @@ function buildCity(){
       const toCity = Math.hypot(hx, hz);
       for (let gx = hx - rx; gx < hx + rx; gx += 15) for (let gz = hz - rz; gz < hz + rz; gz += 15){
         const x = gx + (hr() - 0.5) * 6, z = gz + (hr() - 0.5) * 6, q = Math.hypot((x - hx) / rx, (z - hz) / rz);
-        if (q > 0.97 || Math.max(Math.abs(x), Math.abs(z)) < 198 || z > 140) continue;
+        if (q > 0.97 || Math.max(Math.abs(x), Math.abs(z)) < 198 || z > 122) continue;
         if ((x > 186 && x < 280 && Math.abs(z) < 32) || Math.hypot(x - 300, z + 115) < 60) continue;
         // only the sides the city can see
         if (((x - hx) * -hx + (z - hz) * -hz) / (Math.hypot(x - hx, z - hz) * toCity + 1e-6) < -0.35) continue;
@@ -2004,8 +2007,10 @@ function buildCity(){
     steel.push(boxG(2 * HALF, 0.4, 2 * TRUSS_Z - 4, 0, BOT + 0.6, 0));
     // concrete piers under the side spans and the anchor blocks that hold the cables at the ends
     for (const sx of [-1, 1]){
-      for (const px of [215, 280]) concrete.push(boxG(5, BOT, 2 * TRUSS_Z + 2, sx * px, BOT / 2, 0));
-      concrete.push(boxG(22, 46, 2 * CZ + 8, sx * (HALF + 8), 23, 0));
+      for (const px of [215, 265]) concrete.push(boxG(5, BOT, 2 * TRUSS_Z + 2, sx * px, BOT / 2, 0));
+      // the anchor block ends under the road, which runs on over it; the cables go into a saddle on each side
+      concrete.push(boxG(22, 41.4, 2 * CZ + 8, sx * (HALF + 8), 20.7, 0));
+      for (const z of [-CZ, CZ]) concrete.push(boxG(9, 6, 2.6, sx * (HALF + 3), 44, z));
     }
     bridge.add(new THREE.Mesh(mergeGeos(steel), steelMat), new THREE.Mesh(mergeGeos(concrete), concreteMat));
     // the road: six lanes on a deck slab, dashed lane lines, a solid edge line, a concrete barrier in the middle, steel railings
@@ -2035,7 +2040,77 @@ function buildCity(){
     bridge.add(new THREE.Points(rg, new THREE.PointsMaterial({ map: glowTexture, color: 0xff3344, size: 9, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })));
     bridge.position.set(-400, 0, 410); bridge.rotation.y = -1.2;
   }
-  const blg = new THREE.BufferGeometry(); blg.setAttribute('position', new THREE.Float32BufferAttribute(bl, 3));
+  // ### The way up to the bridge, after the real one: the north approach of the 25 de Abril bridge is a concrete viaduct on
+  // ### tall twin piers that carries the six lanes from the low streets by the river up to the deck, 42 m above the ground. Here
+  // ### it starts behind the golden gate at the south-west corner of the Baixa, runs west along the river, passes under the side
+  // ### span of the bridge, and climbs round in a loop to meet the deck at the north anchorage. It lies outside the force field,
+  // ### so nobody can drive on it; only the finale takes the car up its first stretch (CITY.approach.at gives the way).
+  {
+    const DECK = 42.12, R = 50, X0 = -144, Z0 = 144, bdx = Math.cos(1.2), bdz = Math.sin(1.2);
+    const N = { x: -400 - 350 * bdx, z: 410 - 350 * bdz };  // the north end of the bridge deck
+    // straight west from the gate, a right-hand loop of 249 degrees, then a few metres straight onto the deck
+    const tEnd = (N.z - Z0 + R * (1 + bdx)) / bdz, ax = N.x - tEnd * bdx - R * bdz, cz = Z0 - R;
+    const L1 = X0 - ax, L2 = L1 + R * (Math.PI + 1.2), LEN = L2 + tEnd;
+    // the climb: gentle at both ends, an even 8 % in between
+    const rise = s => { const e = 0.2, u = clamp((s - 12) / (LEN - 24), 0, 1); return DECK * (u < e ? u * u / (2 * e * (1 - e)) : u > 1 - e ? 1 - (1 - u) ** 2 / (2 * e * (1 - e)) : (u - e / 2) / (1 - e)); };
+    // a point on the approach: s is metres from the gate along the middle of the road, side is metres to the right of it
+    const at = (s, side = 0) => {
+      s = clamp(s, 0, LEN);
+      let x, z, h;
+      if (s <= L1){ x = X0 - s; z = Z0; h = -Math.PI / 2; }
+      else if (s <= L2){ const th = (s - L1) / R; x = ax - R * Math.sin(th); z = cz + R * Math.cos(th); h = Math.atan2(-Math.cos(th), -Math.sin(th)); }
+      else { const k = LEN - s; x = N.x - k * bdx; z = N.z - k * bdz; h = Math.atan2(bdx, bdz); }
+      return { x: x - Math.cos(h) * side, z: z + Math.sin(h) * side, y: rise(s), h, slope: (rise(s + 1) - rise(s - 1)) / 2 };
+    };
+    CITY.approach = { len: LEN, at };
+    // half the width of the road: as wide as the river avenue at the gate, as wide as the bridge deck further up
+    const hw = s => 7 + 1.5 * sstep(8, 60, s);
+    // pulls a cross-section ([side, up] points, up measured from the road) along the road and returns the triangles
+    const sweep = (out, s0, s1, step, section, open) => {
+      let prev = null;
+      for (let s = s0; ; s = Math.min(s1, s + step)){
+        const ring = section(s).map(([side, up]) => { const p = at(s, side); return [p.x, p.y + up, p.z]; });
+        if (prev) for (let i = 0; i < ring.length - (open ? 1 : 0); i++){ const j = (i + 1) % ring.length; out.push(...prev[i], ...prev[j], ...ring[j], ...prev[i], ...ring[j], ...ring[i]); }
+        prev = ring; if (s >= s1) break;
+      }
+    };
+    const solid = (out, g) => { const a = g.toNonIndexed().attributes.position.array; for (let i = 0; i < a.length; i++) out.push(a[i]); };
+    const mesh = (pos, mat) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return new THREE.Mesh(g, mat); };
+    const concrete = [], road = [], lines = [], lamps = [];
+    // the box girder with the road on top, a concrete parapet on each side and a barrier in the middle
+    sweep(concrete, 8, LEN, 2.5, s => { const w = hw(s); return [[-w, 0], [w, 0], [w, -0.5], [w - 3, -2], [3 - w, -2], [-w, -0.5]]; });
+    sweep(road, 8, LEN, 2.5, s => [[0.4 - hw(s), 0.03], [hw(s) - 0.4, 0.03]], true);
+    for (const sg of [-1, 1]) sweep(concrete, 8, LEN, 2.5, s => { const w = hw(s) * sg; return [[w - 0.35 * sg, 0], [w, 0], [w, 0.95], [w - 0.35 * sg, 0.95]]; });
+    sweep(concrete, 90, LEN, 2.5, () => [[-0.25, 0], [0.25, 0], [0.25, 0.8], [-0.25, 0.8]]);
+    // the markings of the bridge deck: solid lines at the edges and the barrier, dashes between the lanes
+    const stripe = (s0, s1, side) => sweep(lines, s0, s1, 1.5, () => [[side - 0.07, 0.05], [side + 0.07, 0.05]], true);
+    for (const sg of [-1, 1]){
+      sweep(lines, 8, LEN, 2.5, s => { const c = (hw(s) - 0.9) * sg; return [[c - 0.07, 0.05], [c + 0.07, 0.05]]; }, true);
+      stripe(90, LEN, 0.6 * sg);
+      for (let s = 72; s < LEN - 5; s += 9) for (const c of [2.93, 5.27]) stripe(s, s + 4.5, c * sg);
+    }
+    // a pair of piers every 36 m with a cap under the girder, and a cross beam half-way up the tall ones
+    for (let s = 70; s < LEN - 24; s += 36){
+      const p = at(s); if (p.y < 4.5) continue;
+      const put = (g, side, y) => { const q = at(s, side); solid(concrete, g.rotateY(p.h).translate(q.x, y, q.z)); };
+      for (const side of [-4.6, 4.6]) put(new THREE.BoxGeometry(1.9, p.y - 2, 2.4), side, (p.y - 4) / 2);
+      put(new THREE.BoxGeometry(13, 1.3, 2.8), 0, p.y - 2.4);
+      if (p.y > 20) put(new THREE.BoxGeometry(9.2, 1.1, 1.7), 0, p.y * 0.5);
+    }
+    // lamps as on the bridge: a post with an arm over the road, every 30 m on both sides
+    for (let s = 45; s < LEN - 25; s += 30) for (const sg of [-1, 1]){
+      const p = at(s), w = hw(s), a = at(s, sg * (w + 0.1)), b = at(s, sg * (w - 0.6)), c = at(s, sg * (w - 1.3));
+      solid(concrete, new THREE.BoxGeometry(0.2, 8, 0.2).translate(a.x, p.y + 4, a.z));
+      solid(concrete, new THREE.BoxGeometry(1.6, 0.14, 0.14).rotateY(p.h).translate(b.x, p.y + 7.9, b.z));
+      lamps.push(c.x, p.y + 7.7, c.z);
+    }
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lamps, 3));
+    grp.add(mesh(concrete, new THREE.MeshStandardMaterial({ color: 0x8d8a84, roughness: 0.9, emissive: 0x101010, side: THREE.DoubleSide, fog: false })),
+      mesh(road, new THREE.MeshStandardMaterial({ color: 0x2a2c31, roughness: 0.9, side: THREE.DoubleSide, fog: false })),
+      mesh(lines, new THREE.MeshStandardMaterial({ color: 0xd8dbe4, roughness: 0.7, side: THREE.DoubleSide, fog: false })),
+      new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTexture, color: 0xffcf8c, size: 5, sizeAttenuation: true, transparent: true, opacity: LAMP_HALO, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })));
+  }
+  const blg =new THREE.BufferGeometry(); blg.setAttribute('position', new THREE.Float32BufferAttribute(bl, 3));
   grp.add(bank, cristo, bridge, new THREE.Points(blg, new THREE.PointsMaterial({ map: glowTexture, color: 0xffd9a0, size: 4.6, sizeAttenuation: true, transparent: true, opacity: LAMP_HALO, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })));
 
   // Road markings, crosswalks and stop lines
@@ -3888,8 +3963,8 @@ function placeRun(){
     for (const s of roads){ if (chosen.length >= M.shards) break; const p = lane(s); if (Math.hypot(p.x, p.z) > 30 && far(p, chosen, 36)) chosen.push(p); }
     for (const s of roads){ if (kitSpots.length >= M.kits) break; const p = lane(s); if (far(p, chosen, 25) && far(p, kitSpots, 60) && Math.hypot(p.x, p.z) > 40) kitSpots.push(p); }
     // the south-west corner of the Baixa, where Rua do Crucifixo meets the river avenue: the way out to the 25 de Abril bridge.
-    // The gate faces the bridge, which stands beyond the city to the south-west.
-    gp = { x: -144, z: 144 }; gateRot = Math.atan2(CITY.bridge.position.x - gp.x, CITY.bridge.position.z - gp.z);
+    // The gate faces west, up the approach road that climbs to the bridge.
+    gp = { x: -144, z: 144 }; gateRot = -Math.PI / 2;
     gateR = 5.4; gateY = 5.8;
   } else if (mode === 'country'){
     for (let i = 0; i < M.shards; i++){ const s = 220 + i * (ROAD.len - 480) / (M.shards - 1), pt = roadPoint(s, (rnd() < 0.5 ? -1 : 1) * ROAD.lane); chosen.push({ x: pt.x, z: pt.z, s }); }
@@ -5675,17 +5750,18 @@ function witnessCard(){
     </div>`, 'story');
 }
 
-// ### The finale: through the gate the picture fades, and you are on the 25 de Abril bridge with Marta beside you, driving south
+// ### The finale: through the gate the car drives itself, slowly, up the approach road to the bridge (nobody can drive there
+// ### otherwise: it lies outside the force field). After a few seconds the picture fades, and you are on the 25 de Abril bridge with Marta beside you, driving south
 // ### over the Tejo as the first light comes up behind the towers. The road is yours: no police, no helicopter, heroic music. Then
 // ### the result card. A black plane in front of the camera does the fades. In the story, this ends act 1 (the bridge leads out of
 // ### the city towards the highway); in a free ride it is the end of the run.
-const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 14.2, dawnFrom: 1.2, dawnTo: 11.5, shot: 5 });
+const FINALE = Object.freeze({ ramp: 6.5, rampSpeed: 13, fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 14.2, dawnFrom: 1.2, dawnTo: 11.5, shot: 5 });
 const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12 };
 const fader = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 fader.position.z = -0.6; fader.renderOrder = 9999; fader.frustumCulled = false; camera.add(fader); scene.add(camera);
 function startFinale(){
   state = 'finale';
-  Object.assign(finale, { on: true, done: false, t: 0, placed: false });
+  Object.assign(finale, { on: true, done: false, t: 0, placed: false, s: clamp(gate.x - car.x, 0, 10), px: car.x, pz: car.z, h0: car.heading });
   hud.classList.add('off');
   held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
 }
@@ -5699,11 +5775,20 @@ function onBridge(along, side, up){ return CITY.bridge.localToWorld(new THREE.Ve
 function updateFinale(dt){
   const F = FINALE, f = finale;
   f.t += dt;
-  const t = f.t;
+  const t = f.t - F.ramp;  // counted from the moment the picture starts to fade on the approach
   if (!f.placed){
-    // through the gate, into the dark
-    car.x += Math.sin(car.heading) * car.speed * dt; car.z += Math.cos(car.heading) * car.speed * dt;
-    fader.material.opacity = Math.min(1, t / F.fade);
+    // through the gate the game takes the wheel: within a second and a half the car is in its lane on the approach, and it
+    // climbs slowly towards the bridge; then into the dark
+    const w = sstep(0, 1.5, f.t);
+    car.speed += (F.rampSpeed - car.speed) * Math.min(1, dt * 1.6);
+    f.px += Math.sin(f.h0) * car.speed * (1 - w) * dt; f.pz += Math.cos(f.h0) * car.speed * (1 - w) * dt;
+    f.s += Math.max(3, car.speed) * dt;
+    const q = CITY.approach.at(f.s, F.lane * sstep(10, 70, f.s));
+    car.x = f.px + (q.x - f.px) * w; car.z = f.pz + (q.z - f.pz) * w;
+    car.y = groundH(car.x, car.z) * (1 - w) + q.y * w;
+    car.heading = f.h0 + wrapAngle(q.h - f.h0) * w;
+    car.pitch = Math.atan(q.slope) * w; car.steer = 0; car.wheelRot += car.speed * dt;
+    fader.material.opacity = clamp(t / F.fade, 0, 1);
     chaseCam(dt);
     if (t < F.fade) return;
     f.placed = true;
