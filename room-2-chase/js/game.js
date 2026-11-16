@@ -2316,6 +2316,7 @@ function chooseNext(n){
 }
 // ### Puts a city car back into the street network, out of sight of the player.
 function spawnNpc(n, minDist){
+  resetShove(n);
   for (let k = 0; k < 30; k++){
     let dx, dz, along, sx, sz;
     if (n.tram){
@@ -2414,10 +2415,13 @@ function updateNpcs(dt){
   }
   npcs.forEach((n, i) => {
     const g = NPC_KIND[n.fleet].glow;
-    npcFleets[n.fleet].set(n.fi, n.x, 0, n.z, n.h, n.on);
-    vehicleGlow(npcHead, npcTail, i, n.x, n.z, n.h, g[0], g[1], g[2], g[3], n.on);
-    stopGlow(npcStop, i, n.x, n.z, n.h, g[1] + 0.05, g[2], g[3], n.on && braking(n, n.speed, n.cruise));
-    npcPools.set(i, n.x, n.z, n.h, g[0], n.moto ? 8 : 13, n.moto ? 2.6 : 4.6, n.on);
+    // drawn where a crash has pushed it (see shove)
+    if (n.on) stepShove(n, dt);
+    const X = n.x + (n.px || 0), Z = n.z + (n.pz || 0), Hd = n.h + (n.ph || 0);
+    npcFleets[n.fleet].set(n.fi, X, 0, Z, Hd, n.on);
+    vehicleGlow(npcHead, npcTail, i, X, Z, Hd, g[0], g[1], g[2], g[3], n.on);
+    stopGlow(npcStop, i, X, Z, Hd, g[1] + 0.05, g[2], g[3], n.on && braking(n, n.speed, n.cruise));
+    npcPools.set(i, X, Z, Hd, g[0], n.moto ? 8 : 13, n.moto ? 2.6 : 4.6, n.on);
   });
   Object.values(npcFleets).forEach(f => f.commit()); npcHead.commit(); npcTail.commit(); npcStop.commit(); npcPools.commit();
   if (CITY.water) CITY.water.material.uniforms.time.value = clock;
@@ -2576,6 +2580,7 @@ function initTraffic(){
 }
 function laneSet(t){ return t.dir > 0 ? HW.our : HW.opp; }
 function spawnVehicle(t, zMin, zMax){
+  resetShove(t);
   const lanes = laneSet(t);
   for (let k = 0; k < 24; k++){
     const li = HEAVY[t.type] ? 1 + Math.floor(Math.random() * 2) : Math.floor(Math.random() * 3);
@@ -2627,11 +2632,12 @@ function updateTraffic(dt){
     if (t.on && (t.z < HW.Z0 + 10 || t.z > HW.Z1 - 20)) t.on = false;
   }
   traffic.forEach((t, i) => {
-    const h = t.dir > 0 ? 0 : Math.PI, d = VDIM[t.type];
-    hwFleets[t.type].set(t.mi, t.x, 0, t.z, h, t.on);
-    vehicleGlow(headPts, tailPts, i, t.x, t.z, h, d.front, d.back, d.y, d.off, t.on);
-    stopGlow(stopPts, i, t.x, t.z, h, d.back + 0.05, d.y, d.off, t.on && braking(t, t.speed, t.cruise));
-    hwPools.set(i, t.x, t.z, h, d.front, t.type === 'moto' ? 10 : 18, t.type === 'moto' ? 3 : 5.5, t.on);
+    if (t.on) stepShove(t, dt);
+    const h = (t.dir > 0 ? 0 : Math.PI) + (t.ph || 0), d = VDIM[t.type], X = t.x + (t.px || 0), Z = t.z + (t.pz || 0);
+    hwFleets[t.type].set(t.mi, X, 0, Z, h, t.on);
+    vehicleGlow(headPts, tailPts, i, X, Z, h, d.front, d.back, d.y, d.off, t.on);
+    stopGlow(stopPts, i, X, Z, h, d.back + 0.05, d.y, d.off, t.on && braking(t, t.speed, t.cruise));
+    hwPools.set(i, X, Z, h, d.front, t.type === 'moto' ? 10 : 18, t.type === 'moto' ? 3 : 5.5, t.on);
   });
   Object.values(hwFleets).forEach(f => f.commit());
   headPts.commit(); tailPts.commit(); stopPts.commit(); hwPools.commit();
@@ -2907,6 +2913,7 @@ function buildCountry(){
 }
 // ### Places one country vehicle on the road, ahead of or behind the player.
 function spawnCountryVehicle(t, sMin, sMax){
+  resetShove(t);
   for (let k = 0; k < 20; k++){
     const s = sMin + Math.random() * (sMax - sMin);
     if (s < 30 || s > ROAD.len - 40) continue;
@@ -2952,10 +2959,12 @@ function updateCountryTraffic(dt){
   ctraffic.forEach((t, i) => {
     const pt = roadPoint(t.s, t.lat), h = pt.h + (t.dir < 0 ? Math.PI : 0), d = VDIM[t.type];
     t.x = pt.x; t.z = pt.z; t.h = h;
-    ctryFleets[t.type].set(t.mi, pt.x, 0.03, pt.z, h, t.on);
-    vehicleGlow(ctryHead, ctryTail, i, pt.x, pt.z, h, d.front, d.back, d.y + 0.03, d.off, t.on);
-    stopGlow(ctryStop, i, pt.x, pt.z, h, d.back + 0.05, d.y + 0.03, d.off, t.on && braking(t, t.speed, t.cruise));
-    ctryPools.set(i, pt.x, pt.z, h, d.front, t.type === 'moto' ? 10 : 16, t.type === 'moto' ? 3 : 5.2, t.on);
+    if (t.on) stepShove(t, dt);
+    const X = pt.x + (t.px || 0), Z = pt.z + (t.pz || 0), Hd = h + (t.ph || 0);
+    ctryFleets[t.type].set(t.mi, X, 0.03, Z, Hd, t.on);
+    vehicleGlow(ctryHead, ctryTail, i, X, Z, Hd, d.front, d.back, d.y + 0.03, d.off, t.on);
+    stopGlow(ctryStop, i, X, Z, Hd, d.back + 0.05, d.y + 0.03, d.off, t.on && braking(t, t.speed, t.cruise));
+    ctryPools.set(i, X, Z, Hd, d.front, t.type === 'moto' ? 10 : 16, t.type === 'moto' ? 3 : 5.2, t.on);
   });
   Object.values(ctryFleets).forEach(f => f.commit()); ctryStop.commit(); ctryPools.commit();
   ctryHead.commit(); ctryTail.commit();
@@ -3662,7 +3671,7 @@ function updatePolice(dt){
     }
     for (const o of vehicleObstacles()){
       const d = Math.hypot(p.x - o.x, p.z - o.z), rr = 1.9 + o.r;
-      if (d < rr && d > 0.001){ const nx = (p.x - o.x) / d, nz = (p.z - o.z) / d; p.x += nx * (rr - d); p.z += nz * (rr - d); p.speed *= 0.9; if (o.npc) o.npc.stun = Math.max(o.npc.stun, 1.5); }
+      if (d < rr && d > 0.001){ const nx = (p.x - o.x) / d, nz = (p.z - o.z) / d; p.x += nx * (rr - d); p.z += nz * (rr - d); p.speed *= 0.9; if (o.npc){ if (o.npc.stun < 0.5 && Math.abs(p.speed) > 6) shove(o.npc, -nx, -nz, Math.abs(p.speed) * 0.5, o.x, o.z, 1); o.npc.stun = Math.max(o.npc.stun, 1.5); } }
     }
     if (mode === 'highway') for (const t of traffic){
       if (!t.on || Math.abs(t.z - p.z) > t.len / 2 + 4) continue;
@@ -3686,7 +3695,7 @@ function updatePolice(dt){
       const impact = -((pvx - fx * p.speed) * nx + (pvz - fz * p.speed) * nz);
       if (live && impact > 3 && p.hitCool <= 0){
         p.hitCool = 0.6;
-        crash(impact * 0.8);
+        crash(impact * 0.8); sfx.hit(impact, 1);
         p.hp -= impact * V.ram * 0.09;
         p.stun = Math.max(p.stun, 0.4 + V.ram * 0.5);
         car.speed *= V.key === 'truck' ? 0.92 : 0.72; p.speed *= 0.4;
@@ -3858,25 +3867,58 @@ function buildTraffic(){
   if (mode === 'country'){
     for (const t of ctraffic){
       if (!t.on) continue;
-      const fx = Math.sin(t.h), fz = Math.cos(t.h), v = t.speed;
+      const h = t.h + (t.ph || 0), cx = t.x + (t.px || 0), cz = t.z + (t.pz || 0), fx = Math.sin(h), fz = Math.cos(h), v = t.speed;
       const [offs, r] = OBST[t.type] || OBST.car;
-      for (const o of offs) out.push({ x: t.x + fx * o, z: t.z + fz * o, r, npc: t, vx: fx * v, vz: fz * v });
+      for (const o of offs) out.push({ x: cx + fx * o, z: cz + fz * o, r, npc: t, vx: fx * v, vz: fz * v });
     }
     return out;
   }
   if (mode !== 'city') return out;
   for (const n of npcs){
     if (!n.on) continue;
-    const fx = Math.sin(n.h), fz = Math.cos(n.h);
+    const h = n.h + (n.ph || 0), cx = n.x + (n.px || 0), cz = n.z + (n.pz || 0), fx = Math.sin(h), fz = Math.cos(h);
     if (OBST[n.fleet]){
-      for (const o of OBST[n.fleet][0]) out.push({ x: n.x + fx * o, z: n.z + fz * o, r: OBST[n.fleet][1], npc: n, vx: fx * n.speed, vz: fz * n.speed });
+      for (const o of OBST[n.fleet][0]) out.push({ x: cx + fx * o, z: cz + fz * o, r: OBST[n.fleet][1], npc: n, vx: fx * n.speed, vz: fz * n.speed });
       continue;
     }
-    out.push({ x: n.x + fx * 1.15, z: n.z + fz * 1.15, r: 1.05, npc: n, vx: fx * n.speed, vz: fz * n.speed });
-    out.push({ x: n.x - fx * 1.15, z: n.z - fz * 1.15, r: 1.05, npc: n, vx: fx * n.speed, vz: fz * n.speed });
+    out.push({ x: cx + fx * 1.15, z: cz + fz * 1.15, r: 1.05, npc: n, vx: fx * n.speed, vz: fz * n.speed });
+    out.push({ x: cx - fx * 1.15, z: cz - fz * 1.15, r: 1.05, npc: n, vx: fx * n.speed, vz: fz * n.speed });
   }
   return out;
 }
+
+// ### Shoving traffic. The rules (weights, how momentum is shared, how much a hit turns a vehicle) are in Core (shoveImpulse,
+// ### keepSpeed, shoveSpin). Here the push is kept apart from the vehicle's own lane position (px, pz and the turn ph); it slides
+// ### out over the tyres' friction, stops at walls, lamp posts and parked cars, and once the stunned driver has come round, the
+// ### vehicle steers back into its lane.
+const { MASS, PLAYER_MASS, SHOVE } = Core;
+const massOf = o => o === courier ? MASS.courier : MASS[o.fleet || o.type] || 1;
+// pushes o along (dx, dz) after a hit with this closing speed at the point (hx, hz); mp is the hitter's weight. Returns the share
+// of the momentum that went into o (0 for a tram, near 1 for a motorcycle hit by a lorry), so the hitter can keep the rest.
+function shove(o, dx, dz, impact, hx, hz, mp){
+  const m = massOf(o), { share, dv } = Core.shoveImpulse(impact, mp, m);
+  if (!dv) return 0;
+  o.pvx = (o.pvx || 0) + dx * dv; o.pvz = (o.pvz || 0) + dz * dv;
+  o.pw = (o.pw || 0) + Core.shoveSpin(hx - (o.x + (o.px || 0)), hz - (o.z + (o.pz || 0)), dx, dz, dv, m);
+  o.stun = Math.max(o.stun || 0, 2.5);
+  return share;
+}
+function stepShove(o, dt){
+  if (!o.pvx && !o.pvz && !o.px && !o.pz && !o.ph && !o.pw) return;
+  if (mode === 'highway' && o.stun > 0) o.stun -= dt;
+  o.px = (o.px || 0) + (o.pvx || 0) * dt; o.pz = (o.pz || 0) + (o.pvz || 0) * dt; o.ph = (o.ph || 0) + (o.pw || 0) * dt;
+  const grip = Math.exp(-dt * SHOVE.grip); o.pvx = (o.pvx || 0) * grip; o.pvz = (o.pvz || 0) * grip; o.pw = (o.pw || 0) * Math.exp(-dt * SHOVE.turnGrip);
+  if (mode === 'city') for (const c of collidersNear(o.x + o.px, o.z + o.pz)){
+    const hit = collidePoint(o.x + o.px, o.z + o.pz, 1.0, c);
+    if (hit){ o.px += hit[0] * hit[2]; o.pz += hit[1] * hit[2]; o.pvx *= 0.2; o.pvz *= 0.2; }
+  }
+  const L = Math.hypot(o.px, o.pz); if (L > SHOVE.max){ o.px *= SHOVE.max / L; o.pz *= SHOVE.max / L; o.pvx = o.pvz = 0; }
+  if ((o.stun || 0) <= 0 && Math.hypot(o.pvx, o.pvz) < SHOVE.rest){
+    const back = Math.exp(-dt * SHOVE.back); o.px *= back; o.pz *= back; o.ph *= Math.exp(-dt * SHOVE.turnBack);
+    if (Math.abs(o.px) + Math.abs(o.pz) < 0.02 && Math.abs(o.ph) < 0.002) resetShove(o);
+  }
+}
+function resetShove(o){ o.px = o.pz = o.pvx = o.pvz = o.ph = o.pw = 0; }
 
 // ---------- Pickups (placed fresh every run) ----------
 // ### placeRun places the star shards, the green repair kits and the finish gate for the current map.
@@ -4423,11 +4465,30 @@ function tone(freqs, dur, type, vol){
     o.start(st); o.stop(st + dur + 0.05);
   });
 }
+let hitQuiet = 0;
 const sfx = {
   collect: () => tone([880, 1175, 1568], 0.18, 'triangle', 0.14),
   repair: () => tone([392, 523, 659], 0.16, 'square', 0.06),
   gate: () => tone([523, 659, 784, 1047, 1319], 0.26, 'sine', 0.12),
   crash: k => tone([110 + k * 2, 70], 0.16, 'square', Math.min(0.14, 0.04 + k * 0.004)),
+  // ### Hitting another vehicle sounds like what it is: the lighter it is, the higher and shorter the crunch of metal (a motorcycle
+  // ### clatters), the heavier, the deeper and longer the boom under it (a bus or a lorry thuds). Louder the harder the hit. Several
+  // ### contacts within a quarter of a second count as one crash, so a scrape does not rattle.
+  hit: (k, m) => {
+    if (!audio || muted || clock < hitQuiet) return;
+    hitQuiet = clock + 0.25;
+    const ctx = audio.ctx, t = ctx.currentTime, w = clamp(Number.isFinite(m) ? m : 1, 0.2, 5), loud = clamp(0.08 + k * 0.012, 0.08, 0.5);
+    // the crunch: noise through a band that sits lower the heavier the vehicle
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3400 / (1 + w * 1.1); bp.Q.value = 1.4; bp.connect(audio.gameVol);
+    noiseBurst(t, bp, loud, 0.12 + 0.05 * w);
+    // a light vehicle rings: two short metallic partials
+    if (w < 0.6){ tone([2200, 3300], 0.06, 'square', loud * 0.12); }
+    // the body of the hit: a falling low tone, deeper and longer for a heavy vehicle
+    const o = ctx.createOscillator(), gg = ctx.createGain(), f = 140 / (1 + w * 0.6), len = Math.min(0.5, 0.14 + 0.08 * w);
+    o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.5, t + len);
+    gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(loud * (0.5 + w * 0.15), t + 0.01); gg.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(gg).connect(audio.gameVol); o.start(t); o.stop(t + len + 0.05);
+  },
   win: () => tone([659, 784, 988, 1319], 0.3, 'triangle', 0.13),
   fail: () => tone([392, 330, 262], 0.3, 'sine', 0.12),
   zap: () => tone([180, 90], 0.14, 'sawtooth', 0.07),
@@ -6225,15 +6286,19 @@ function updateCar(dt){
   }
   if (mode === 'highway'){
     for (const t of (courier && courier.on ? traffic.concat(courier) : traffic)){
-      if (!t.on || Math.abs(t.z - car.z) > t.len / 2 + 6) continue;
+      const tx = t.x + (t.px || 0), tz = t.z + (t.pz || 0);
+      if (!t.on || Math.abs(tz - car.z) > t.len / 2 + 6) continue;
       for (const s of V.samples){
-        const hit = collidePoint(car.x + fx * s, car.z + fz * s, V.r, { x0: t.x - t.hw, x1: t.x + t.hw, z0: t.z - t.len / 2, z1: t.z + t.len / 2 });
+        const hit = collidePoint(car.x + fx * s, car.z + fz * s, V.r, { x0: tx - t.hw, x1: tx + t.hw, z0: tz - t.len / 2, z1: tz + t.len / 2 });
         if (!hit) continue;
         const vtz = t.dir * t.speed, impact = hitWith(hit, 0, vtz);
         if (impact > 2){
           worst = Math.max(worst, impact);
           car.speed = vtz * fz * 0.85 + (V.key === 'truck' ? car.speed * 0.4 : 0);
           t.speed = Math.max(0, t.speed + (-hit[1] * t.dir) * impact * 0.3 * V.ram);
+          // and sideways, by weight (forwards it is the change of speed above)
+          sfx.hit(impact, massOf(t));
+          if (hit[0] && t !== courier) shove(t, -Math.sign(hit[0]), 0, impact * Math.abs(hit[0]), car.x, car.z, PLAYER_MASS[V.key] || 1);
         }
         break;
       }
@@ -6244,8 +6309,10 @@ function updateCar(dt){
         const hit = collidePoint(car.x + fx * s, car.z + fz * s, V.r, { t: 'c', x: o.x, z: o.z, r: o.r });
         if (!hit) continue;
         const impact = hitWith(hit, o.vx, o.vz);
+        // the hit vehicle is pushed away from you; you keep more speed the lighter it is
+        const share = o.npc && impact > 1 ? shove(o.npc, -hit[0], -hit[1], impact, o.x, o.z, PLAYER_MASS[V.key] || 1) : 0;
         if (o.npc) o.npc.stun = Math.max(o.npc.stun, 2.5);
-        if (impact > 2){ worst = Math.max(worst, impact); car.speed *= V.key === 'truck' ? 0.7 : 0.4; }
+        if (impact > 2){ worst = Math.max(worst, impact); car.speed *= o.npc ? Core.keepSpeed(share) : 0.4; if (o.npc) sfx.hit(impact, massOf(o.npc)); }
         break;
       }
     }
