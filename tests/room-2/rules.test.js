@@ -746,3 +746,32 @@ test('route arrows: evenly spaced in the driving lane, pointing along the street
   assert.equal(Core.routeMarks(pts, 5, 3.5, 8, 7).length, 7);
   assert.deepEqual(Core.routeMarks([], 5, 3.5, 8, 100), []);
 });
+
+test('shoving: momentum is shared by weight, so a motorcycle flies off a car and a bus hardly moves', () => {
+  const { MASS, PLAYER_MASS } = Core, hit = (who, target) => Core.shoveImpulse(30, PLAYER_MASS[who], MASS[target]);
+  assert.ok(hit('car', 'moto').dv > hit('car', 'sedan').dv && hit('car', 'sedan').dv > hit('car', 'bus').dv, 'lighter flies further');
+  assert.ok(hit('truck', 'sedan').dv > hit('car', 'sedan').dv && hit('car', 'sedan').dv > hit('bike', 'sedan').dv, 'a heavier hitter pushes harder');
+  assert.equal(hit('car', 'sedan').share, 0.5, 'two cars share the push equally');
+  for (const who of ['car', 'bike', 'truck']) for (const t of ['sedan', 'suv', 'moto', 'bus', 'coach', 'truck']){
+    const r = hit(who, t), m = PLAYER_MASS[who], M = MASS[t];
+    assert.ok(Math.abs(r.dv * M - 30 * Core.SHOVE.boost * m * M / (m + M)) < 1e-9, `${who} into ${t}: the push follows the weights`);
+  }
+  assert.ok(Core.keepSpeed(hit('car', 'moto').share) > Core.keepSpeed(hit('car', 'sedan').share) && Core.keepSpeed(hit('car', 'sedan').share) > Core.keepSpeed(hit('car', 'bus').share), 'you keep more speed the lighter the vehicle you hit');
+  for (const s of [0, 0.3, 1]) assert.ok(Core.keepSpeed(s) >= 0.25 && Core.keepSpeed(s) <= 0.95);
+});
+
+test('rejected: a tram on its rails is not pushed, and bad values push nothing', () => {
+  assert.deepEqual(Core.shoveImpulse(30, 1, Core.MASS.tram), { share: 0, dv: 0 }, 'a tram does not move');
+  for (const bad of [0, -5, NaN, Infinity, undefined, '30']) assert.deepEqual(Core.shoveImpulse(bad, 1, 1), { share: 0, dv: 0 }, 'impact ' + String(bad));
+  assert.deepEqual(Core.shoveImpulse(30, 0, 1), { share: 0, dv: 0 }, 'no hitter weight');
+  assert.deepEqual(Core.shoveImpulse(30, 1, -1), { share: 0, dv: 0 }, 'no negative weight');
+  assert.equal(Core.keepSpeed(NaN), 0.25);
+});
+
+test('shoving: a hit off the middle turns the vehicle, a centred hit does not, and heavy vehicles turn less', () => {
+  // a vehicle facing +z, hit at its nose and pushed towards +x: the nose swings to +x, so its heading grows
+  assert.ok(Core.shoveSpin(0, 2, 1, 0, 10, 1) > 0, 'nose pushed to +x turns towards +x');
+  assert.ok(Core.shoveSpin(0, -2, 1, 0, 10, 1) < 0, 'tail pushed to +x turns the other way');
+  assert.equal(Math.abs(Core.shoveSpin(0, 0, 1, 0, 10, 1)), 0, 'a centred hit only pushes');
+  assert.ok(Math.abs(Core.shoveSpin(0, 2, 1, 0, 10, 4)) < Math.abs(Core.shoveSpin(0, 2, 1, 0, 10, 1)), 'a bus turns less than a car');
+});
