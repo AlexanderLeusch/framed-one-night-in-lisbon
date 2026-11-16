@@ -5105,15 +5105,30 @@ function recordPending(){
 }
 // The name field with its button; the same one is used in the menu and on the end screen
 const nameField = (ph, label) => `<span class="drv-new"><input type="text" class="drv-input" maxlength="${Core.NAME_MAX}" placeholder="${ph}" aria-label="${ph}" autocomplete="off" spellcheck="false"><button type="button" class="drv-add" data-driver-add>${label}</button></span>`;
-// One board as a list: place, name, vehicle and time, the driver's own row marked
-const boardList = (rows, empty) => rows.length
-  ? `<ol class="lb-list">${rows.map(r => `<li class="${r.me ? 'me' : ''}${r.gap ? ' gap' : ''}"><span class="lb-place">${r.place}</span><span class="lb-name">${esc(r.name)}</span><span class="lb-veh">${VEH[r.veh].name}</span><b>${fmtTimeExact(r.time)}</b></li>`).join('')}</ol>`
-  : `<p class="lb-empty">${empty}</p>`;
+// ### One board as a list. The first three places wear a gold, silver and bronze medal; under each name are the vehicle (a
+// ### small drawing and its name) and the stars of that run; beside the time, how far behind the leader it is. The driver's own
+// ### row is marked.
+const LB_VEH = {
+  car: '<path d="M2 11.5V9l1.6-3.2c.3-.5.8-.8 1.3-.8h6.2c.5 0 1 .3 1.3.8L14 9v2.5M2 9h12M4.5 13.2a1.2 1.2 0 1 0 0-.1M11.5 13.2a1.2 1.2 0 1 0 0-.1"/>',
+  bike: '<path d="M4 12.5a2.3 2.3 0 1 0 0-.1M12 12.5a2.3 2.3 0 1 0 0-.1M4 12.4 7 8h3.5l1.5 4.4M7 8 6 5.5H4.2M10.5 8l1-2.5h1.8"/>',
+  truck: '<path d="M1.5 11.5V4.5h8v7M9.5 7h3l2 2.6v1.9M1.5 11.5h13M4.5 13.2a1.2 1.2 0 1 0 0-.1M11.5 13.2a1.2 1.2 0 1 0 0-.1"/>'
+};
+const lbStars = n => `<span class="lb-stars" aria-label="${n} of 3 stars">${[1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>`;
+const boardList = (rows, empty) => {
+  if (!rows.length) return `<p class="lb-empty">${empty}</p>`;
+  const lead = rows[0].place === 1 ? rows[0].time : null;
+  return `<ol class="lb-list">${rows.map(r => {
+    const medal = r.place <= 3 ? ` p${r.place}` : '', behind = lead !== null && r.place > 1 ? `<small>+${(r.time - lead).toFixed(1)} s</small>` : '';
+    return `<li class="${r.me ? 'me' : ''}${r.gap ? ' gap' : ''}${medal}"><span class="lb-place">${r.place}</span>`
+      + `<span class="lb-who"><span class="lb-name">${esc(r.name)}</span><span class="lb-meta"><svg viewBox="0 0 16 16" aria-hidden="true">${LB_VEH[r.veh] || LB_VEH.car}</svg>${VEH[r.veh].name}${lbStars(r.stars || 1)}</span></span>`
+      + `<span class="lb-time"><b>${fmtTimeExact(r.time)}</b>${behind}</span></li>`;
+  }).join('')}</ol>`;
+};
 // ### The two boards of one map side by side: all time, and the current calendar month with its leader named above it.
 function boardPanels(m){
   const B = boardFor(m), key = Core.monthKey(Date.now()), month = Core.monthName(key), lead = Core.boardList(B.src, m, key)[0];
   const where = B.online ? '<p class="lb-where on">Online · everybody\'s times</p>' : `<p class="lb-where">This device only${signedIn() && online.down ? ' · online board not reachable right now' : ''}</p>`;
-  return `${where}<p class="lb-leader"><span>Leader of the month</span><b>${lead ? esc(lead.name) : 'nobody yet'}</b>${lead ? `<i>${fmtTimeExact(lead.time)} · ${VEH[lead.veh].name}</i>` : ''}</p>
+  return `${where}<p class="lb-leader"><svg class="lb-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18h18l-1.5-10-4.5 4-3-7-3 7-4.5-4z"/></svg><span>Leader of the month</span><b>${lead ? esc(lead.name) : 'nobody yet'}</b>${lead ? `<i>${fmtTimeExact(lead.time)} · ${VEH[lead.veh].name}</i>` : ''}</p>
     <div class="lb-cols">
       <div class="lb-col"><h3>All time</h3>${boardList(Core.boardRows(B.src, m, B.me), 'No times on this map yet.')}</div>
       <div class="lb-col"><h3>${month}</h3>${boardList(Core.boardRows(B.src, m, B.me, key), 'No times this month yet.')}</div>

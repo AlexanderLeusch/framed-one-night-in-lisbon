@@ -477,21 +477,37 @@ body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:
 .lb-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .lb-col{display:grid;gap:6px;align-content:start;min-width:0}
 .card .lb-col h3{font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--spark);padding-bottom:6px;border-bottom:1px solid var(--line)}
-.lb-list{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-family:var(--f-mono);font-size:14px;font-variant-numeric:tabular-nums}
-.lb-list li{display:grid;grid-template-columns:1.6em minmax(0,1fr) 4.6em;gap:8px;align-items:center;padding:7px 8px;border-radius:8px;color:var(--muted)}
-.lb-list li:first-child{color:var(--ink)}
-.lb-list li:first-child .lb-place{color:var(--gold);font-weight:700}
-.lb-list li.me{background:rgba(85,236,255,.12);color:var(--ink)}
-.lb-list li.gap{margin-top:10px;position:relative}
-.lb-list li.gap::before{content:"···";position:absolute;top:-13px;left:8px;font-size:10px;color:var(--muted)}
-.lb-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* the leaderboard rows: a place badge (gold, silver, bronze medals for the top three), the name with its vehicle and stars below,
+   the time with the gap to the leader; the driver's own row has a cyan edge */
+.lb-list{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-family:var(--f-mono);font-size:14px;font-variant-numeric:tabular-nums}
+.lb-list li{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;color:var(--muted);background:rgba(255,255,255,.02);border:1px solid transparent;transition:background .2s}
+.lb-list li:hover{background:rgba(255,255,255,.05)}
+.lb-place{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;font-size:12px;font-weight:700;color:var(--muted);background:rgba(255,255,255,.06)}
+.lb-list li.p1 .lb-place{color:#3a2600;background:radial-gradient(circle at 35% 30%,#fff1b8,#ffc857 55%,#c48a1c);box-shadow:0 0 12px rgba(255,200,87,.55)}
+.lb-list li.p2 .lb-place{color:#22262e;background:radial-gradient(circle at 35% 30%,#ffffff,#c9d1dc 55%,#8b95a5)}
+.lb-list li.p3 .lb-place{color:#2b1606;background:radial-gradient(circle at 35% 30%,#ffd9b0,#d08c4e 55%,#8f5523)}
+.lb-list li.p1{color:var(--ink);background:linear-gradient(90deg,rgba(255,200,87,.14),rgba(255,200,87,.02));border-color:rgba(255,200,87,.3)}
+.lb-list li.p2,.lb-list li.p3{color:var(--ink)}
+.lb-list li.me{border-color:rgba(85,236,255,.5);border-left:3px solid var(--spark);background:rgba(85,236,255,.1);color:var(--ink)}
+.lb-list li.gap{margin-top:12px;position:relative}
+.lb-list li.gap::before{content:"···";position:absolute;top:-14px;left:16px;font-size:10px;color:var(--muted)}
+.lb-who{display:grid;gap:2px;min-width:0}
+.lb-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.lb-meta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);white-space:nowrap}
+.lb-meta svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.lb-stars{display:inline-flex;gap:1px;margin-left:2px;font-size:10px;letter-spacing:0}
+.lb-stars i{font-style:normal;color:rgba(255,255,255,.18)}
+.lb-stars i.on{color:var(--gold)}
+.lb-time{display:grid;justify-items:end;gap:1px}
+.lb-time b{font-weight:700;color:inherit}
+.lb-time small{font-size:10.5px;color:var(--muted)}
 .lb-veh{display:none}
-.lb-list b{text-align:right;font-weight:600}
 .card .lb-empty{font-family:var(--f-mono);font-size:12.5px;padding:7px 8px}
-.card .lb-leader{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;max-width:none;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,200,87,.4);background:rgba(255,200,87,.08);color:var(--ink)}
+.card .lb-leader{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;max-width:none;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,200,87,.4);background:rgba(255,200,87,.08);color:var(--ink)}
 .lb-leader span{font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
 .lb-leader b{font-family:var(--f-display);font-size:22px;font-weight:800;letter-spacing:.01em}
 .lb-leader i{font-style:normal;font-family:var(--f-mono);font-size:13px;color:var(--muted)}
+.lb-crown{width:22px;height:22px;fill:var(--gold);filter:drop-shadow(0 0 6px rgba(255,200,87,.6))}
 .lb-ask{display:grid;gap:8px;font-family:var(--f-mono);font-size:13px;color:var(--ink)}
 .card.menu .lb-cols{grid-template-columns:1fr}
 @media (max-width:480px){.lb-cols{grid-template-columns:1fr}}
