@@ -66,6 +66,16 @@
       </div>
       <div class="dtrack"><i id="dfill"></i></div>
     </div>
+    <!-- nitro: a charge for every third piece of evidence or shard, fired with E or the flame button -->
+    <div class="nos" id="nos">
+      <div class="dmg-row">
+        <svg class="nos-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5c1 3.5 5 5.6 5 10.5a5 5 0 0 1-10 0c0-2.4 1.2-3.9 2.4-5 .3 1.6 1 2.6 2 3.1-.6-3 0-6 .6-8.6z"/></svg>
+        <span class="dmg-label">Nitro</span>
+        <span class="nos-pips" id="nosPips" aria-hidden="true"><i></i><i></i><i></i></span>
+        <kbd class="desk-only nos-key">E</kbd>
+      </div>
+      <div class="ntrack"><i id="nfill"></i></div>
+    </div>
     <div class="dash-main">
       <div class="gauge">
         <svg viewBox="0 0 160 160" aria-hidden="true">
@@ -105,6 +115,7 @@
     <button class="pad steer" data-key="right" aria-label="Steer right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
   </div>
   <div class="grp">
+    <button class="pad nitro empty" id="tNitro" data-key="nitro" aria-label="Nitro: 0 ready"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.5c1 3.5 5 5.6 5 10.5a5 5 0 0 1-10 0c0-2.4 1.2-3.9 2.4-5 .3 1.6 1 2.6 2 3.1-.6-3 0-6 .6-8.6z"/></svg></button>
     <button class="pad look" data-key="look" aria-label="Look back while held"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><circle cx="12" cy="12" r="2.2"/></svg></button>
     <button class="pad brake" id="tBrake" data-key="down" aria-label="Brake and reverse"><span>Brake</span></button>
     <button class="pad gas" id="tGas" data-key="up" aria-label="Gas"><span>Gas</span></button>

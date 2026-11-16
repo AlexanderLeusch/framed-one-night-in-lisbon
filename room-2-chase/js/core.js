@@ -394,6 +394,36 @@
   }
   const sparkCount = (level, dt) => level > 0 && level <= 1 ? SCRAPE.sparks * level * clamp(Number.isFinite(dt) ? dt : 0, 0, MAX_DT) : 0;
 
+  // ---------- Nitro ----------
+  // ### Every NITRO.every pieces of evidence or shards picked up fill one nitro charge, NITRO.max at most (a full tank lets the next
+  // ### fill go to waste). Pressing NITRO.key (E) or the nitro button during a run fires one: for NITRO.time seconds the top speed
+  // ### is NITRO.top times higher and the vehicle is pushed forward with NITRO.push m/s² on top of the engine, whether or not the gas
+  // ### is down. Only one burns at a time, and not while reversing. When it runs out, the speed falls back to the top speed the
+  // ### usual way (stepSpeed). In Lisbon that is a charge after the 3rd and the 6th piece of evidence.
+  const NITRO = Object.freeze({ key: 'KeyE', every: 3, max: 3, time: 2.5, top: 1.3, push: 14 });
+  const newNitro = () => ({ charges: 0, fill: 0, left: 0 });
+  // counts one pickup; true when it filled a new charge
+  function nitroPickup(n){
+    if (!n) return false;
+    n.fill = (n.fill || 0) + 1;
+    if (n.fill < NITRO.every) return false;
+    n.fill = 0;
+    if (n.charges >= NITRO.max) return false;
+    n.charges++;
+    return true;
+  }
+  // fires a charge; false (and nothing used) outside a run, with none left, while one burns or while reversing
+  function nitroFire(n, state, speed){
+    if (!n || state !== 'play' || !(n.charges >= 1) || n.left > 0 || !(speed > -0.5)) return false;
+    n.charges--; n.left = NITRO.time;
+    return true;
+  }
+  const nitroOn = n => !!n && n.left > 0;
+  function nitroStep(n, dt){ if (nitroOn(n)) n.left = Math.max(0, n.left - clamp(Number.isFinite(dt) ? dt : 0, 0, MAX_DT)); }
+  const nitroTop = (top, n) => nitroOn(n) ? top * NITRO.top : top;
+  // the push of a burning charge, never past the (raised) top speed and never backwards
+  const nitroPush = (speed, n, dt, maxNow) => nitroOn(n) && speed >= 0 && speed < maxNow ? Math.min(maxNow, speed + NITRO.push * clamp(Number.isFinite(dt) ? dt : 0, 0, MAX_DT)) : speed;
+
   // ---------- Looking back ----------
   // ### Holding LOOK.key (C) or the look-back button turns the camera round for as long as it is held, only while driving: it sits
   // ### ahead of the vehicle, a little higher than the chase camera, and looks back past it down the road (LOOK.far metres), so the
@@ -972,7 +1002,7 @@
     MODES, VEH, REV_SPEED, REPAIR_AMOUNT, MAX_DT, STORY_ACTS, KEY_MAP, BAIXA, streetAt, TRAM_LOOP, tramNext, RAIL, trackOffset, railCrossings, railShake, routeTo, routeMarks,
     EVIDENCE, WITNESS, WITNESS_RULE, witnessGetsIn, witnessGivesUp, witnessSpotOk, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
     parsePick, parseBest, applyPick, actionAllowed,
-    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, SCRAPE, scrapeLevel, sparkCount, LOOK, lookingBack, lookBackView, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
+    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, SCRAPE, scrapeLevel, sparkCount, LOOK, lookingBack, lookBackView, NITRO, newNitro, nitroPickup, nitroFire, nitroOn, nitroStep, nitroTop, nitroPush, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
     crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
     driveTime, runStars, isNewBest,

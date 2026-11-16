@@ -4618,6 +4618,22 @@ const sfx = {
     o.connect(gg).connect(audio.gameVol); o.start(t); o.stop(t + len + 0.05);
   },
   win: () => tone([659, 784, 988, 1319], 0.3, 'triangle', 0.13),
+  // ### Nitro: a rising whoosh of noise over a deep surge that fades with the burn; a charge filling up chimes softly.
+  nitro: () => {
+    if (!audio || muted) return;
+    const ctx = audio.ctx, t = ctx.currentTime, len = Core.NITRO.time;
+    const s = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = audio.noiseBuf; s.loop = true; bp.type = 'bandpass'; bp.Q.value = 0.9;
+    bp.frequency.setValueAtTime(500, t); bp.frequency.exponentialRampToValueAtTime(3200, t + 0.45); bp.frequency.exponentialRampToValueAtTime(1400, t + len);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32, t + 0.08); g.gain.exponentialRampToValueAtTime(0.12, t + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + len + 0.3);
+    s.connect(bp).connect(g).connect(audio.gameVol); s.start(t, Math.random() * 1.5); s.stop(t + len + 0.4);
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(55, t); o.frequency.exponentialRampToValueAtTime(110, t + len);
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.07, t + 0.1); og.gain.exponentialRampToValueAtTime(0.0001, t + len + 0.2);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+    o.connect(lp).connect(og).connect(audio.gameVol); o.start(t); o.stop(t + len + 0.3);
+  },
+  nitroReady: () => tone([1047, 1568], 0.12, 'sine', 0.07),
   fail: () => tone([392, 330, 262], 0.3, 'sine', 0.12),
   zap: () => tone([180, 90], 0.14, 'sawtooth', 0.07),
   // a car door: the latch clicks open, or shuts with a dull thud
@@ -4793,8 +4809,8 @@ function updateBoundary(dt){
 }
 
 // ---------- Input ----------
-// ### Keyboard (WASD/arrows, space, C, P, M, Enter) and on-screen touch pads both write into the same keys object.
-const keys = { up: false, down: false, left: false, right: false, brake: false, look: false };
+// ### Keyboard (WASD/arrows, space, C, E, P, M, Enter) and on-screen touch pads both write into the same keys object.
+const keys = { up: false, down: false, left: false, right: false, brake: false, look: false, nitro: false };
 const keyMap = Core.KEY_MAP, held = new Set(), crashGuard = Core.newCrashGuard();
 addEventListener('keydown', e => {
   if (!$('fatal').hidden || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -4816,6 +4832,7 @@ addEventListener('keydown', e => {
   if ((e.code === 'Enter' || e.code === 'Space') && onButton){ e.preventDefault(); if (!e.repeat) document.activeElement.click(); return; }
   if (Object.hasOwn(keyMap, e.code)){ held.add(e.code); keys[keyMap[e.code]] = true; e.preventDefault(); }
   if (e.code === Core.LOOK.key){ keys.look = true; e.preventDefault(); }
+  if (e.code === Core.NITRO.key){ keys.nitro = true; e.preventDefault(); }
   if (e.code === 'KeyP' || e.code === 'Escape'){ if (state === 'play') pause(); else if (state === 'pause') resume(); }
   if (e.code === 'KeyM'){ if (state === 'play') showMap(); else if (state === 'pause' && mapOpen) resume(); }
   if (e.code === 'KeyN') toggleSound();
@@ -4825,6 +4842,7 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => {
   if (Object.hasOwn(keyMap, e.code)){ held.delete(e.code); keys[keyMap[e.code]] = Core.actionHeld(held, keyMap[e.code]); }
   if (e.code === Core.LOOK.key) keys.look = false;
+  if (e.code === Core.NITRO.key) keys.nitro = false;
 });
 addEventListener('blur', () => { held.clear(); Object.keys(keys).forEach(k => keys[k] = false); if (state === 'play') pause(); });
 // The engine must never keep running when the tab is hidden: suspend all audio, resume when visible again
@@ -4896,7 +4914,7 @@ const steerRow = () => TILT.can ? `<span class="gfx">Steering <button data-steer
 // ### drawRadar paints the heading-up mini map on a canvas with one affine transform from world to radar coordinates.
 const overlay = $('overlay'), card = $('card'), hud = $('hud');
 const ui = {
-  lookTag: $('lookTag'),
+  lookTag: $('lookTag'), nos: $('nos'), nosPips: [...document.querySelectorAll('#nosPips i')], nfill: $('nfill'), tNitro: $('tNitro'),
   time: $('time'), speed: $('speed'), rpm: $('rpm'), chips: $('chips'), bars: $('bars'), sig: $('sigText'), toast: $('toast'),
   eye: $('missionEye'), mission: $('missionName'), prog: $('prog'), progKm: $('progKm'), pfill: $('pfill'),
   gVal: $('gVal'), gGlow: $('gGlow'), gTip: $('gTip'), gears: [...document.querySelectorAll('.gearbox [data-g]')], gearD: $('gearD'),
@@ -5007,6 +5025,17 @@ function updateHud(dt){
   const hb = live && keys.brake;
   if (hb !== last.hb){ ui.gears[0].classList.toggle('on', hb); last.hb = hb; }
 
+  // nitro: one pip per charge ready; the bar fills towards the next charge, and drains while one burns
+  const burning = Core.nitroOn(nitro), nf = burning ? nitro.left / Core.NITRO.time : nitro.fill / Core.NITRO.every;
+  const nosKey = nitro.charges + '|' + burning + '|' + nf.toFixed(2);
+  if (nosKey !== last.nos){
+    last.nos = nosKey;
+    ui.nosPips.forEach((p, i) => p.classList.toggle('on', i < nitro.charges));
+    ui.nfill.style.width = (nf * 100).toFixed(1) + '%';
+    ui.nos.classList.toggle('burn', burning);
+    ui.tNitro.classList.toggle('empty', !nitro.charges && !burning);
+    ui.tNitro.setAttribute('aria-label', 'Nitro: ' + nitro.charges + ' ready');
+  }
   const d = Math.round(damage);
   if (d !== last.dmg){
     last.dmg = d;
@@ -5189,6 +5218,8 @@ function drawRadar(){
 // ### collect/repair/crash/finish/gameOver handle the events and show the result cards. The menu is a showroom: the camera
 // ### orbits the selected vehicle and the stat bars are computed from the real VEH values (vehStats, zeroTo80).
 let state = 'menu', collected = 0, timeLeft = M.time, damage = 0, clock = 0, orbitAngle = 0;
+// the nitro tank (Core.newNitro): charges ready, pickups towards the next one, seconds left of the one burning
+const nitro = Core.newNitro();
 let edgeHint = false, warnedDamage = false;
 const best = {};
 for (const k of Object.keys(MODES)){ const b = Core.parseBest(readStore(MODES[k].store)); if (b) best[k] = b; }
@@ -5460,7 +5491,7 @@ function startRun(m, v){
   if (courier){ courier.on = false; courier.g.visible = false; }
   warmUp();
   resetPolice();
-  collected = 0; timeLeft = M.time; damage = 0;
+  collected = 0; timeLeft = M.time; damage = 0; Object.assign(nitro, Core.newNitro());
   edgeHint = false; warnedDamage = false;
   Object.values(MODELS).forEach(md => md.paint.color.copy(md.base));
   renderChips();
@@ -5686,16 +5717,18 @@ function resume(){
 // ### Picks up a shard or a piece of evidence, adds any bonus time. After the sixth piece in Lisbon the witness appears.
 function collect(it){
   it.taken = true; collected++;
+  const nos = Core.nitroPickup(nitro), ready = nos ? (COARSE ? ' · Nitro ready: tap the flame' : ' · Nitro ready: press E') : '';
+  if (nos){ sfx.nitroReady(); ui.nos.classList.remove('ready'); void ui.nos.offsetWidth; ui.nos.classList.add('ready'); }
   burst(it.x, it.group.position.y + 1.9, it.z, SPARK, 28);
   runGroup.remove(it.group);
   sfx.collect();
   if (collected >= items.length && !M.linear) spawnWitness();
   renderChips();
-  if (M.linear){ timeLeft += M.bonus; toast(`+${M.bonus} s · Shard ${collected} / ${items.length}`, 'gold', 1600); return; }
+  if (M.linear){ timeLeft += M.bonus; toast(`+${M.bonus} s · Shard ${collected} / ${items.length}${ready}`, 'gold', nos ? 2600 : 1600); return; }
   if (collected >= items.length){
     sfx.gate();
-    toast(`${it.ev.name}: ${it.ev.found} One thing is still missing: a witness. ${WITNESS.name}, ${WITNESS.job}, saw the real thief. She is waiting for you, look for the golden light and stop next to her.`, 'gold', 7000);
-  } else toast(`Evidence ${collected} / ${items.length} · ${it.ev.name}: ${it.ev.found}`, '', 4200);
+    toast(`${it.ev.name}: ${it.ev.found} One thing is still missing: a witness. ${WITNESS.name}, ${WITNESS.job}, saw the real thief. She is waiting for you, look for the golden light and stop next to her.${ready}`, 'gold', 7000);
+  } else toast(`Evidence ${collected} / ${items.length} · ${it.ev.name}: ${it.ev.found}${ready}`, '', 4200);
 }
 // ### Picks up a repair kit: Core.repairDamage removes the damage.
 function repair(kt){
@@ -6258,8 +6291,8 @@ function showMenu(){
     <section class="m-sec" data-drivers>${driverSection()}</section>
     <button class="btn m-start" data-action="go"><span>Start the getaway</span><kbd class="desk-only">Enter</kbd></button>
     <div class="m-foot">
-      <span class="desk-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · <kbd>Space</kbd> handbrake · <kbd>C</kbd> look back · <kbd>P</kbd> pause · <kbd>M</kbd> map · <kbd>N</kbd> sound · <kbd>R</kbd> radio</span>
-      <span class="touch-only">Steer on the left, brake and gas on the right. Hold the round button to look back.</span>
+      <span class="desk-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · <kbd>Space</kbd> handbrake · <kbd>C</kbd> look back · <kbd>E</kbd> nitro · <kbd>P</kbd> pause · <kbd>M</kbd> map · <kbd>N</kbd> sound · <kbd>R</kbd> radio</span>
+      <span class="touch-only">Steer on the left, brake and gas on the right. Hold the round button to look back; tap the flame for nitro.</span>
       <span>Best · Lisbon ${bestNote('city')} · Highway ${bestNote('highway')} · Country ${bestNote('country')}</span>
       <span class="gfx">Radio ${Core.RADIO_ORDER.map(k => `<button data-radio="${k}" aria-pressed="${radio.key === k}">${k === 'off' ? 'Off' : Core.RADIO[k].name}</button>`).join('')}</span>
       <span class="gfx">Graphics <button data-gfx="ultra" aria-pressed="${gfx === 'ultra'}">Ultra</button><button data-gfx="balanced" aria-pressed="${gfx === 'balanced'}">Balanced</button></span>
@@ -6399,9 +6432,15 @@ function updateCar(dt){
   // the country terrain beside the road counts as well; a slope steeper than 30 % pulls no harder
   const gfx = Math.sin(car.heading) * 2, gfz = Math.cos(car.heading) * 2;
   const grade = mode === 'country' ? clamp((groundH(car.x + gfx, car.z + gfz) - groundH(car.x - gfx, car.z - gfz)) / 4, -0.3, 0.3) : Core.gradeAt(mode, car.x, car.z, car.heading);
-  const maxNow = Core.slopeTop(Core.topSpeed(M, V, damage, offRoad), grade, V);
+  // ### Nitro (Core.nitroFire, nitroTop, nitroPush): a press of E or the flame button fires a charge, which raises the top speed
+  // ### and pushes the vehicle on for 2.5 s. Only the press counts, so holding the key does not fire the next one.
+  if (keys.nitro && !nitroHeld && Core.nitroFire(nitro, state, car.speed)) sfx.nitro();
+  nitroHeld = keys.nitro;
+  const maxNow = Core.nitroTop(Core.slopeTop(Core.topSpeed(M, V, damage, offRoad), grade, V), nitro);
   if (offRoad && Math.abs(car.speed) > 8) car.shake = Math.max(car.shake, 0.06);
-  car.speed = Core.stepSpeed(car.speed, keys, dt, maxNow, V, grade);
+  car.speed = Core.nitroPush(Core.stepSpeed(car.speed, keys, dt, maxNow, V, grade), nitro, dt, maxNow);
+  if (Core.nitroOn(nitro)) car.shake = Math.max(car.shake, 0.05);
+  Core.nitroStep(nitro, dt);
 
   // ### Steering: the rules (how fast the wheel turns, how tightly the tyres let the vehicle turn, how the turn rate builds up)
   // ### are Core.stepSteer, Core.turnRate and Core.stepYaw, tested in tests/room-2/rules.test.js.
@@ -6600,6 +6639,25 @@ function camClip(tx, tz){
 }
 
 // ### The chase camera: follows behind, stays out of buildings and above the ground, and widens with speed.
+// ### The nitro flame: four glows behind the exhaust, a white-blue core and three fading blue ones, that flicker and stretch out
+// ### behind the vehicle while a charge burns, and the view widens a little.
+let nitroHeld = false, nitroFov = 0;
+const NITRO_AT = { car: [-2.25, 0.33], bike: [-1.0, 0.5], truck: [-2.3, 0.55] };
+const nitroFlame = [[0xe4f2ff, 1.1, 0], [0x6fb4ff, 1.6, 0.6], [0x4f7dff, 2.0, 1.4], [0x6a4dff, 2.3, 2.4]].map(([c, size, back]) => {
+  const g = glowSprite(C(c), size, 0); g.visible = false; g.userData = { size, back }; carTilt.add(g); return g;
+});
+function updateNitroFx(){
+  const on = Core.nitroOn(nitro) && (state === 'play' || state === 'pause'), at = NITRO_AT[V.key] || NITRO_AT.car;
+  const fade = on ? Math.min(1, nitro.left / 0.4) : 0;
+  nitroFlame.forEach((g, i) => {
+    g.visible = on;
+    if (!on) return;
+    const flick = 0.75 + Math.random() * 0.5, d = g.userData;
+    g.position.set(0, at[1], at[0] - d.back * (0.8 + Math.random() * 0.4));
+    g.scale.setScalar(d.size * flick * (0.5 + 0.5 * fade));
+    g.material.opacity = (i === 0 ? 1 : 0.85 - i * 0.18) * fade;
+  });
+}
 // ### Looking back (Core.lookingBack, Core.lookBackView): while C or the look-back button is held, the camera jumps ahead of the
 // ### vehicle and looks back down the road. It cuts there and back at once, as a swing through the car would be hard to follow.
 const look = { on: false, snap: false };
@@ -6642,7 +6700,8 @@ function chaseCam(dt){
     camera.position.y += (Math.random() - 0.5) * car.shake * 0.6;
   }
   car.shake *= Math.exp(-dt * 6);
-  const fov = 62 + sp / (M.max * V.speed) * 14;
+  nitroFov += ((Core.nitroOn(nitro) ? 6 : 0) - nitroFov) * Math.min(1, dt * (Core.nitroOn(nitro) ? 6 : 2));
+  const fov = 62 + sp / (M.max * V.speed) * 14 + nitroFov;
   if (Math.abs(camera.fov - fov) > 0.05){ camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 // ### The showroom camera that circles the chosen vehicle in the menu.
@@ -7148,6 +7207,7 @@ function frame(now){
     if (mode === 'city'){ updateSignals(); updateNpcs(dt); }
     if (state !== 'menu') updateHeli(dt);
     updateParticles(dt); updateSmoke(dt); updateSparks(dt);
+    updateNitroFx();
   }
   updatePoliceVisuals();
   updateShowroom();

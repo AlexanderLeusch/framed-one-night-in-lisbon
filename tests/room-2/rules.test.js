@@ -881,3 +881,51 @@ test('looking back: the camera sits ahead of the vehicle, above it, and looks ba
   assert.equal(Core.lookBackView(0, 0, 0, 0, [0, 3]), null, 'rejected: no camera distance');
   assert.equal(Core.lookBackView(0, 0, 0, 0, null), null, 'rejected: no camera');
 });
+
+test('nitro: every third pickup fills a charge, up to three', () => {
+  const n = Core.newNitro();
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map(() => Core.nitroPickup(n)), [false, false, true, false, false, true], 'in Lisbon after the 3rd and the 6th piece');
+  assert.equal(n.charges, 2);
+  for (let i = 0; i < 9; i++) Core.nitroPickup(n);
+  assert.equal(n.charges, Core.NITRO.max, 'never more than the tank holds');
+  assert.equal(n.fill, 0);
+  assert.equal(Core.nitroPickup(null), false, 'rejected: no nitro state');
+});
+
+test('nitro: fires once per charge, only during a run, one at a time and not in reverse', () => {
+  const n = Core.newNitro();
+  assert.equal(Core.nitroFire(n, 'play', 20), false, 'rejected: no charge');
+  n.charges = 2;
+  assert.equal(Core.nitroFire(n, 'pause', 20), false, 'rejected: paused');
+  assert.equal(Core.nitroFire(n, 'menu', 20), false, 'rejected: in the menu');
+  assert.equal(Core.nitroFire(n, 'play', -5), false, 'rejected: reversing');
+  assert.equal(n.charges, 2, 'a refused press uses nothing');
+  assert.equal(Core.nitroFire(n, 'play', 20), true);
+  assert.equal(Core.nitroOn(n), true);
+  assert.equal(Core.nitroFire(n, 'play', 20), false, 'rejected: one is already burning');
+  assert.equal(n.charges, 1);
+  for (let t = 0; t < Core.NITRO.time + 0.1; t += 0.05) Core.nitroStep(n, 0.05);
+  assert.equal(Core.nitroOn(n), false, 'burns out after NITRO.time');
+  assert.equal(Core.nitroFire(n, 'play', 0), true, 'the next one from standing');
+});
+
+test('nitro: raises the top speed and pushes forward while it burns, the same at any frame rate', () => {
+  const n = Core.newNitro();
+  assert.equal(Core.nitroTop(30, n), 30, 'nothing without a burning charge');
+  assert.equal(Core.nitroPush(20, n, 1 / 60, 39), 20);
+  n.charges = 1; Core.nitroFire(n, 'play', 20);
+  assert.equal(Core.nitroTop(30, n), 30 * Core.NITRO.top);
+  const max = Core.nitroTop(30, n);
+  assert.ok(Core.nitroPush(20, n, 1 / 60, max) > 20, 'pushes forward');
+  assert.equal(Core.nitroPush(max, n, 1 / 60, max), max, 'never past the raised top speed');
+  assert.equal(Core.nitroPush(-3, n, 1 / 60, max), -3, 'never while rolling backwards');
+  const a = Core.nitroPush(Core.nitroPush(20, n, 1 / 60, max), n, 1 / 60, max), b = Core.nitroPush(20, n, 1 / 30, max);
+  assert.ok(Math.abs(a - b) < 1e-9, 'two short frames push as far as one long one');
+  assert.equal(Core.nitroPush(20, n, NaN, max), 20, 'rejected: bad frame time');
+  // a whole burn from 25 m/s with the gas down passes the normal top speed of 30 m/s
+  let sp = 25;
+  const keys = { up: true, down: false, brake: false };
+  const m = Core.newNitro(); m.charges = 1; Core.nitroFire(m, 'play', sp);
+  for (let t = 0; t < 2; t += 1 / 60){ const top = Core.nitroTop(30, m); sp = Core.nitroPush(Core.stepSpeed(sp, keys, 1 / 60, top, Core.VEH.car), m, 1 / 60, top); Core.nitroStep(m, 1 / 60); }
+  assert.ok(sp > 30 && sp <= 30 * Core.NITRO.top, 'faster than the top speed, within the raised one');
+});
