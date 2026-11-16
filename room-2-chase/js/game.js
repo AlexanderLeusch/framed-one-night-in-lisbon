@@ -544,7 +544,7 @@ class RoadLights {
   // starts at the front of the vehicle and reaches len metres down the road, wid wide at the far end, tipped with the slope
   set(i, x, z, h, front, len, wid, on){
     const fx = Math.sin(h), fz = Math.cos(h), x0 = x + fx * front, z0 = z + fz * front, y0 = hill(x0, z0), y1 = hill(x0 + fx * len, z0 + fz * len);
-    dummy.position.set(x0, y0 + 0.08, z0); dummy.rotation.set(-Math.atan2(y1 - y0, len), h, 0, 'YXZ');
+    dummy.position.set(x0, y0 + 0.035, z0); dummy.rotation.set(-Math.atan2(y1 - y0, len), h, 0, 'YXZ');
     dummy.scale.set(on ? wid : 0.0001, 1, on ? len : 0.0001); dummy.updateMatrix(); dummy.rotation.order = 'XYZ';
     this.m.setMatrixAt(i, dummy.matrix);
   }
@@ -1088,6 +1088,28 @@ function groundH(x, z){
   const lx = x - Math.floor(x / PITCH) * PITCH - PITCH / 2, lz = z - Math.floor(z / PITCH) * PITCH - PITCH / 2;
   return hill(x, z) + ((Math.abs(lx) <= HALF_BLOCK && Math.abs(lz) <= HALF_BLOCK) ? 0.18 : 0);
 }
+// ### A street lamp's pool of light, laid on the ground as it really is: cut along the kerbs, the part on the pavement lies just
+// ### above the pavement (18 cm up) and the part on the street just above the asphalt. One flat square at pavement height used
+// ### to float 21 cm over the street and hid the wheels of the cars parked under the lamp, so they seemed sunk into the road.
+// ### The texture runs across the whole square, so the cut pieces still make one round pool. (The hills come later, laySlopes.)
+function groundPool(batch, x, z, r, col){
+  const X0 = x - r, X1 = x + r, Z0 = z - r, Z1 = z + r, LIFT = 0.025;
+  // the kerb lines that cross the square: each block edge, HALF_BLOCK either side of the block centres
+  const kerbs = (a0, a1) => {
+    const cuts = [a0];
+    for (let k = Math.floor(a0 / PITCH) - 1; k <= Math.ceil(a1 / PITCH) + 1; k++){
+      for (const e of [k * PITCH + PITCH / 2 - HALF_BLOCK, k * PITCH + PITCH / 2 + HALF_BLOCK]) if (e > a0 && e < a1) cuts.push(e);
+    }
+    cuts.push(a1); return cuts.sort((p, q) => p - q);
+  };
+  const xs = kerbs(X0, X1), zs = kerbs(Z0, Z1);
+  for (let i = 0; i + 1 < xs.length; i++) for (let j = 0; j + 1 < zs.length; j++){
+    const xa = xs[i], xb = xs[i + 1], za = zs[j], zb = zs[j + 1], mx = (xa + xb) / 2, mz = (za + zb) / 2;
+    const lx = mx - Math.floor(mx / PITCH) * PITCH - PITCH / 2, lz = mz - Math.floor(mz / PITCH) * PITCH - PITCH / 2;
+    const y = (Math.abs(lx) <= HALF_BLOCK && Math.abs(lz) <= HALF_BLOCK ? 0.18 : 0) + LIFT;
+    batch.top(xa, xb, y, za, zb, col, [(xa - X0) / (2 * r), (Z1 - zb) / (2 * r), (xb - X0) / (2 * r), (Z1 - za) / (2 * r)]);
+  }
+}
 // ### Bends a finished, flat world over the hills. Ground-level triangles are cut along the grid of Core.hillMesh, so road, kerb,
 // ### markings and tracks stay exactly parallel, the same small distance apart as when they were flat. Taller walls only get extra
 // ### vertices where they are long. Then each vertex moves up or down, and the road's normals tilt with the slope. Small objects and instances simply
@@ -1486,7 +1508,7 @@ function buildCity(){
     const statue = new THREE.Mesh(mergeGeos(parts), bronze);
     statue.scale.setScalar(s); statue.position.set(x, 6.4, z); statue.castShadow = true;
     grp.add(ped, statue);
-    pools.top(x - 9, x + 9, 0.21, z - 9, z + 9, C(0xffc98a));
+    groundPool(pools, x, z, 9, C(0xffc98a));
     colliders.push({ t: 'c', x, z, r: 2.2 });
     radarRects.push({ x0: x - 2.2, x1: x + 2.2, z0: z - 2.2, z1: z + 2.2, c: 'rgba(255,255,255,.3)' });
   }
@@ -1589,7 +1611,7 @@ function buildCity(){
       housings.box(x - 0.27, x + 0.27, 5.5, 5.62, z - 0.27, z + 0.27, C(0x1d2027));
       housings.box(x - 0.12, x + 0.12, 5.62, 5.82, z - 0.12, z + 0.12, C(0x1d2027));
       glowPts.push(x, 5.2, z);
-      pools.top(x - 8, x + 8, 0.21, z - 8, z + 8, C(0xffc98a));
+      groundPool(pools, x, z, 8, C(0xffc98a));
       colliders.push({ t: 'c', x, z, r: 0.3 });
       // signal head for the approach whose right-hand corner this is
       const ix = cx + sx * 24, iz = cz + sz * 24, relx = -sx, relz = -sz, g = nodeGroup(ix, iz);
