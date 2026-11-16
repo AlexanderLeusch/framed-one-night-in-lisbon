@@ -837,3 +837,25 @@ test('shoving: a hit off the middle turns the vehicle, a centred hit does not, a
   assert.equal(Math.abs(Core.shoveSpin(0, 0, 1, 0, 10, 1)), 0, 'a centred hit only pushes');
   assert.ok(Math.abs(Core.shoveSpin(0, 2, 1, 0, 10, 4)) < Math.abs(Core.shoveSpin(0, 2, 1, 0, 10, 1)), 'a bus turns less than a car');
 });
+
+test('scraping: sliding along a wall scrapes, the faster the harder; driving straight into it does not', () => {
+  const { SCRAPE } = Core;
+  assert.equal(Core.scrapeLevel(0, 20, 1, 0) > 0, true, 'along a wall at 20 m/s');
+  assert.ok(Core.scrapeLevel(0, 20, 1, 0) > Core.scrapeLevel(0, 8, 1, 0), 'faster scrapes harder');
+  assert.equal(Core.scrapeLevel(0, 40, 1, 0), 1, 'full at speed, never more');
+  assert.equal(Core.scrapeLevel(-20, 0, 1, 0), 0, 'rejected: straight into the wall is a crash, not a scrape');
+  assert.equal(Core.scrapeLevel(0, SCRAPE.min * 0.9, 1, 0), 0, 'rejected: too slow to scrape');
+  assert.ok(Math.abs(Core.scrapeLevel(14, 14, 0, -2) - Core.scrapeLevel(14, 14, 0, -1)) < 1e-12, 'the length of the normal does not matter');
+});
+
+test('scraping: rejected for bad values, and the sparks follow the scrape and the frame time', () => {
+  assert.equal(Core.scrapeLevel(NaN, 20, 1, 0), 0);
+  assert.equal(Core.scrapeLevel(0, 20, 0, 0), 0, 'rejected: no surface direction');
+  assert.equal(Core.scrapeLevel(0, Infinity, 1, 0), 0);
+  assert.ok(Core.sparkCount(1, 1 / 60) > Core.sparkCount(0.3, 1 / 60), 'more sparks for a harder scrape');
+  assert.ok(Math.abs(Core.sparkCount(1, 1 / 30) - 2 * Core.sparkCount(1, 1 / 60)) < 1e-9, 'the same sparks per second at any frame rate');
+  assert.equal(Core.sparkCount(0, 1 / 60), 0, 'no scrape, no sparks');
+  assert.equal(Core.sparkCount(1, -1), 0, 'rejected: negative time');
+  assert.equal(Core.sparkCount(2, 1 / 60), 0, 'rejected: a level above 1');
+  assert.ok(Core.sparkCount(1, 10) <= Core.SCRAPE.sparks, 'a long frame is capped');
+});

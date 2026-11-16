@@ -4139,6 +4139,7 @@ function clearEffects(){
   particles.length = 0;
   smoke.concat(flames).forEach(p => { p.life = 0; p.s.visible = false; });
   smokeAcc = flameAcc = 0;
+  clearSparks();
 }
 // ### Emits the smoke and flames that Core.smokeFor asks for at the current damage, and lets them rise and fade.
 // ### Lets one puff of smoke rise from a point: P is what Core.smokeFor returns; vx, vz is how the source is moving.
@@ -4252,6 +4253,124 @@ function updateSkids(){
   }
 }
 
+// ### Scraping (Core.scrapeLevel): sliding along a wall or another vehicle throws sparks, lays scratches on the wall and grinds.
+// ### The sparks are a fixed pool of glowing streaks, a line from where each spark is to where it was a moment ago with a glow at
+// ### its head. They fly on with part of the car's speed, so they trail behind it, fall, bounce once off the ground and cool from
+// ### white over orange to nothing. The scratches are a ring of instanced quads on the wall: pale scraped streaks with some of the
+// ### car's paint in them, laid every SCRAPE.step metres; before the oldest are reused they thin out, so none vanish at once.
+const SPARK_POOL = 260, SPARK_TRAIL = 0.035, SPARK_FALL = 16;
+const sparks = (() => {
+  const geo = (n, k) => { const g = new THREE.BufferGeometry(), pos = new Float32Array(n * k), col = new Float32Array(n * k);
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3).setUsage(THREE.DynamicDrawUsage)); return { g, pos, col }; };
+  const line = geo(SPARK_POOL, 6), head = geo(SPARK_POOL, 3);
+  const lines = new THREE.LineSegments(line.g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  const glow = new THREE.Points(head.g, new THREE.PointsMaterial({ map: glowTexture, vertexColors: true, size: 0.32, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  lines.frustumCulled = glow.frustumCulled = false; lines.renderOrder = glow.renderOrder = 2; scene.add(lines, glow);
+  const p = []; for (let i = 0; i < SPARK_POOL; i++) p.push({ life: 0, max: 1, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, floor: 0, bounced: false });
+  return { line, head, p, idx: 0, acc: 0, live: false };
+})();
+// ### Throws n sparks from a point of contact: along the scrape (tx, tz) with part of the sliding speed, out of the surface (nx, nz)
+// ### and up; (vx, vz) is how the other side moves, if it is a vehicle.
+function emitSparks(sc, n){
+  for (let k = 0; k < n; k++){
+    const p = sparks.p[sparks.idx++ % SPARK_POOL], f = sc.along * (0.25 + Math.random() * 0.5), o = 0.8 + Math.random() * 3.2;
+    p.life = p.max = 0.3 + Math.random() * 0.45; p.bounced = false;
+    p.x = sc.x + (Math.random() - 0.5) * 0.3; p.y = sc.y + (Math.random() - 0.5) * 0.2; p.z = sc.z + (Math.random() - 0.5) * 0.3; p.floor = sc.floor;
+    p.vx = sc.tx * f + sc.nx * o + sc.vx * 0.6 + (Math.random() - 0.5) * 2.5;
+    p.vz = sc.tz * f + sc.nz * o + sc.vz * 0.6 + (Math.random() - 0.5) * 2.5;
+    p.vy = 0.8 + Math.random() * 4.2;
+  }
+  if (n) sparks.live = true;
+}
+function updateSparks(dt){
+  if (!sparks.live) return;
+  const L = sparks.line, H = sparks.head;
+  let any = false;
+  for (let i = 0; i < SPARK_POOL; i++){
+    const p = sparks.p[i], a = i * 6, b = i * 3;
+    if (p.life <= 0){ L.col.fill(0, a, a + 6); H.col.fill(0, b, b + 3); continue; }
+    any = true;
+    p.life -= dt; p.vy -= SPARK_FALL * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    // a spark hits the ground once and skips on, low and slower; then it slides and dies out
+    if (p.y < p.floor){ p.y = p.floor; if (!p.bounced){ p.vy *= -0.35; p.vx *= 0.55; p.vz *= 0.55; p.bounced = true; } else { p.vy = 0; p.vx *= 0.9; p.vz *= 0.9; } }
+    const t = clamp(p.life / p.max, 0, 1), br = Math.min(1, t * 2.5), r = br, g = (0.28 + 0.67 * t * t) * br, bl = (0.04 + 0.6 * t * t * t) * br;
+    L.pos[a] = p.x; L.pos[a + 1] = p.y; L.pos[a + 2] = p.z;
+    L.pos[a + 3] = p.x - p.vx * SPARK_TRAIL; L.pos[a + 4] = p.y - p.vy * SPARK_TRAIL; L.pos[a + 5] = p.z - p.vz * SPARK_TRAIL;
+    L.col[a] = r; L.col[a + 1] = g; L.col[a + 2] = bl; L.col[a + 3] = r * 0.25; L.col[a + 4] = g * 0.2; L.col[a + 5] = bl * 0.1;
+    H.pos[b] = p.x; H.pos[b + 1] = p.y; H.pos[b + 2] = p.z; H.col[b] = r * 0.7; H.col[b + 1] = g * 0.7; H.col[b + 2] = bl * 0.7;
+  }
+  for (const G of [L, H]){ G.g.attributes.position.needsUpdate = true; G.g.attributes.color.needsUpdate = true; }
+  sparks.live = any;
+}
+function clearSparks(){
+  sparks.p.forEach(p => { p.life = 0; });
+  sparks.line.col.fill(0); sparks.head.col.fill(0); sparks.acc = 0; sparks.live = false;
+  for (const G of [sparks.line, sparks.head]) G.g.attributes.color.needsUpdate = true;
+}
+const scratches = (() => {
+  const N = Core.SCRAPE.marks, c = document.createElement('canvas'); c.width = 256; c.height = 32;
+  const g = c.getContext('2d'), r = mulberry32(5);
+  // many fine streaks of different strength, as left by an edge dragged along the wall, a few of them deep and bright
+  for (let k = 0; k < 80; k++){
+    const y = 4 + r() * 24, x = r() * 80 - 30, len = 90 + r() * 200;
+    g.strokeStyle = 'rgba(255,255,255,' + (0.2 + r() * 0.6).toFixed(2) + ')'; g.lineWidth = 0.5 + r() * (r() < 0.15 ? 2.4 : 1.1);
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + len, y + (r() - 0.5) * 3); g.stroke();
+  }
+  // soften the top and bottom edge, so the quad never shows
+  g.globalCompositeOperation = 'destination-in';
+  const edge = g.createLinearGradient(0, 0, 0, 32);
+  edge.addColorStop(0, 'rgba(0,0,0,0)'); edge.addColorStop(0.25, 'rgba(0,0,0,1)'); edge.addColorStop(0.75, 'rgba(0,0,0,1)'); edge.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = edge; g.fillRect(0, 0, 256, 32);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.wrapS = THREE.RepeatWrapping;
+  const mat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.85, roughness: 0.6, metalness: 0.15, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), mat, N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  for (let i = 0; i < N; i++) mesh.setColorAt(i, WHITE);
+  mesh.count = 0; mesh.frustumCulled = false; mesh.renderOrder = 1; scene.add(mesh);
+  // per mark: x, y, z, turn, length, height (kept to thin the oldest out)
+  return { mesh, N, data: new Float32Array(N * 6), head: 0, used: 0, last: null, m: new THREE.Matrix4(), q: new THREE.Quaternion(), e: new THREE.Euler(), v: new THREE.Vector3(), s: new THREE.Vector3(), col: new THREE.Color() };
+})();
+function placeScratch(i, thin){
+  const S = scratches, d = S.data, k = i * 6;
+  S.v.set(d[k], d[k + 1], d[k + 2]); S.e.set(0, d[k + 3], 0); S.q.setFromEuler(S.e); S.s.set(d[k + 4], Math.max(0.001, d[k + 5] * thin), 1);
+  S.mesh.setMatrixAt(i, S.m.compose(S.v, S.q, S.s));
+}
+// mostly the pale of scraped stone and bare metal, with a little of the car's paint rubbed into it
+const SCRATCH_PALE = C(0xd2cdc4);
+function addScratch(ax, az, bx, bz, nx, nz, y, h, inset){
+  const S = scratches, i = S.head, k = i * 6, FADE = Core.SCRAPE.fade;
+  S.data.set([(ax + bx) / 2 + nx * (0.02 - inset), y, (az + bz) / 2 + nz * (0.02 - inset), Math.atan2(nx, nz), Math.hypot(bx - ax, bz - az) + 0.2, h], k);
+  placeScratch(i, 1);
+  S.mesh.setColorAt(i, S.col.copy(SCRATCH_PALE).lerp(MODELS[V.key].paint.color, 0.2 + Math.random() * 0.25));
+  S.head = (i + 1) % S.N; S.used = Math.min(S.N, S.used + 1); S.mesh.count = S.used;
+  if (S.used === S.N) for (let j = 0; j < FADE; j++) placeScratch((S.head + j) % S.N, j / FADE);
+  S.mesh.instanceMatrix.needsUpdate = true; S.mesh.instanceColor.needsUpdate = true;
+}
+function resetScratches(){ const S = scratches; S.head = S.used = 0; S.last = null; S.mesh.count = 0; }
+// the height of the scrape above the road for each vehicle: its bumper and the side of its body
+const SCRAPE_AT = { car: [0.38, 0.5], bike: [0.32, 0.42], truck: [0.5, 0.75] };
+const scrapeNow = { level: 0, along: 0, x: 0, y: 0, z: 0, floor: 0, nx: 0, nz: 0, tx: 0, tz: 0, vx: 0, vz: 0, c: null };
+// ### Called after each frame's contacts: throws the sparks and lays the scratch. Only walls of houses, parked cars and the
+// ### concrete wall in the middle of the highway get scratches, as only those stand where the side of a car touches them.
+function scrapeEffects(dt){
+  const sc = scrapeNow;
+  if (!sc.level){ scratches.last = null; sparks.acc = 0; return; }
+  sparks.acc += Core.sparkCount(sc.level, dt);
+  const n = Math.floor(sparks.acc); sparks.acc -= n; emitSparks(sc, n);
+  const c = sc.c, wall = c && (c.t === 'b' || c.t === 'p' || (c.t === 'w' && c.x0 === -0.5));
+  if (!wall){ scratches.last = null; return; }
+  const at = SCRAPE_AT[V.key] || SCRAPE_AT.car, y = c.t === 'w' ? car.y + 0.2 : car.y + at[1], last = scratches.last;
+  const now = { x: sc.x, z: sc.z, nx: sc.nx, nz: sc.nz, c };
+  if (!last || last.c !== c || last.nx * sc.nx + last.nz * sc.nz < 0.95){ scratches.last = now; return; }
+  const d = Math.hypot(sc.x - last.x, sc.z - last.z);
+  if (d < Core.SCRAPE.step) return;
+  // the box of a parked car is a little wider than its body, and the wall in the middle of the highway than its concrete
+  if (d < 3) addScratch(last.x, last.z, sc.x, sc.z, sc.nx, sc.nz, y, 0.05 + 0.08 * sc.level, c.t === 'p' ? 0.08 : c.t === 'w' ? 0.05 : 0);
+  scratches.last = now;
+}
+
 // ---------- Sound: engine with rpm and an automatic gearbox, plus siren ----------
 // ### Everything is synthesised with the Web Audio API, no sound files. core.js models each engine (ENGINES, engineLoops) and
 // ### renders loops at five rpms, each once under load and once on overrun, the way racing games use recorded engine loops.
@@ -4310,6 +4429,15 @@ function initAudio(){
     const wind = gain(0); noise().connect(windF).connect(wind).connect(comp);
     const tireF = ctx.createBiquadFilter(); tireF.type = 'bandpass'; tireF.frequency.value = 2300; tireF.Q.value = 9;
     const tire = gain(0); noise().connect(tireF).connect(tire).connect(comp);
+    // ### The grind of a scrape: noise through a broad band and a narrow metallic ring above it, whose level crackles with slow
+    // ### random noise, as the contact catches and lets go. updateEngine sets its level and pitch from the scrape.
+    const scrapeF = ctx.createBiquadFilter(); scrapeF.type = 'bandpass'; scrapeF.frequency.value = 2200; scrapeF.Q.value = 1.2;
+    const scrapeRing = ctx.createBiquadFilter(); scrapeRing.type = 'bandpass'; scrapeRing.frequency.value = 4700; scrapeRing.Q.value = 7;
+    const scrapeAm = gain(0.45), scrapeAmF = ctx.createBiquadFilter(); scrapeAmF.type = 'lowpass'; scrapeAmF.frequency.value = 40;
+    const scrapeSrc = ctx.createBufferSource(); scrapeSrc.buffer = noiseBuf; scrapeSrc.loop = true; scrapeSrc.start(0, 0.77);
+    scrapeSrc.connect(scrapeAmF).connect(gain(1.8)).connect(scrapeAm.gain);
+    const scrape = gain(0), scrapeIn = noise(); scrapeIn.connect(scrapeF).connect(scrapeAm); scrapeIn.connect(scrapeRing).connect(gain(0.9)).connect(scrapeAm);
+    scrapeAm.connect(scrape).connect(comp);
     const popF = ctx.createBiquadFilter(); popF.type = 'bandpass'; popF.frequency.value = 1100; popF.Q.value = 1.6;
     popF.connect(comp);
     const airF = ctx.createBiquadFilter(); airF.type = 'highpass'; airF.frequency.value = 3000;
@@ -4328,7 +4456,7 @@ function initAudio(){
     const sirenDepth = gain(330); sirenLfo.connect(sirenDepth).connect(siren.frequency);
     const sirenGain = gain(0); siren.connect(sirenGain).connect(comp);
     [turbo, whine, siren, sirenLfo].forEach(o => o.start());
-    audio = { ctx, master, gameVol, musicVol, comp, bus, gritDepth, roar, roarF, layers: [], voice: null, bufs: {}, noiseBuf, radioBus, road, rotor, rotorF, rotorSrc, wind, tire, popF, airF, turbo, turboG, whine, whineG, sirenGain, sirenLfo };
+    audio = { ctx, master, gameVol, musicVol, comp, bus, gritDepth, roar, roarF, layers: [], voice: null, bufs: {}, noiseBuf, radioBus, road, rotor, scrape, scrapeF, rotorF, rotorSrc, wind, tire, popF, airF, turbo, turboG, whine, whineG, sirenGain, sirenLfo };
     setEngineVoice();
   } catch (e) { audio = null; }
 }
@@ -4575,6 +4703,9 @@ function updateEngine(dt){
   a.wind.gain.setTargetAtTime(on ? Math.pow(sp / 55, 2) * 0.06 * under : 0, t, 0.2);
   const squeal = Core.skidAmount(car.speed, keys.down, keys.brake, car.steer) * 0.075;
   a.tire.gain.setTargetAtTime(on ? squeal : 0, t, 0.06);
+  const grind = on && state === 'play' ? scrapeNow.level : 0;
+  a.scrape.gain.setTargetAtTime(grind ? 0.05 + 0.17 * grind : 0, t, grind ? 0.02 : 0.07);
+  a.scrapeF.frequency.setTargetAtTime(1500 + 2300 * grind, t, 0.05);
   const sirenVol = !muted && (state === 'play' || state === 'over') && nearestCop < Infinity ? 0.075 * clamp(1 - nearestCop / 220, 0, 1) : 0;
   a.sirenGain.gain.setTargetAtTime(sirenVol, t, 0.15);
   a.sirenLfo.frequency.setTargetAtTime(nearestCop < 30 ? 3.2 : 0.32, t, 0.3);
@@ -5304,6 +5435,7 @@ function resetCar(){
   let x = mode === 'city' ? -3.5 : HW.our[1], z = mode === 'city' ? -6 : 5, heading = 0;
   if (mode === 'country'){ const pt = roadPoint(40, ROAD.lane); x = pt.x; z = pt.z; heading = pt.h; roadPos.ri = undefined; roadPos.s = 40; roadPos.lat = ROAD.lane; }
   Object.assign(car, { x, z, y: groundH(x, z), heading, camHeading: heading, speed: 0, steer: 0, yaw: 0, pitch: 0, roll: 0, bodyPitch: 0, shake: 0, prevSpeed: 0, lean: 0, lift: 0 });
+  resetScratches(); scrapeNow.level = 0;
   resetSkids();
   eng.gear = 1; eng.rpm = ENGINES[V.key].idle; eng.shift = 0; eng.boost = 0; eng.miss = 0;
   camera.position.set(x - Math.sin(heading) * V.cam[0], car.y + V.cam[1], z - Math.cos(heading) * V.cam[0]);
@@ -6285,12 +6417,23 @@ function updateCar(dt){
     const impact = -((fx * car.speed - (vxOther || 0)) * nx + (fz * car.speed - (vzOther || 0)) * nz);
     return impact;
   };
+  // the hardest scrape of this frame: the speed along the surface against what is touched (Core.scrapeLevel)
+  const sc = scrapeNow, at = SCRAPE_AT[V.key] || SCRAPE_AT.car;
+  sc.level = 0;
+  const scrapeAt = (hit, s, vxo, vzo, c) => {
+    const rvx = fx * car.speed - (vxo || 0), rvz = fz * car.speed - (vzo || 0), lv = Core.scrapeLevel(rvx, rvz, hit[0], hit[1]);
+    if (lv <= sc.level) return;
+    const along = -rvx * hit[1] + rvz * hit[0], dir = Math.sign(along) || 1;
+    Object.assign(sc, { level: lv, along: Math.abs(along), nx: hit[0], nz: hit[1], tx: -hit[1] * dir, tz: hit[0] * dir, vx: vxo || 0, vz: vzo || 0, c: c || null,
+      x: car.x + fx * s - hit[0] * V.r, z: car.z + fz * s - hit[1] * V.r, y: car.y + at[0], floor: car.y + 0.03 });
+  };
   const nearC = collidersNear(car.x, car.z);
   for (const s of V.samples){
     for (const c of nearC){
       const hit = collidePoint(car.x + fx * s, car.z + fz * s, V.r, c);
       if (!hit) continue;
       const impact = hitWith(hit);
+      scrapeAt(hit, s, 0, 0, c);
       if (impact > 2){ worst = Math.max(worst, impact); car.speed *= 0.3; } else car.speed *= 0.985;
     }
   }
@@ -6302,6 +6445,7 @@ function updateCar(dt){
         const hit = collidePoint(car.x + fx * s, car.z + fz * s, V.r, { x0: tx - t.hw, x1: tx + t.hw, z0: tz - t.len / 2, z1: tz + t.len / 2 });
         if (!hit) continue;
         const vtz = t.dir * t.speed, impact = hitWith(hit, 0, vtz);
+        scrapeAt(hit, s, 0, vtz);
         if (impact > 2){
           worst = Math.max(worst, impact);
           car.speed = vtz * fz * 0.85 + (V.key === 'truck' ? car.speed * 0.4 : 0);
@@ -6319,6 +6463,7 @@ function updateCar(dt){
         const hit = collidePoint(car.x + fx * s, car.z + fz * s, V.r, { t: 'c', x: o.x, z: o.z, r: o.r });
         if (!hit) continue;
         const impact = hitWith(hit, o.vx, o.vz);
+        scrapeAt(hit, s, o.vx, o.vz);
         // the hit vehicle is pushed away from you; you keep more speed the lighter it is
         const share = o.npc && impact > 1 ? shove(o.npc, -hit[0], -hit[1], impact, o.x, o.z, PLAYER_MASS[V.key] || 1) : 0;
         if (o.npc) o.npc.stun = Math.max(o.npc.stun, 2.5);
@@ -6327,6 +6472,7 @@ function updateCar(dt){
       }
     }
   }
+  scrapeEffects(dt);
   if (worst > 0) crash(worst, Core.chargeCrash(crashGuard, worst, V, clock));
   if (state !== 'play') return;
   settleCar(dt);
@@ -6974,7 +7120,7 @@ function frame(now){
     if (mode === 'country' && state !== 'menu') updateCountryTraffic(dt);
     if (mode === 'city'){ updateSignals(); updateNpcs(dt); }
     if (state !== 'menu') updateHeli(dt);
-    updateParticles(dt); updateSmoke(dt);
+    updateParticles(dt); updateSmoke(dt); updateSparks(dt);
   }
   updatePoliceVisuals();
   updateShowroom();

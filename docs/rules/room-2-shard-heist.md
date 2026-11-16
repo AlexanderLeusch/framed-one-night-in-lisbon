@@ -111,6 +111,7 @@ The city is a hand-built model of the real Baixa, not map data loaded by the gam
 | Rule | Value |
 |---|---|
 | Crash | impacts under 4 m/s (about 14 km/h) are free; above that, damage = (impact − 4) × 1.0 × the vehicle's damage factor. A wall at 122 km/h costs the car 30 %, the truck 17 %. One crash counts once: for 0.35 s after contact, only a harder hit costs more |
+| Scrape | sliding along a wall or another vehicle faster than 3 m/s (about 11 km/h), measured along the surface, throws sparks and grinds, harder the faster you slide (full at 22 m/s). Along house walls, parked cars and the wall in the middle of the highway it leaves pale scratches with a little of your paint; the newest 400 stay. A scrape costs no damage; only the part of your speed into the wall counts as a crash |
 | 25 % damage | the paint shows dents (deepest at the nose and the tail), long scratches and dirt, and loses its shine as the damage grows; thin grey smoke rises from the engine |
 | 50 % damage | warning: "Engine damaged: top speed reduced." Loose parts and a smashed light; the engine misfires; the smoke turns dark |
 | 75 % damage | hood up (car), screen gone (motorcycle), hanging bumper and cracked windscreen (truck); a thick black column of smoke; sparks at speed |
