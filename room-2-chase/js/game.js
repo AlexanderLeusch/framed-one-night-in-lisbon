@@ -6259,7 +6259,7 @@ function showMenu(){
     <button class="btn m-start" data-action="go"><span>Start the getaway</span><kbd class="desk-only">Enter</kbd></button>
     <div class="m-foot">
       <span class="desk-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · <kbd>Space</kbd> handbrake · <kbd>C</kbd> look back · <kbd>P</kbd> pause · <kbd>M</kbd> map · <kbd>N</kbd> sound · <kbd>R</kbd> radio</span>
-      <span class="touch-only">Steer on the left, brake and gas on the right.</span>
+      <span class="touch-only">Steer on the left, brake and gas on the right. Hold the round button to look back.</span>
       <span>Best · Lisbon ${bestNote('city')} · Highway ${bestNote('highway')} · Country ${bestNote('country')}</span>
       <span class="gfx">Radio ${Core.RADIO_ORDER.map(k => `<button data-radio="${k}" aria-pressed="${radio.key === k}">${k === 'off' ? 'Off' : Core.RADIO[k].name}</button>`).join('')}</span>
       <span class="gfx">Graphics <button data-gfx="ultra" aria-pressed="${gfx === 'ultra'}">Ultra</button><button data-gfx="balanced" aria-pressed="${gfx === 'balanced'}">Balanced</button></span>
