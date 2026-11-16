@@ -746,3 +746,65 @@ test('route arrows: evenly spaced in the driving lane, pointing along the street
   assert.equal(Core.routeMarks(pts, 5, 3.5, 8, 7).length, 7);
   assert.deepEqual(Core.routeMarks([], 5, 3.5, 8, 100), []);
 });
+
+test('steering: tight at walking pace, a wide arc at speed, never more sideways pull than the tyres grip', () => {
+  const radius = (v, sp, hb) => sp / Core.turnRate(1, sp, v, hb);
+  assert.ok(radius(VEH.car, 30) > 2 * radius(VEH.car, 10), 'the faster, the wider the arc: ' + radius(VEH.car, 10).toFixed(1) + ' m at 36 km/h, ' + radius(VEH.car, 30).toFixed(1) + ' m at 108 km/h');
+  for (const key of ['car', 'bike', 'truck']){
+    const v = VEH[key];
+    for (const hb of [false, true]) for (let sp = 1; sp <= 70; sp += 0.5){
+      const pull = sp * Math.abs(Core.turnRate(1, sp, v, hb));
+      assert.ok(pull <= Core.GRIP[key] * v.handling * (hb ? 1.5 : 1) + 1e-9, `${key} at ${sp} m/s pulls ${pull.toFixed(2)} m/s² sideways`);
+    }
+  }
+  assert.ok(radius(VEH.bike, 20) < radius(VEH.car, 20) && radius(VEH.car, 20) < radius(VEH.truck, 20), 'the motorcycle turns tightest, the truck widest');
+  assert.ok(radius(VEH.car, 25, true) < radius(VEH.car, 25), 'the handbrake turns tighter');
+  assert.equal(Core.turnRate(-1, 15, VEH.car, false), -Core.turnRate(1, 15, VEH.car, false), 'left and right are the same');
+  assert.equal(Core.turnRate(1, 15, VEH.car, false), Core.turnRate(1, -15, VEH.car, false), 'reversing turns as tightly (the game flips the direction)');
+});
+
+test('rejected: a vehicle that does not move does not turn, and no steering gives no turn', () => {
+  for (const key of ['car', 'bike', 'truck']) assert.equal(Core.turnRate(1, 0, VEH[key], false), 0, key);
+  assert.equal(Core.turnRate(0, 30, VEH.car, true), 0);
+});
+
+test('steering builds up and fades smoothly: the wheel turns in within about 0.15 s, comes back faster, and the turn rate never overshoots', () => {
+  let s = 0; for (let t = 0; t < 0.15; t += 1 / 60) s = Core.stepSteer(s, 1, 1 / 60);
+  assert.ok(s > 0.6 && s < 1, 'in after 0.15 s: ' + s.toFixed(2));
+  let back = 1; for (let t = 0; t < 0.15; t += 1 / 60) back = Core.stepSteer(back, 0, 1 / 60);
+  assert.ok(back < 1 - s, 'it lets go faster than it turns in');
+  const long = Core.stepSteer(0.3, 1, 1000);
+  assert.ok(long > 0.3 && long <= 1, 'a hiccup of a frame counts as one short step (MAX_DT) and never steers past the input: ' + long);
+  let yaw = 0; const want = Core.turnRate(1, 20, VEH.car, false);
+  for (let i = 0; i < 120; i++){ yaw = Core.stepYaw(yaw, want, 1 / 60, VEH.car); assert.ok(yaw <= want + 1e-12, 'never past the turn it asks for'); }
+  assert.ok(Math.abs(yaw - want) < 1e-6, 'and gets there');
+  const after = (v, n) => { let y = 0; for (let i = 0; i < n; i++) y = Core.stepYaw(y, 1, 1 / 60, v); return y; };
+  assert.ok(after(VEH.truck, 6) < after(VEH.car, 6), 'the heavy truck turns in more slowly');
+});
+
+test('the witness gets in only when you stop right next to her, and waits again if you drive off', () => {
+  assert.equal(Core.WITNESS.name, 'Marta Silva');
+  assert.ok(Object.isFrozen(Core.WITNESS) && Object.isFrozen(Core.WITNESS_RULE));
+  assert.equal(Core.witnessGetsIn(5, 1), true, 'stopped beside her');
+  assert.equal(Core.witnessGetsIn(6.9, -2.9), true, 'rolling slowly backwards counts too');
+  assert.equal(Core.witnessGivesUp(11.9), false, 'still close enough while she walks to the door');
+  assert.equal(Core.witnessGivesUp(12.1), true, 'driven off: she goes back to wait');
+});
+
+test('rejected: the witness does not get in from too far away, at speed, or from nonsense values', () => {
+  assert.equal(Core.witnessGetsIn(7, 0), false, 'too far: 7 m');
+  assert.equal(Core.witnessGetsIn(3, 3), false, 'too fast: 3 m/s');
+  assert.equal(Core.witnessGetsIn(3, -4), false, 'too fast backwards');
+  for (const bad of [NaN, Infinity, undefined, '2']) assert.equal(Core.witnessGetsIn(bad, 0), false, String(bad));
+  assert.equal(Core.witnessGetsIn(2, NaN), false);
+  assert.equal(Core.witnessGivesUp(NaN), true, 'an unknown distance counts as driven off');
+});
+
+test('the witness waits 70 to 200 m away and inside the map, never next to the player or at the edge', () => {
+  const L = 150;
+  assert.equal(Core.witnessSpotOk(0, 100, 0, 0, L), true);
+  assert.equal(Core.witnessSpotOk(0, 69, 0, 0, L), false, 'rejected: too close');
+  assert.equal(Core.witnessSpotOk(140, -140, -100, 100, L), false, 'rejected: too far');
+  assert.equal(Core.witnessSpotOk(145, 0, 0, 0, L), false, 'rejected: at the edge of the map');
+  assert.equal(Core.witnessSpotOk(0, -141.5, 0, 0, L), true, 'just inside the edge (8 m in from it)');
+});

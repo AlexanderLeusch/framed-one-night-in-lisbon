@@ -5542,7 +5542,7 @@ function updateRoute(){
 // ### saw the real thief climb out of the museum window, waits on a pavement somewhere in the Baixa, waving, with a golden light
 // ### over her head and a gold mark on the radar. Stop next to her (closer than 7 m, slower than about 11 km/h) and she walks
 // ### to the car and gets in; drive off before she reaches it and she goes back to wait. With her on board the gate opens.
-const WITNESS = Object.freeze({ name: 'Marta Silva', job: 'a night-shift nurse', found: 'Marta Silva is in the car. She saw a man climb out of the museum window that night, and she will say so in court. That is the last piece of evidence. Drive to the golden gate at the south-west corner of the Baixa, the way out to the 25 de Abril bridge: follow the golden beam.' });
+const { WITNESS } = Core;
 // ### Marta is built like a person, about 1.70 m tall: legs of 0.88 m that turn at the hip and the knee, a long belted coat over dark
 // ### trousers and boots, a red scarf, a face with eyes, nose and lips, hair tied in a bun, a handbag on her left shoulder, and arms
 // ### that turn at the shoulder, the elbow and the wrist. Every part is a smooth tube or a lofted shell (limbLoft, loft), not a box.
@@ -5607,7 +5607,7 @@ function spawnWitness(){
   for (const s of spots){
     const side = Math.random() < 0.5 ? -1 : 1, x = s.axis === 'x' ? s.x : s.x + side * 8.3, z = s.axis === 'x' ? s.z + side * 8.3 : s.z;
     const d = Math.hypot(x - car.x, z - car.z);
-    if (d < 70 || d > 200 || Math.abs(x) > LIMIT - 8 || Math.abs(z) > LIMIT - 8) continue;
+    if (!Core.witnessSpotOk(x, z, car.x, car.z, LIMIT)) continue;
     pick = { x, z, h: s.axis === 'x' ? (side > 0 ? Math.PI : 0) : (side > 0 ? -Math.PI / 2 : Math.PI / 2) };
     break;
   }
@@ -5680,8 +5680,8 @@ function updateWitness(dt, live){
   if (!W.active) return;
   const B = BOARD[V.key], ch = Math.cos(car.heading), sh = Math.sin(car.heading);
   const toWorld = (lx, lz) => [car.x + lx * ch + lz * sh, car.z - lx * sh + lz * ch];
-  const d = Math.hypot(W.x - car.x, W.z - car.z), slow = Math.abs(car.speed) < 3;
-  if (live && !W.boarding && d < 7 && slow){ W.boarding = 0.001; W.phase = 'walk'; W.t = 0; toast(`${WITNESS.name} runs to your car.`, '', 1500); }
+  const d = Math.hypot(W.x - car.x, W.z - car.z);
+  if (live && !W.boarding && Core.witnessGetsIn(d, car.speed)){ W.boarding = 0.001; W.phase = 'walk'; W.t = 0; toast(`${WITNESS.name} runs to your car.`, '', 1500); }
   // ### Waiting on the pavement under the golden light. She turns to face the player's car, shifts her weight, and waves: in bursts
   // ### of about three seconds while the car is far away, and all the time, with the whole arm, once it is closer than 45 m.
   if (!W.phase){
@@ -5698,7 +5698,7 @@ function updateWitness(dt, live){
   }
   // ### 1. She walks to the door. Drive off before she gets there and she goes back to wait.
   if (W.phase === 'walk'){
-    if (d > 12 || !live){ unseatWitness(); Object.assign(W, { boarding: 0, x: W.home.x, z: W.home.z, h: W.home.h }); }
+    if (Core.witnessGivesUp(d) || !live){ unseatWitness(); Object.assign(W, { boarding: 0, x: W.home.x, z: W.home.z, h: W.home.h }); }
     else {
       W.boarding += dt;
       const [tx, tz] = toWorld(B.stand[0], B.stand[1]), dx = tx - W.x, dz = tz - W.z, l = Math.hypot(dx, dz);
@@ -6190,17 +6190,12 @@ function updateCar(dt){
   if (offRoad && Math.abs(car.speed) > 8) car.shake = Math.max(car.shake, 0.06);
   car.speed = Core.stepSpeed(car.speed, keys, dt, maxNow, V, grade);
 
-  // ### Steering with the weight of a car, but quick: the wheel turns in within about 0.15 s and comes back a little faster.
-  // ### How tightly the car can turn is limited by the grip of its tyres: the sideways pull (speed x turn rate) never passes
-  // ### GRIP x handling, so at walking pace it turns on the spot and at speed it draws a wide arc instead of flicking round like
-  // ### a bicycle. The turn rate itself builds up and fades smoothly (yaw), and the handbrake lets the rear step out.
+  // ### Steering: the rules (how fast the wheel turns, how tightly the tyres let the vehicle turn, how the turn rate builds up)
+  // ### are Core.stepSteer, Core.turnRate and Core.stepYaw, tested in tests/room-2/rules.test.js.
   const steerIn = (keys.left ? 1 : 0) - (keys.right ? 1 : 0) || TILT.value;
-  car.steer += (steerIn - car.steer) * Math.min(1, (steerIn ? 7.5 : 10) * dt);
-  const sp = Math.abs(car.speed), GRIP = V.key === 'bike' ? 28 : 24;
-  const ask = car.steer * Math.min(1, sp / 6) * (2.5 * V.handling / (1 + sp * 0.035));
-  const most = GRIP * V.handling * (keys.brake ? 1.5 : 1) / Math.max(sp, 1);
-  const turn = clamp(ask * (keys.brake ? 1.5 : 1), -most, most);
-  car.yaw = (car.yaw || 0) + (turn - (car.yaw || 0)) * Math.min(1, dt * (V.key === 'truck' ? 7 : 11));
+  car.steer = Core.stepSteer(car.steer, steerIn, dt);
+  const sp = Math.abs(car.speed);
+  car.yaw = Core.stepYaw(car.yaw || 0, Core.turnRate(car.steer, car.speed, V, keys.brake), dt, V);
   car.heading += car.yaw * dt * (car.speed >= 0 ? 1 : -1);
 
   const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
