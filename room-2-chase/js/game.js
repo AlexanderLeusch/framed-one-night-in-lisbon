@@ -5472,6 +5472,8 @@ function resetCar(){
   if (mode === 'country'){ const pt = roadPoint(40, ROAD.lane); x = pt.x; z = pt.z; heading = pt.h; roadPos.ri = undefined; roadPos.s = 40; roadPos.lat = ROAD.lane; }
   Object.assign(car, { x, z, y: groundH(x, z), heading, camHeading: heading, speed: 0, steer: 0, yaw: 0, pitch: 0, roll: 0, bodyPitch: 0, shake: 0, prevSpeed: 0, lean: 0, lift: 0 });
   resetScratches(); scrapeNow.level = 0;
+  // stand on the road as it really lies here, at once: level on a sloping street, the wheels of one side would sink into it
+  settleCar(1);
   resetSkids();
   eng.gear = 1; eng.rpm = ENGINES[V.key].idle; eng.shift = 0; eng.boost = 0; eng.miss = 0;
   camera.position.set(x - Math.sin(heading) * V.cam[0], car.y + V.cam[1], z - Math.cos(heading) * V.cam[0]);
@@ -6734,7 +6736,9 @@ function updateShowroom(){
   showRim.intensity = on ? 2.4 : 0;
   if (!on) return;
   const s = V.key === 'truck' ? 1.65 : V.key === 'bike' ? 0.62 : 1;
+  // the ring lies on the street like the vehicle does; kept level on a slope it would cut through the tyres on the low side
   turntable.position.set(car.x, car.y, car.z); turntable.scale.setScalar(s);
+  turntable.rotation.set(-car.pitch, car.heading, car.roll, 'YXZ');
   turntable.children[1].material.opacity = 0.5 + 0.25 * Math.sin(clock * 2);
   showKey.position.set(car.x + 4 * s, car.y + 9 * s, car.z + 5 * s); showKey.target.position.set(car.x, car.y, car.z);
   showRim.position.set(car.x - Math.sin(orbitAngle) * 4 * s, car.y + 2.2 * s, car.z - Math.cos(orbitAngle) * 4 * s);
@@ -7196,7 +7200,8 @@ function frame(now){
   } else if (finale.on && !paused){
     updateFinale(dt);
   } else if (!paused){
-    if (state !== 'menu') coast(dt);
+    // in the showroom the vehicle still follows the slope of the street it stands on (each one has its own wheelbase)
+    if (state !== 'menu') coast(dt); else settleCar(dt);
     updatePickups(dt, false);
     if (state !== 'menu') updatePolice(dt);
     if (state === 'menu') orbitCam(dt); else chaseCam(dt);
