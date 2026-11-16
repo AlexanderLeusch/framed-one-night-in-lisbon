@@ -4657,9 +4657,11 @@ function engineRpm(){ return eng.rpm; }
 // ### Runs the gearbox and rpm each frame, crossfades the engine loops, and sets road, wind, tyre, turbo and rotor levels.
 function updateEngine(dt){
   const sp = Math.abs(car.speed), live = state === 'play', E = ENGINES[V.key];
-  const pedal = live && (keys.up || (keys.down && car.speed <= 0.5)) ? 1 : 0;
+  // on the bridge of the finale nobody holds a key: updateFinale works the throttle, and the engine is heard at full level
+  const cine = finale.on && finale.placed;
+  const pedal = live ? (keys.up || (keys.down && car.speed <= 0.5) ? 1 : 0) : cine ? finale.throttle : 0;
   const braking = live && Core.isBraking(car.speed, keys.down, keys.up, keys.brake);
-  if (live){ const g = Core.gearFor(E, eng.gear, car.speed, pedal); if (g > eng.gear) eng.shift = E.shift; eng.gear = g; }
+  if (live || cine){ const g = Core.gearFor(E, eng.gear, car.speed, pedal); if (g > eng.gear) eng.shift = E.shift; eng.gear = g; }
   else if (sp < 1) eng.gear = 1;
   if (eng.shift > 0) eng.shift -= dt;
   const throttle = eng.shift > 0 ? 0 : pedal;
@@ -4685,14 +4687,14 @@ function updateEngine(dt){
   a.gritDepth.gain.setTargetAtTime(1.6 + 3.4 * eng.load * (0.4 + 0.6 * norm), t, 0.05);
   a.roarF.frequency.setTargetAtTime(80 + firing * 1.8, t, 0.03);
   a.roar.gain.setTargetAtTime(0.55 * (0.2 + 0.8 * eng.load) * (0.3 + 0.7 * norm), t, 0.05);
-  const on = live && !muted;
+  const on = (live || cine) && !muted;
   // the engine is quieter than the music, and drops further under it while the radio plays
   const under = radio.key !== 'off' && volume.music > 0.05 ? 0.55 : 1;
   let vol = (0.2 + 0.05 * eng.load) * E.vol * under;
   // a badly damaged engine misfires
   if (live && damage >= 50 && Math.random() < dt * (damage - 40) / 10) eng.miss = 0.05;
   if (eng.miss > 0){ eng.miss -= dt; vol *= 0.4; }
-  a.bus.gain.setTargetAtTime(state === 'menu' || state === 'pause' || muted || (state === 'over' && endReason === 'wrecked') ? 0 : on ? vol : vol * 0.3, t, 0.03);
+  a.bus.gain.setTargetAtTime(state === 'menu' || state === 'pause' || muted || (state === 'over' && endReason === 'wrecked') ? 0 : on ? vol * (cine ? finale.level : 1) : vol * 0.3, t, 0.03);
   if (on && E.pops){
     if (eng.prevPedal && !pedal && norm > 0.45) eng.popTime = 0.7;
     if (eng.popTime > 0){ eng.popTime -= dt; if (Math.random() < dt * 14) noiseBurst(t + Math.random() * 0.02, a.popF, 0.1 + Math.random() * 0.14, 0.03 + Math.random() * 0.03); }
@@ -6023,13 +6025,13 @@ function witnessCard(){
 // ### over the Tejo as the first light comes up behind the towers. The road is yours: no police, no helicopter, heroic music. Then
 // ### the result card. A black plane in front of the camera does the fades. In the story, this ends act 1 (the bridge leads out of
 // ### the city towards the highway); in a free ride it is the end of the run.
-const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 14.2, dawnFrom: 1.2, dawnTo: 11.5, shot: 5 });
-const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12 };
+const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 14.2, dawnFrom: 1.2, dawnTo: 11.5, shot: 5, cruise: 0.45, accel: 1.3 });
+const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false };
 const fader = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 fader.position.z = -0.6; fader.renderOrder = 9999; fader.frustumCulled = false; camera.add(fader); scene.add(camera);
 function startFinale(){
   state = 'finale';
-  Object.assign(finale, { on: true, done: false, t: 0, placed: false });
+  Object.assign(finale, { on: true, done: false, t: 0, placed: false, throttle: 0, level: 1, kick: false });
   hud.classList.add('off');
   held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
 }
@@ -6054,13 +6056,22 @@ function updateFinale(dt){
     CITY.bridge.updateMatrixWorld(true);
     const p = onBridge(F.start, F.lane), ahead = onBridge(F.start + 10, F.lane);
     Object.assign(car, { x: p.x, z: p.z, y: p.y, heading: Math.atan2(ahead.x - p.x, ahead.z - p.z), speed: F.speed, steer: 0, yaw: 0, pitch: 0, roll: 0, bodyPitch: 0, lift: 0, shake: 0 });
+    // the engine is heard working here (updateEngine): first it cruises one gear above the one that pulls at this speed
+    const E = ENGINES[V.key], pull = Math.min(E.gears.length, E.gears.findIndex(g => g * 0.97 > F.speed) + 1 || E.gears.length);
+    eng.gear = Math.min(E.gears.length, pull + 1); eng.shift = 0; eng.rpm = Core.engineTarget(E, eng.gear, F.speed, 1); f.throttle = F.cruise;
     resetPolice(); clearEffects(); if (!witness.inCar) hideWitness();  // Marta rides over the bridge in the passenger seat
     playAnthem();
     toast(`${WITNESS.name}: “I saw him climb out of that window. I will tell them everything.”`, 'gold', 5200);
     setTimeout(() => { if (finale.on && !finale.done) toast('HALE: Across the bridge and you are out of the city. Well done, detective.', 'hale', 5200); }, 5600);
   }
   // across the bridge at a steady speed; after the last fade it rolls to a stop under the card
-  if (f.done) car.speed *= Math.exp(-dt * 0.9);
+  // With the second shot the driver puts the foot down: a gear down, the engine pulls through to the next change and on. At the
+  // end the foot comes off, the exhaust crackles, and the engine falls back to its idle while the vehicle rolls out.
+  if (f.done){ car.speed *= Math.exp(-dt * 0.9); f.throttle = 0; f.level = Math.max(0.45, f.level - dt * 0.14); }
+  else if (t >= F.shot){
+    if (!f.kick){ f.kick = true; eng.gear = Math.max(1, eng.gear - 1); f.throttle = 1; }
+    car.speed += F.accel * dt;
+  }
   const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
   car.x += fx * car.speed * dt; car.z += fz * car.speed * dt; car.y = finale.deckY; car.wheelRot += car.speed * dt;
   const sm = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };

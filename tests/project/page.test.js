@@ -245,6 +245,8 @@ test('the city is Lisbon: the gate stands at the south-west corner, towards the 
   assert.match(game, /X0 = -144, Z0 = 144/, 'the approach road starts at the gate');
   assert.ok(!/CITY\.approach/.test(game), 'the car never drives on the approach road');
   assert.match(game, /onBridge\(F\.start, F\.lane\)/,'through the gate the car is placed on the bridge, where it always was');
+  assert.match(game, /const cine = finale\.on && finale\.placed;/, 'on the bridge the engine is heard working, not idling along on overrun');
+  assert.match(game, /if \(!f\.kick\)\{ f\.kick = true; eng\.gear = Math\.max\(1, eng\.gear - 1\); f\.throttle = 1; \}/, 'with the second shot the driver changes down and puts the foot down');
   assert.match(game, /arco\(80\)/, 'the Arco da Rua Augusta still stands over Rua Augusta');
   assert.match(game, /hidden in Lisbon’s Baixa/);
   assert.ok(!/downtown/i.test(game), 'no leftover from the old unnamed city');
