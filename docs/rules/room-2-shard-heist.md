@@ -225,6 +225,7 @@ The last map and vehicle, the best times, the drivers and leaderboards, the radi
 |---|---|
 | `W A S D` or arrow keys | Drive |
 | `Space` | Handbrake |
+| `C` (hold) | Look back: the camera turns round and looks down the road behind you for as long as you hold it, so you can see how close the police are. "Rear view" shows at the top. Only while driving |
 | `P` / `Esc` | Pause |
 | `M` | The large map of the Baixa (Lisbon only); `M` again closes it. A tap on the radar does the same |
 | `N` | Sound on or off |
@@ -232,5 +233,5 @@ The last map and vehicle, the best times, the drivers and leaderboards, the radi
 | `R` | Next radio station (`Shift` + `R` for the one before) |
 | `Enter` / `Space` | Press the button in focus. With no button in focus, `Enter` presses the card's main button. While driving, `Space` is the handbrake |
 | `Tab` | Move between the buttons of a card |
-| Touch pads | Steer on the left; brake and gas on the right. Both together are the handbrake |
+| Touch pads | Steer on the left; brake and gas on the right. Both together are the handbrake. The round button beside the brake looks back while you hold it |
 | Tilt (phones) | Hold the phone sideways and lower one side, like a steering wheel: from 3° it starts to steer, at 24° it is at full lock. The steering buttons go away while tilt works. Upright, or if the sensor is refused or missing, the buttons stay. Choose `Tilt` or `Buttons` in the menu or on the pause card. The sensor is only read in the browser and nothing is stored or sent |

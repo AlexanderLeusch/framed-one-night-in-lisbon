@@ -394,6 +394,19 @@
   }
   const sparkCount = (level, dt) => level > 0 && level <= 1 ? SCRAPE.sparks * level * clamp(Number.isFinite(dt) ? dt : 0, 0, MAX_DT) : 0;
 
+  // ---------- Looking back ----------
+  // ### Holding LOOK.key (C) or the look-back button turns the camera round for as long as it is held, only while driving: it sits
+  // ### ahead of the vehicle, a little higher than the chase camera, and looks back past it down the road (LOOK.far metres), so the
+  // ### vehicle sits low in the picture and the police behind it can be seen. cam is the vehicle's chase camera [distance, height].
+  // ### Returns the camera position (px, py, pz) and the point it looks at (tx, ty, tz), or null for bad values.
+  const LOOK = Object.freeze({ key: 'KeyC', ahead: 0.9, rise: 1.1, far: 30, aim: 1.2 });
+  const lookingBack = (held, state) => held === true && state === 'play';
+  function lookBackView(x, y, z, heading, cam){
+    if (![x, y, z, heading].every(Number.isFinite) || !Array.isArray(cam) || !(cam[0] > 0) || !(cam[1] > 0)) return null;
+    const fx = Math.sin(heading), fz = Math.cos(heading), d = cam[0] * LOOK.ahead;
+    return { px: x + fx * d, py: y + cam[1] * LOOK.rise, pz: z + fz * d, tx: x - fx * LOOK.far, ty: y + LOOK.aim, tz: z - fz * LOOK.far };
+  }
+
   // ---------- Damage ----------
   // ### Impacts under 3 m/s are free; above that damage grows linearly and is scaled by the vehicle (the truck takes 55 %).
   // ### A crash costs damage above CRASH_FREE m/s of closing speed (about 14 km/h), CRASH_FACTOR % per m/s beyond it, times the
@@ -959,7 +972,7 @@
     MODES, VEH, REV_SPEED, REPAIR_AMOUNT, MAX_DT, STORY_ACTS, KEY_MAP, BAIXA, streetAt, TRAM_LOOP, tramNext, RAIL, trackOffset, railCrossings, railShake, routeTo, routeMarks,
     EVIDENCE, WITNESS, WITNESS_RULE, witnessGetsIn, witnessGivesUp, witnessSpotOk, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
     parsePick, parseBest, applyPick, actionAllowed,
-    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, SCRAPE, scrapeLevel, sparkCount, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
+    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, SCRAPE, scrapeLevel, sparkCount, LOOK, lookingBack, lookBackView, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
     crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
     driveTime, runStars, isNewBest,

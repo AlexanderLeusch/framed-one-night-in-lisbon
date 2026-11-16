@@ -4793,8 +4793,8 @@ function updateBoundary(dt){
 }
 
 // ---------- Input ----------
-// ### Keyboard (WASD/arrows, space, P, M, Enter) and on-screen touch pads both write into the same keys object.
-const keys = { up: false, down: false, left: false, right: false, brake: false };
+// ### Keyboard (WASD/arrows, space, C, P, M, Enter) and on-screen touch pads both write into the same keys object.
+const keys = { up: false, down: false, left: false, right: false, brake: false, look: false };
 const keyMap = Core.KEY_MAP, held = new Set(), crashGuard = Core.newCrashGuard();
 addEventListener('keydown', e => {
   if (!$('fatal').hidden || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -4815,13 +4815,17 @@ addEventListener('keydown', e => {
   const onButton = !overlay.hidden && document.activeElement && document.activeElement.tagName === 'BUTTON' && card.contains(document.activeElement);
   if ((e.code === 'Enter' || e.code === 'Space') && onButton){ e.preventDefault(); if (!e.repeat) document.activeElement.click(); return; }
   if (Object.hasOwn(keyMap, e.code)){ held.add(e.code); keys[keyMap[e.code]] = true; e.preventDefault(); }
+  if (e.code === Core.LOOK.key){ keys.look = true; e.preventDefault(); }
   if (e.code === 'KeyP' || e.code === 'Escape'){ if (state === 'play') pause(); else if (state === 'pause') resume(); }
   if (e.code === 'KeyM'){ if (state === 'play') showMap(); else if (state === 'pause' && mapOpen) resume(); }
   if (e.code === 'KeyN') toggleSound();
   if (e.code === 'KeyR'){ initAudio(); setStation(Core.radioNext(radio.key, e.shiftKey ? -1 : 1), true); }
   if (e.code === 'Enter' && !overlay.hidden){ const b = card.querySelector('.btn'); if (b){ e.preventDefault(); b.click(); } }
 });
-addEventListener('keyup', e => { if (Object.hasOwn(keyMap, e.code)){ held.delete(e.code); keys[keyMap[e.code]] = Core.actionHeld(held, keyMap[e.code]); } });
+addEventListener('keyup', e => {
+  if (Object.hasOwn(keyMap, e.code)){ held.delete(e.code); keys[keyMap[e.code]] = Core.actionHeld(held, keyMap[e.code]); }
+  if (e.code === Core.LOOK.key) keys.look = false;
+});
 addEventListener('blur', () => { held.clear(); Object.keys(keys).forEach(k => keys[k] = false); if (state === 'play') pause(); });
 // The engine must never keep running when the tab is hidden: suspend all audio, resume when visible again
 // The error screen pauses the run and silences the engine
@@ -4892,6 +4896,7 @@ const steerRow = () => TILT.can ? `<span class="gfx">Steering <button data-steer
 // ### drawRadar paints the heading-up mini map on a canvas with one affine transform from world to radar coordinates.
 const overlay = $('overlay'), card = $('card'), hud = $('hud');
 const ui = {
+  lookTag: $('lookTag'),
   time: $('time'), speed: $('speed'), rpm: $('rpm'), chips: $('chips'), bars: $('bars'), sig: $('sigText'), toast: $('toast'),
   eye: $('missionEye'), mission: $('missionName'), prog: $('prog'), progKm: $('progKm'), pfill: $('pfill'),
   gVal: $('gVal'), gGlow: $('gGlow'), gTip: $('gTip'), gears: [...document.querySelectorAll('.gearbox [data-g]')], gearD: $('gearD'),
@@ -6253,8 +6258,8 @@ function showMenu(){
     <section class="m-sec" data-drivers>${driverSection()}</section>
     <button class="btn m-start" data-action="go"><span>Start the getaway</span><kbd class="desk-only">Enter</kbd></button>
     <div class="m-foot">
-      <span class="desk-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · <kbd>Space</kbd> handbrake · <kbd>P</kbd> pause · <kbd>M</kbd> map · <kbd>N</kbd> sound · <kbd>R</kbd> radio</span>
-      <span class="touch-only">Steer on the left, brake and gas on the right.</span>
+      <span class="desk-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · <kbd>Space</kbd> handbrake · <kbd>C</kbd> look back · <kbd>P</kbd> pause · <kbd>M</kbd> map · <kbd>N</kbd> sound · <kbd>R</kbd> radio</span>
+      <span class="touch-only">Steer on the left, brake and gas on the right. Hold the round button to look back.</span>
       <span>Best · Lisbon ${bestNote('city')} · Highway ${bestNote('highway')} · Country ${bestNote('country')}</span>
       <span class="gfx">Radio ${Core.RADIO_ORDER.map(k => `<button data-radio="${k}" aria-pressed="${radio.key === k}">${k === 'off' ? 'Off' : Core.RADIO[k].name}</button>`).join('')}</span>
       <span class="gfx">Graphics <button data-gfx="ultra" aria-pressed="${gfx === 'ultra'}">Ultra</button><button data-gfx="balanced" aria-pressed="${gfx === 'balanced'}">Balanced</button></span>
@@ -6595,17 +6600,38 @@ function camClip(tx, tz){
 }
 
 // ### The chase camera: follows behind, stays out of buildings and above the ground, and widens with speed.
+// ### Looking back (Core.lookingBack, Core.lookBackView): while C or the look-back button is held, the camera jumps ahead of the
+// ### vehicle and looks back down the road. It cuts there and back at once, as a swing through the car would be hard to follow.
+const look = { on: false, snap: false };
+function setLook(on){
+  if (on === look.on) return;
+  look.on = on; look.snap = true; ui.lookTag.hidden = !on;
+}
 function chaseCam(dt){
   // the camera swings round after the car on a smoothed heading, so a quick tap of the steering does not jerk the whole view
   if (car.camHeading === undefined || Math.abs(wrapAngle(car.heading - car.camHeading)) > 1.2) car.camHeading = car.heading;
   car.camHeading += wrapAngle(car.heading - car.camHeading) * Math.min(1, dt * 6);
+  setLook(Core.lookingBack(keys.look, state));
+  const v = look.on && Core.lookBackView(car.x, car.y, car.z, car.camHeading, V.cam);
+  if (v){
+    const f = camClip(v.px, v.pz), kb = look.snap ? 1 : 1 - Math.exp(-dt * 10);
+    camera.position.x += (car.x + (v.px - car.x) * f - camera.position.x) * kb;
+    camera.position.z += (car.z + (v.pz - car.z) * f - camera.position.z) * kb;
+    camera.position.y += (v.py + (1 - f) * 1.5 - camera.position.y) * kb;
+    const gb = groundH(camera.position.x, camera.position.z) + 1.5; if (camera.position.y < gb) camera.position.y = gb;
+    camera.lookAt(v.tx, v.ty, v.tz);
+    look.snap = false;
+    if (camera.fov !== 62){ camera.fov = 62; camera.updateProjectionMatrix(); }
+    return;
+  }
   const fx = Math.sin(car.camHeading), fz = Math.cos(car.camHeading), sp = Math.abs(car.speed);
   const dist = V.cam[0] + sp * 0.07;
   let tx = car.x - fx * dist, tz = car.z - fz * dist;
   const f = camClip(tx, tz);
   tx = car.x + (tx - car.x) * f; tz = car.z + (tz - car.z) * f;
   const h = V.cam[1] + sp * 0.025 + (1 - f) * 2.5;
-  const k = 1 - Math.exp(-dt * 4.5);
+  const k = look.snap ? 1 : 1 - Math.exp(-dt * 4.5);
+  look.snap = false;
   camera.position.x += (tx - camera.position.x) * k;
   camera.position.z += (tz - camera.position.z) * k;
   camera.position.y += (car.y + h - camera.position.y) * k;
@@ -7091,6 +7117,7 @@ function frame(now){
   }
   lastT = now;
   const paused = state === 'pause';
+  if (look.on && state !== 'play') setLook(false);
   frameNo++;
   if (TILT.can) updateTilt();
   if (!paused) clock += dt;
