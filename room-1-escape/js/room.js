@@ -1493,9 +1493,10 @@ function sinkDecal(w, h, x, y, z, up, draw){
 }
 // ### Little marks the decals and the bowls share: a dried drop (a ring of limescale with a faint middle), a soft blob,
 // ### a run of water that dried on its way down.
-function dropRing(g, x, y, rad, a, rgb = '236,232,220'){
-  g.strokeStyle = `rgba(${rgb},${a})`; g.lineWidth = Math.max(.6, rad * .35); g.beginPath(); g.ellipse(x, y, rad, rad * .85, 0, 0, 7); g.stroke();
-  g.fillStyle = `rgba(${rgb},${a * .3})`; g.fill();
+function dropRing(g, x, y, rad, a, rgb = '236,232,220', r = rnd){
+  g.beginPath(); g.ellipse(x, y, rad, rad * (.6 + r() * .4), r() * Math.PI, 0, 7);
+  g.fillStyle = `rgba(${rgb},${a * .45})`; g.fill();
+  g.strokeStyle = `rgba(${rgb},${a * .7})`; g.lineWidth = Math.max(.5, rad * .18); g.stroke();
 }
 function softBlob(g, x, y, rad, rgba){ const gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, rgba); gr.addColorStop(1, rgba.replace(/[\d.]+\)$/, '0)')); g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2); }
 function dribble(g, x, y, len, wide, rgba, r){
@@ -1536,9 +1537,9 @@ function sinkBowlMat(hot, seed){
     h.fillStyle = `rgba(255,255,255,${.2 + r() * .3})`; h.beginPath(); h.arc(x, y, rad * .8, 0, 7); h.fill();
   }
   // a tide line of dried splashes high up the side, where the water from the tap hits and runs back
-  for (let i = 0; i < (hot ? 700 : 300); i++){
-    const v = .68 + (r() - .5) * .12 + Math.sin(r() * 6.28) * .02, x = r() * W;
-    dropRing(c, x, Y(v), 1 + r() * 3.5, .2 + r() * .35); dropRing(g, x, Y(v), 1 + r() * 3.5, .4, '0,200,90');
+  for (let i = 0; i < (hot ? 320 : 140); i++){
+    const v = .68 + (r() - .5) * .12 + Math.sin(r() * 6.28) * .02, x = r() * W, rad = .8 + Math.pow(r(), 2) * 4, a = .15 + r() * .3, s = r() * 4294967296 >>> 0;
+    dropRing(c, x, Y(v), rad, a, undefined, mulberry32(s)); dropRing(g, x, Y(v), rad, .5, '0,200,90', mulberry32(s));
   }
   // grey water marks running down the sides to the bottom
   for (let i = 0; i < 40; i++){ const x = r() * W, v0 = .55 + r() * .4, l = (v0 - .1) * H * (.4 + r() * .6), wd = 2 + r() * 3, a = .15 + r() * .2; both((o, q) => dribble(c, x + o, Y(v0), l, wd, `rgba(170,166,154,${a})`, q)); }
@@ -1662,15 +1663,15 @@ function siliconeBead(len, x, y, z, along){
     for (let i = 0; i < 160; i++) softBlob(g, r() * w, xpx(SINK.x - .242 + Math.pow(r(), 2) * .06), 2 + r() * 8, `rgba(66,58,44,${.15 + r() * .25})`);
     for (const z of SINK.bowls){
       const hotOne = z < 0, cx = zpx(z), cy = xpx(SINK.bx);
-      for (let i = 0; i < (hotOne ? 520 : 260); i++){
-        const a = r() * Math.PI * 2, d = 1.03 + Math.pow(r(), 1.8) * (hotOne ? .55 : .4);
+      for (let i = 0; i < (hotOne ? 150 : 70); i++){
+        const a = r() < .6 ? Math.PI / 2 + (r() - .5) * 2.2 : r() * Math.PI * 2, d = 1.04 + Math.pow(r(), 2.2) * (hotOne ? .6 : .45);   // most in front of the bowl
         const x = cx + Math.cos(a) * X(.186) * d, y = cy + Math.sin(a) * Y(.148) * d;
-        dropRing(g, x, y, .8 + r() * 3.2, .2 + r() * .4);
+        dropRing(g, x, y, .6 + Math.pow(r(), 2) * 4, .1 + r() * .22, undefined, r);
       }
       softBlob(g, cx, cy + Y(.17), X(.12), `rgba(226,222,210,${hotOne ? .22 : .12})`);   // a dried splash halo in front of the bowl
     }
     for (let i = 0; i < 18; i++) softBlob(g, zpx((r() - .5) * .3), xpx(SINK.x - .15 + r() * .2), 4 + r() * 10, `rgba(220,208,186,${.15 + r() * .2})`);
-    for (let i = 0; i < 70; i++) softBlob(g, r() * w, h - Y(Math.pow(r(), 2) * .07), 4 + r() * 10, `rgba(48,44,38,${.08 + r() * .1})`);
+    for (let i = 0; i < 40; i++) softBlob(g, r() * w, h - Y(Math.pow(r(), 2) * .07), 4 + r() * 10, `rgba(48,44,38,${.05 + r() * .07})`);
     // the bowls themselves are holes in the decal
     g.globalCompositeOperation = 'destination-out';
     for (const z of SINK.bowls){ g.fillStyle = '#000'; g.beginPath(); g.ellipse(zpx(z), xpx(SINK.bx), X(.186) - 1, Y(.148) - 1, 0, 0, 7); g.fill(); }
@@ -1683,7 +1684,7 @@ function siliconeBead(len, x, y, z, along){
     g.fillStyle = cove; g.fillRect(0, 0, w, h);
     for (const z of SINK.bowls){
       const hotOne = z < 0;
-      for (let i = 0; i < (hotOne ? 220 : 110); i++){ const x = zpx(z) + (r() - .5) * X(.42), y = ypx(SINK.top + .01 + Math.pow(r(), 1.5) * .12); dropRing(g, x, y, .7 + r() * 2.4, .2 + r() * .35); }
+      for (let i = 0; i < (hotOne ? 60 : 28); i++){ const x = zpx(z) + (r() - .5) * X(.36), y = ypx(SINK.top + .01 + Math.pow(r(), 1.8) * .1); dropRing(g, x, y, .5 + Math.pow(r(), 2) * 3, .1 + r() * .2, undefined, r); }
       for (let k = 0; k < (hotOne ? 6 : 3); k++) dribble(g, zpx(z) + (r() - .5) * X(.05), ypx(SINK.top + .09), Y(.08), 1.5 + r() * 2, hotOne && k < 3 ? `rgba(140,86,48,${.3 + r() * .2})` : `rgba(230,226,214,${.25 + r() * .2})`, r);
       for (const dz of [.12, -.12]){ const bz = z - Math.sign(z) * dz; g.strokeStyle = 'rgba(58,50,38,.45)'; g.lineWidth = 3; g.beginPath(); g.arc(zpx(bz), ypx(SINK.top + .145), X(.036), 0, 7); g.stroke(); softBlob(g, zpx(bz), ypx(SINK.top + .145), X(.05), 'rgba(50,46,40,.18)'); }
     }
@@ -1692,10 +1693,10 @@ function siliconeBead(len, x, y, z, along){
   // the apron: dried drips down from the rolled edge, black scuffs from shoes and knees, dirt from the mop at the bottom
   sinkDecal(2.58, .25, -3.5 + .0006, SINK.top - .155, 0, false, (g, w, h, X, Y) => {
     const r = mulberry32(2025);
-    for (let i = 0; i < 60; i++){ const x = r() * w, rust = r() < .2; dribble(g, x, 0, Y(.04 + r() * .2), 1 + r() * 2.5, rust ? `rgba(140,88,52,${.15 + r() * .2})` : `rgba(226,222,212,${.12 + r() * .22})`, r); }
-    for (let i = 0; i < 45; i++){
-      const x = r() * w, y = h - Y(.02 + r() * .13), l = X(.02 + r() * .07), a = (r() - .5) * .5;
-      g.strokeStyle = `rgba(24,22,20,${.18 + r() * .3})`; g.lineWidth = 1 + r() * 2.5; g.lineCap = 'round';
+    for (let i = 0; i < 38; i++){ const x = r() * w, rust = r() < .2; dribble(g, x, 0, Y(.03 + Math.pow(r(), 1.5) * .2), .8 + r() * 2, rust ? `rgba(140,88,52,${.1 + r() * .16})` : `rgba(226,222,212,${.08 + r() * .16})`, r); }
+    for (let i = 0; i < 16; i++){
+      const x = r() * w, y = h - Y(.015 + Math.pow(r(), 1.5) * .12), l = X(.015 + r() * .05), a = (r() - .5) * .6;
+      g.strokeStyle = `rgba(24,22,20,${.08 + r() * .2})`; g.lineWidth = .8 + r() * 1.6; g.lineCap = 'round';
       g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + l / 2, y + (r() - .5) * 6, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
     }
     const mop = g.createLinearGradient(0, h, 0, h - Y(.07)); mop.addColorStop(0, 'rgba(78,66,48,.55)'); mop.addColorStop(1, 'rgba(78,66,48,0)');
