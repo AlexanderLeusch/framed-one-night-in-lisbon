@@ -2039,6 +2039,131 @@ function updateDust(dt, t){
   dust.pts.geometry.attributes.position.needsUpdate = true; dust.pts.geometry.attributes.color.needsUpdate = true;
 }
 
+// ### The bin by the sinks: an open can of brushed stainless steel with a rolled rim, a black bin liner pulled over the
+// ### rim and gathered in folds below it, and the used paper towels from the dispenser above heaped inside, so you see
+// ### them when you look in. No free library offers paper towels or a paper scan (Poly Haven has none; ambientCG and
+// ### Openverse were out of reach), so they are made here: every towel is a ball crumpled by a dozen random creases
+// ### (planes it is folded along) and a fine crinkle, squashed as it settled, darker in its folds, some still damp and
+// ### grey. One towel did not go all the way in and hangs over the rim. Their paper is painted: recycled off-white with
+// ### flecks of fibre and the embossed dot pattern of a paper towel as a normal map. The bin has its own random numbers,
+// ### so the rest of the room keeps its look. x, z is the middle of its foot.
+function buildBin(x, z){
+  const rr = mulberry32(2210), TAU = Math.PI * 2;
+  const outR = y => .15 + y * .043, inR = y => outR(y) - .006;   // the wall: 30 cm across at the foot, 34 at the rim
+  // the can, turned on a lathe: foot, wall, the rim rolled outwards, the inside and the floor
+  const prof = [[0, .002], [.134, .002], [.146, .005], [.15, .013]];
+  for (let i = 1; i <= 12; i++){ const y = .013 + i * (.425 - .013) / 12; prof.push([outR(y), y]); }
+  prof.push([.174, .428], [.177, .435], [.176, .443], [.17, .447], [.164, .443], [.1625, .434]);
+  for (let i = 1; i <= 10; i++){ const y = .434 - i * (.434 - .03) / 10; prof.push([inR(y), y]); }
+  prof.push([.13, .024], [0, .024]);
+  const can = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 48),
+    steelMat(0xb7bfc3, 1.5, { roughnessMap: SCAN('steel-scratches-rough.jpg', false, 3, 1), normalMap: SCAN('steel-scratches-normal.jpg', false, 3, 1, 4) }));
+  can.position.set(x, 0, z); add(can);
+
+  // ### The liner: rows of points round the can (angle a), from its bottom up the inside, over the rim and down the outside
+  // ### to an uneven hem. Below the rim it is pulled tight; the spare plastic gathers in soft folds that stand out more
+  // ### towards the hem.
+  const ph = [0, 0, 0, 0, 0, 0].map(() => rr() * TAU);
+  const fold = a => Math.max(0, .6 * Math.sin(5 * a + ph[0]) + .4 * Math.sin(11 * a + ph[1]) + .5 * Math.sin(2 * a + ph[2]));
+  const hem = a => .372 + .012 * Math.sin(3 * a + ph[3]) + .006 * Math.sin(7 * a + ph[4]);
+  const rows = [];
+  for (let k = 0; k <= 8; k++){ const y = .032 + k * (.43 - .032) / 8, t = 1 - k / 8; rows.push(a => [inR(y) - .0015 - fold(a + 1) * t * .01, y]); }
+  for (const [r, y] of [[.1635, .4465], [.17, .4508], [.1772, .4478], [.1806, .44]]) rows.push(() => [r, y]);
+  for (let k = 1; k <= 6; k++){ const t = k / 6; rows.push(a => { const y = .44 - t * (.44 - hem(a)); return [outR(y) + .0035 + fold(a) * t * .013, y]; }); }
+  const NA = 96, lp = [], li = [];
+  for (const row of rows) for (let i = 0; i <= NA; i++){ const a = i / NA * TAU, [r, y] = row(a); lp.push(Math.cos(a) * r, y, Math.sin(a) * r); }
+  for (let j = 0; j < rows.length - 1; j++) for (let i = 0; i < NA; i++){ const p = j * (NA + 1) + i, q = p + NA + 1; li.push(p, q, p + 1, p + 1, q, q + 1); }
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); lg.setIndex(li); lg.computeVertexNormals();
+  const linerMat = new THREE.MeshStandardMaterial({ color: 0x17181a, roughness: .34, side: THREE.DoubleSide });
+  const liner = new THREE.Mesh(lg, linerMat); liner.position.set(x, 0, z); add(liner);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(inR(.032) - .002, 32), linerMat); floor.rotation.x = -Math.PI / 2; floor.position.set(x, .033, z); add(floor);
+
+  // ### The paper: recycled off-white with grey and brown flecks and the odd blue fibre; its relief is the embossed dots of
+  // ### a paper towel and the fibres, turned into a normal map. One picture is about 6 cm of paper.
+  const paper = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#ece8de'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 40; i++){ const px = rr() * w, py = rr() * h, r = 10 + rr() * 30, gr = g.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, `rgba(205,196,178,${.15 + rr() * .2})`); gr.addColorStop(1, 'rgba(205,196,178,0)'); g.fillStyle = gr; g.fillRect(px - r, py - r, r * 2, r * 2); }
+    for (let i = 0; i < 700; i++){
+      const px = rr() * w, py = rr() * h, l = 1 + rr() * 5, a = rr() * TAU, c = rr();
+      g.strokeStyle = c < .04 ? 'rgba(70,95,150,.5)' : c < .5 ? `rgba(150,140,120,${.2 + rr() * .3})` : `rgba(255,255,250,${.3 + rr() * .4})`;
+      g.lineWidth = .5 + rr() * .7; g.beginPath(); g.moveTo(px, py); g.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); g.stroke();
+    }
+  }, [1, 1]);
+  const relief = document.createElement('canvas'); relief.width = relief.height = 256;
+  { const g = relief.getContext('2d'); g.fillStyle = '#7a7a7a'; g.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 256; y += 8) for (let px = (y / 8 % 2) * 4; px < 256; px += 8){ const gr = g.createRadialGradient(px, y, 0, px, y, 3.2); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(px - 4, y - 4, 8, 8); }
+    for (let i = 0; i < 900; i++){ const px = rr() * 256, py = rr() * 256, l = 2 + rr() * 6, a = rr() * TAU; g.strokeStyle = `rgba(${rr() < .5 ? '0,0,0' : '255,255,255'},.25)`; g.lineWidth = .6; g.beginPath(); g.moveTo(px, py); g.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); g.stroke(); } }
+  const paperNormal = new THREE.CanvasTexture(normalFromHeight(relief, 256 / .06, .35)); paperNormal.wrapS = paperNormal.wrapT = THREE.RepeatWrapping; paperNormal.anisotropy = ANISO;
+  const towelMat = new THREE.MeshStandardMaterial({ map: paper, normalMap: paperNormal, normalScale: new THREE.Vector2(.6, .6), roughness: .95, vertexColors: true, side: THREE.DoubleSide });
+
+  // ### A crumpled towel: a ball pushed in and out along a dozen random crease planes (a triangle wave across each, so
+  // ### the folds are sharp), with a fine crinkle that depends only on the point (so the ball stays closed), then
+  // ### squashed, turned and put at px, py, pz. Its folds are darker; a damp towel is greyer.
+  const pos = [], uv = [], col = [], icos = [2, 3].map(n => new THREE.IcosahedronGeometry(1, n));
+  const tri = v => Math.abs(v - Math.floor(v) - .5) * 2;
+  const crinkle = (a, b, c) => { const s = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5; return s - Math.floor(s) - .5; };
+  const m4 = new THREE.Matrix4(), v = new THREE.Vector3(), q = new THREE.Vector3();
+  function wad(px, py, pz, s, flatY, damp, fine){
+    const IP = icos[fine ? 1 : 0].attributes.position.array, IU = icos[fine ? 1 : 0].attributes.uv.array;
+    const cr = [];
+    for (let k = 0, n = 10 + (rr() * 6 | 0); k < n; k++) cr.push([new THREE.Vector3(rr() - .5, rr() - .5, rr() - .5).normalize(), .45 + rr() * .5, rr(), .1 + rr() * .14]);
+    m4.makeRotationFromEuler(new THREE.Euler(rr() * TAU, rr() * TAU, rr() * TAU));
+    const sx = s * (.85 + rr() * .35), sz = s * (.85 + rr() * .35), sy = s * flatY, ou = rr(), ov = rr(), us = s / .015;
+    const tone = damp ? .66 + rr() * .1 : .9 + rr() * .1;
+    for (let i = 0; i < IP.length; i += 3){
+      q.set(IP[i], IP[i + 1], IP[i + 2]);
+      let r = 1;
+      for (const [d, per, off, amp] of cr) r += amp * (tri(q.dot(d) / per + off) - .5);
+      r += crinkle(q.x, q.y, q.z) * .07;
+      v.copy(q).multiplyScalar(r).applyMatrix4(m4);
+      // nothing pokes through the liner: points past the wall are pulled in onto it
+      let wx = px + v.x * sx - x, wy = py + v.y * sy, wz = pz + v.z * sz - z;
+      const lim = inR(Math.min(wy, .43)) - .004, rad = Math.hypot(wx, wz);
+      if (rad > lim){ wx *= lim / rad; wz *= lim / rad; }
+      pos.push(x + wx, wy, z + wz);
+      const j = i / 3 * 2; uv.push(IU[j] * us * 2 + ou, IU[j + 1] * us + ov);
+      const c = tone * clamp(.78 + (r - 1) * 1.3, .55, 1.05);
+      col.push(c, c * .985, c * .96);
+    }
+  }
+  // ### The heap: layers of towels, each laid where it does not sink too far into the others, higher in the middle where
+  // ### they are thrown. The bin is about three quarters full, so you look down past the liner onto the paper; the
+  // ### towels you can see are finer.
+  for (const [y0, n, sz, fine] of [[.2, 14, .05], [.25, 16, .048], [.295, 18, .045, 1], [.335, 15, .043, 1], [.362, 5, .04, 1]]){
+    const placed = [];
+    for (let tries = 0; placed.length < n && tries < 400; tries++){
+      const s = sz * (.8 + rr() * .45), R = inR(y0) - s * .75, a = rr() * TAU, d = Math.sqrt(rr()) * R;
+      const px = Math.cos(a) * d, pz = Math.sin(a) * d;
+      if (placed.some(([qx, qz, qs]) => Math.hypot(px - qx, pz - qz) < (s + qs) * .8)) continue;
+      placed.push([px, pz, s]);
+      wad(x + px, y0 + .025 * (1 - d / R) + rr() * .012, z + pz, s, .6 + rr() * .3, rr() < .18, fine);
+    }
+  }
+  // ### The towel caught on the rim, facing the room: a sheet lying on the heap, bent over the rim and hanging down
+  // ### outside, creased across and along and pinched together where it bends.
+  {
+    const A = .35, ca = Math.cos(A), sa = Math.sin(A), NU = 14, NV = 26, path = [[.05, .392], [.1, .405], [.14, .43], [.166, .458], [.177, .461], [.186, .452], [.19, .43], [.191, .405], [.189, .38], [.185, .355]];
+    const at = t => { const f = t * (path.length - 1), i = Math.min(path.length - 2, Math.floor(f)), k = f - i; return [path[i][0] + (path[i + 1][0] - path[i][0]) * k, path[i][1] + (path[i + 1][1] - path[i][1]) * k]; };
+    const cr = []; for (let k = 0; k < 9; k++){ const a = rr() * Math.PI; cr.push([Math.cos(a), Math.sin(a), .03 + rr() * .05, rr(), .004 + rr() * .006]); }
+    const sp = [], su = [];
+    for (let j = 0; j <= NV; j++) for (let i = 0; i <= NU; i++){
+      const t = j / NV, u = (i / NU - .5) * .15 * (1 - .4 * Math.exp(-(((t - .45) / .18) ** 2))) * (1 - .3 * t) + Math.sin(t * 7 + i * .3) * .006 * t, [r, y] = at(t);
+      const [r1, y1] = at(Math.min(1, t + .01)), [r0, y0] = at(Math.max(0, t - .01)), tl = Math.hypot(r1 - r0, y1 - y0), nr = -(y1 - y0) / tl, ny = (r1 - r0) / tl;
+      let hgt = 0; for (const [dx, dy, per, off, amp] of cr) hgt += amp * (tri((u * dx + t * .23 * dy) / per + off) - .5);
+      hgt += crinkle(u, t, 1) * .002;
+      const rr2 = r + nr * hgt, yy = y + ny * hgt;
+      sp.push(x + ca * rr2 - sa * u, yy, z + sa * rr2 + ca * u); su.push(i / NU * 3.3, t * 3.3);
+    }
+    const ix = (i, j) => j * (NU + 1) + i;
+    for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) for (const [a, b] of [[0, 0], [0, 1], [1, 0], [1, 0], [0, 1], [1, 1]]){
+      const k = ix(i + a, j + b); pos.push(sp[k * 3], sp[k * 3 + 1], sp[k * 3 + 2]); uv.push(su[k * 2], su[k * 2 + 1]); col.push(.95, .935, .91);
+    }
+  }
+  const tg = new THREE.BufferGeometry();
+  tg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); tg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); tg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  tg.computeVertexNormals(); icos.forEach(g => g.dispose());
+  add(new THREE.Mesh(tg, towelMat));
+}
 // ### Details that make the washroom feel used and real: tiled skirting, soft shadows in every corner, a camera watching,
 // ### an air vent, the light switch and intercom by the door, a towel dispenser and a bin by the sinks, lamp housings.
 {
@@ -2079,8 +2204,7 @@ function updateDust(dt, t){
   { const b = cyl(.02, .02, .02, M.red, .88, 1.38, D / 2 - .025, 16); b.rotation.x = Math.PI / 2; }
   // a paper-towel dispenser and a steel bin by the sinks
   box(.12, .38, .3, M.steel, -3.93, 1.4, 2.05); box(.02, .012, .22, M.dark, -3.87, 1.22, 2.05);
-  cyl(.17, .15, .44, M.dullSteel, -3.68, .22, 2.25, 22); cyl(.155, .155, .004, M.dark, -3.68, .43, 2.25, 22);
-  { const r = new THREE.Mesh(new THREE.TorusGeometry(.17, .008, 6, 28), M.steel); r.rotation.x = Math.PI / 2; r.position.set(-3.68, .44, 2.25); add(r); }
+  buildBin(-3.68, 2.25);
   flat(.55, .55, M.blob, -3.68, 2.25);
   // ### More of a real prison washroom: a stainless urinal trough on the north wall under the house rules, a barred
   // ### window of wired glass high up with the night behind it, two push-button showers on the east wall with their drain,
