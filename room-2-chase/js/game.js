@@ -4074,31 +4074,9 @@ function placeRun(){
 }
 
 // ---------- Particles & smoke ----------
-// ### burst spawns short-lived sparks (collect, crash, wreck). Core.smokeFor says how the damaged engine smokes: from thin grey
-// ### to a thick black column rising above the vehicle, and flames near the end. Sprites come from fixed pools, so nothing is allocated.
-const particles = [];
-const partGeo = new THREE.TetrahedronGeometry(0.26, 0);
-// ### Throws a short burst of sparks at a point.
-function burst(x, y, z, color, n, spread){
-  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), grp = { left: n };
-  spread = spread || 1;
-  for (let i = 0; i < n; i++){
-    const m = new THREE.Mesh(partGeo, mat); m.position.set(x, y, z); scene.add(m);
-    const a = Math.random() * Math.PI * 2, up = (4 + Math.random() * 9) * spread, out = (3 + Math.random() * 7) * spread;
-    particles.push({ mesh: m, vx: Math.cos(a) * out, vy: up, vz: Math.sin(a) * out, life: 1, mat, grp });
-  }
-}
-// ### Moves and fades the sparks, and removes them when they die out.
-function updateParticles(dt){
-  for (let i = particles.length - 1; i >= 0; i--){
-    const p = particles[i];
-    p.life -= dt * 1.2; p.vy -= 18 * dt;
-    p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
-    p.mesh.rotation.x += dt * 6; p.mesh.rotation.y += dt * 4;
-    p.mat.opacity = Math.max(0, p.life);
-    if (p.life <= 0){ scene.remove(p.mesh); particles.splice(i, 1); if (--p.grp.left === 0) p.mat.dispose(); }
-  }
-}
+// ### Core.smokeFor says how the damaged engine smokes: from thin grey to a thick black column rising above the vehicle, and
+// ### flames near the end. Sprites come from fixed pools, so nothing is allocated. (The sparks of crashes and pickups are with the
+// ### scraping sparks below.)
 // ### Smoke puffs are soft, lumpy clouds, not round glows: a few textures painted from many overlapping blobs, so no two
 // ### puffs look alike. Each puff starts small and dense at the engine, swells quickly and then more slowly, turns while it
 // ### drifts, slows as it rises, is carried off by a light wind and thins out and turns paler as it spreads.
@@ -4134,9 +4112,6 @@ const FLAME_HOT = C(0xffd27a), FLAME_COOL = C(0xff4a12);
 let smokeAcc = 0, smokeIdx = 0, flameAcc = 0, flameIdx = 0;
 // ### Removes all sparks, smoke and flames, so that a new run does not start next to the smoke of the last one.
 function clearEffects(){
-  new Set(particles.map(p => p.mat)).forEach(m => m.dispose());
-  particles.forEach(p => scene.remove(p.mesh));
-  particles.length = 0;
   smoke.concat(flames).forEach(p => { p.life = 0; p.s.visible = false; });
   smokeAcc = flameAcc = 0;
   clearSparks();
@@ -4258,7 +4233,9 @@ function updateSkids(){
 // ### its head. They fly on with part of the car's speed, so they trail behind it, fall, bounce once off the ground and cool from
 // ### white over orange to nothing. The scratches are a ring of instanced quads on the wall: pale scraped streaks with some of the
 // ### car's paint in them, laid every SCRAPE.step metres; before the oldest are reused they thin out, so none vanish at once.
-const SPARK_POOL = 260, SPARK_TRAIL = 0.035, SPARK_FALL = 16;
+// ### Crashes, a wreck and pickups throw sparks from the same pool (burst): hot metal sparks for crashes, which cool like the
+// ### scraping ones, and coloured glowing sparks for shards, evidence, kits and the gate, which float a little longer.
+const SPARK_POOL = 480, SPARK_TRAIL = 0.035, SPARK_FALL = 16;
 const sparks = (() => {
   const geo = (n, k) => { const g = new THREE.BufferGeometry(), pos = new Float32Array(n * k), col = new Float32Array(n * k);
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
@@ -4267,7 +4244,7 @@ const sparks = (() => {
   const lines = new THREE.LineSegments(line.g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   const glow = new THREE.Points(head.g, new THREE.PointsMaterial({ map: glowTexture, vertexColors: true, size: 0.32, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   lines.frustumCulled = glow.frustumCulled = false; lines.renderOrder = glow.renderOrder = 2; scene.add(lines, glow);
-  const p = []; for (let i = 0; i < SPARK_POOL; i++) p.push({ life: 0, max: 1, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, floor: 0, bounced: false });
+  const p = []; for (let i = 0; i < SPARK_POOL; i++) p.push({ life: 0, max: 1, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, floor: 0, bounced: false, fall: SPARK_FALL, tint: null, trail: SPARK_TRAIL });
   return { line, head, p, idx: 0, acc: 0, live: false };
 })();
 // ### Throws n sparks from a point of contact: along the scrape (tx, tz) with part of the sliding speed, out of the surface (nx, nz)
@@ -4275,11 +4252,27 @@ const sparks = (() => {
 function emitSparks(sc, n){
   for (let k = 0; k < n; k++){
     const p = sparks.p[sparks.idx++ % SPARK_POOL], f = sc.along * (0.25 + Math.random() * 0.5), o = 0.8 + Math.random() * 3.2;
-    p.life = p.max = 0.3 + Math.random() * 0.45; p.bounced = false;
+    p.life = p.max = 0.3 + Math.random() * 0.45; p.bounced = false; p.fall = SPARK_FALL; p.tint = null; p.trail = SPARK_TRAIL;
     p.x = sc.x + (Math.random() - 0.5) * 0.3; p.y = sc.y + (Math.random() - 0.5) * 0.2; p.z = sc.z + (Math.random() - 0.5) * 0.3; p.floor = sc.floor;
     p.vx = sc.tx * f + sc.nx * o + sc.vx * 0.6 + (Math.random() - 0.5) * 2.5;
     p.vz = sc.tz * f + sc.nz * o + sc.vz * 0.6 + (Math.random() - 0.5) * 2.5;
     p.vy = 0.8 + Math.random() * 4.2;
+  }
+  if (n) sparks.live = true;
+}
+// ### Throws a burst of n sparks from a point in all directions. The orange crash colour (SPARKS) gives hot metal sparks that
+// ### streak out fast, fall, bounce off the ground and cool from white to orange; any other colour gives softer glowing sparks of
+// ### that colour that start white-hot and fall more slowly. spread scales how far they fly.
+function burst(x, y, z, color, n, spread){
+  spread = spread || 1;
+  const hot = color === SPARKS, floor = groundH(x, z) + 0.05;
+  for (let k = 0; k < n; k++){
+    const p = sparks.p[sparks.idx++ % SPARK_POOL], a = Math.random() * Math.PI * 2;
+    const out = (hot ? 4 + Math.random() * 11 : 2.5 + Math.random() * 6) * spread, up = (hot ? 2 + Math.random() * 8 : 3 + Math.random() * 7) * spread;
+    p.x = x + (Math.random() - 0.5) * 0.3; p.y = y + (Math.random() - 0.5) * 0.3; p.z = z + (Math.random() - 0.5) * 0.3; p.floor = Math.min(floor, p.y);
+    p.vx = Math.cos(a) * out; p.vz = Math.sin(a) * out; p.vy = up;
+    p.life = p.max = hot ? 0.35 + Math.random() * 0.55 : 0.6 + Math.random() * 0.6; p.bounced = false;
+    p.fall = hot ? SPARK_FALL : 7; p.tint = hot ? null : color; p.trail = hot ? 0.045 : 0.07;
   }
   if (n) sparks.live = true;
 }
@@ -4291,15 +4284,21 @@ function updateSparks(dt){
     const p = sparks.p[i], a = i * 6, b = i * 3;
     if (p.life <= 0){ L.col.fill(0, a, a + 6); H.col.fill(0, b, b + 3); continue; }
     any = true;
-    p.life -= dt; p.vy -= SPARK_FALL * dt;
+    p.life -= dt; p.vy -= p.fall * dt;
     p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
     // a spark hits the ground once and skips on, low and slower; then it slides and dies out
     if (p.y < p.floor){ p.y = p.floor; if (!p.bounced){ p.vy *= -0.35; p.vx *= 0.55; p.vz *= 0.55; p.bounced = true; } else { p.vy = 0; p.vx *= 0.9; p.vz *= 0.9; } }
-    const t = clamp(p.life / p.max, 0, 1), br = Math.min(1, t * 2.5), r = br, g = (0.28 + 0.67 * t * t) * br, bl = (0.04 + 0.6 * t * t * t) * br;
+    const t = clamp(p.life / p.max, 0, 1), br = Math.min(1, t * 2.5);
+    let r, g, bl;
+    if (p.tint){
+      // a coloured spark: white-hot at first, then its own colour, fading out
+      const w = Math.max(0, (t - 0.7) / 0.3) * 0.7;
+      r = (p.tint.r + (1 - p.tint.r) * w) * br; g = (p.tint.g + (1 - p.tint.g) * w) * br; bl = (p.tint.b + (1 - p.tint.b) * w) * br;
+    } else { r = br; g = (0.28 + 0.67 * t * t) * br; bl = (0.04 + 0.6 * t * t * t) * br; }
     L.pos[a] = p.x; L.pos[a + 1] = p.y; L.pos[a + 2] = p.z;
-    L.pos[a + 3] = p.x - p.vx * SPARK_TRAIL; L.pos[a + 4] = p.y - p.vy * SPARK_TRAIL; L.pos[a + 5] = p.z - p.vz * SPARK_TRAIL;
+    L.pos[a + 3] = p.x - p.vx * p.trail; L.pos[a + 4] = p.y - p.vy * p.trail; L.pos[a + 5] = p.z - p.vz * p.trail;
     L.col[a] = r; L.col[a + 1] = g; L.col[a + 2] = bl; L.col[a + 3] = r * 0.25; L.col[a + 4] = g * 0.2; L.col[a + 5] = bl * 0.1;
-    H.pos[b] = p.x; H.pos[b + 1] = p.y; H.pos[b + 2] = p.z; H.col[b] = r * 0.7; H.col[b + 1] = g * 0.7; H.col[b + 2] = bl * 0.7;
+    H.pos[b] = p.x; H.pos[b + 1] = p.y; H.pos[b + 2] = p.z; const hb = p.tint ? 1 : 0.7; H.col[b] = r * hb; H.col[b + 1] = g * hb; H.col[b + 2] = bl * hb;
   }
   for (const G of [L, H]){ G.g.attributes.position.needsUpdate = true; G.g.attributes.color.needsUpdate = true; }
   sparks.live = any;
@@ -7222,7 +7221,7 @@ function frame(now){
     if (mode === 'country' && state !== 'menu') updateCountryTraffic(dt);
     if (mode === 'city'){ updateSignals(); updateNpcs(dt); }
     if (state !== 'menu') updateHeli(dt);
-    updateParticles(dt); updateSmoke(dt); updateSparks(dt);
+    updateSmoke(dt); updateSparks(dt);
     updateNitroFx();
   }
   updatePoliceVisuals();
