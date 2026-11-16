@@ -211,6 +211,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-display)
 .card.mini{width:min(760px,100%);gap:10px;padding:20px}
 .card.mini h2{font-size:30px}
 .card.mini p{font-size:14px;line-height:1.45}
+/* ### the card that explains a mini game before its first play: the briefing's how-to grid, the steps numbered */
+.card.mini-rules{width:min(620px,100%)}
+.mg-rules{align-items:start;font-size:12.5px;line-height:1.5}
+.mg-rules span,.mg-rules ol{padding-top:3px}
+.mg-rules ol{margin:0;padding-left:18px;display:grid;gap:4px}
+.mg-rules li::marker{color:var(--orange)}
 .mg{display:grid;gap:8px}
 .mg-bar{display:flex;align-items:center;gap:10px}
 .mg-timer{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden}
