@@ -3137,57 +3137,77 @@ const reverseLights = { mat: new THREE.MeshBasicMaterial({ color: 0x4a4e55 }), g
     pivot.add(w); o.list.push(w); if (o.front) o.pivots.push(pivot);
   }
 
-  // Car: fastback muscle coupe in steel blue
+  // Car: a modern American fastback coupe in bright blue. What makes the shape: a long bonnet and a cabin set far back, a nose
+  // that leans forward over a wide six-sided grille, slim headlights with three light bars each, a roof that runs down to the
+  // tail in one line with a body-coloured pillar behind a pointed side window, hips over the rear wheels, a short lip on the
+  // boot lid and three upright tail lights on each side. It carries no badge or lettering of any make.
+  // (extrudeProfile's bevel makes every outline bigger by the bevel: the body below is 0.12 m higher and longer than its points.)
   {
-    const g = new THREE.Group(), base = 0x56688f, pm = paintMat(base, 0.2, 0.72);
+    const g = new THREE.Group(), base = 0x1a7fd6, pm = paintMat(base, 0.22, 0.45);
     const s = new THREE.Shape();
     s.moveTo(-2.3, 0.28); s.lineTo(-1.88, 0.28);
     s.absarc(-1.35, 0.38, 0.52, Math.PI, 0, true);
     s.lineTo(0.93, 0.28);
     s.absarc(1.45, 0.38, 0.52, Math.PI, 0, true);
-    s.lineTo(2.3, 0.26); s.lineTo(2.42, 0.42); s.lineTo(2.36, 0.66); s.lineTo(2.2, 0.78);
-    s.lineTo(0.55, 0.96); s.lineTo(-1.6, 0.98); s.lineTo(-2.25, 0.93); s.lineTo(-2.4, 0.78); s.lineTo(-2.42, 0.5);
+    // the nose leans forward: its top edge is the foremost point
+    s.lineTo(2.3, 0.26); s.lineTo(2.42, 0.36); s.lineTo(2.45, 0.56); s.lineTo(2.46, 0.72); s.lineTo(2.36, 0.78);
+    // long bonnet, a waistline that rises over the rear wheels, and the lip of the boot lid
+    s.lineTo(1.4, 0.85); s.lineTo(0.5, 0.88); s.lineTo(-1.3, 0.88); s.lineTo(-1.9, 0.94); s.lineTo(-2.32, 0.98); s.lineTo(-2.45, 1.0); s.lineTo(-2.43, 0.86); s.lineTo(-2.44, 0.5);
     s.closePath();
-    mk(smoothGeo(shapeBody(extrudeProfile(s, 1.92, 0.12), { half: 2.5, belt: 0.8, roof: 1.42, tumble: 0.1, plan: 0.13 })), pm, g);
-    const hr = new THREE.Shape();
-    hr.moveTo(-2.05, 0.42); hr.lineTo(-1.9, 0.42); hr.absarc(-1.35, 0.38, 0.55, Math.PI, 0, true); hr.lineTo(-0.72, 0.42); hr.lineTo(-0.88, 0.8); hr.lineTo(-1.98, 0.86); hr.closePath();
-    mk(smoothGeo(extrudeProfile(hr, 2.04, 0.1)), pm, g);
-    const fr = new THREE.Shape();
-    fr.moveTo(0.85, 0.42); fr.absarc(1.45, 0.38, 0.54, Math.PI, 0, true); fr.lineTo(2.05, 0.45); fr.lineTo(1.95, 0.74); fr.lineTo(0.95, 0.84); fr.closePath();
-    mk(smoothGeo(extrudeProfile(fr, 1.98, 0.1)), pm, g);
-    mk(smoothGeo(shapeBody(extrudeProfile(shp([[0.55, 0.95], [-0.25, 1.33], [-0.95, 1.36], [-2.15, 0.98]]), 1.58, 0.06), { half: 2.5, belt: 0.98, roof: 1.4, tumble: 0.24, plan: 0.08 })), SHARED.glass, g);
-    mk(smoothGeo(shapeBody(extrudeProfile(shp([[-0.22, 1.31], [-0.28, 1.38], [-0.97, 1.41], [-1.95, 1.06], [-1.88, 1.0], [-0.95, 1.35]]), 1.62, 0.04), { half: 2.5, belt: 0.98, roof: 1.4, tumble: 0.24, plan: 0.08 })), pm, g);
-    mk(mergeGeos([boxG(0.48, 0.11, 0.05, 0.66, 0.69, 2.49), boxG(0.48, 0.11, 0.05, -0.66, 0.69, 2.49), boxG(0.34, 0.15, 0.05, 0.72, 0.8, -2.52), boxG(0.34, 0.15, 0.05, -0.72, 0.8, -2.52)]), SHARED.lens, g);
-    mk(boxG(0.5, 0.07, 0.66, 0, 0.99, 1.3, 0.11), darkGrille, g);
+    mk(smoothGeo(shapeBody(extrudeProfile(s, 2.02, 0.12), { half: 2.5, belt: 0.8, roof: 1.42, tumble: 0.1, plan: 0.13 })), pm, g);
+    // a lip round each wheel arch
+    const lip = cx => { const sh = new THREE.Shape(); sh.absarc(cx, 0.38, 0.52, Math.PI, 0, true); sh.absarc(cx, 0.38, 0.44, 0, Math.PI, false); sh.closePath(); return smoothGeo(extrudeProfile(sh, 2.1, 0.04)); };
+    mk(mergeGeos([lip(-1.35), lip(1.45)]), pm, g);
+    // the glass house, and over it the painted parts: the roof, the screen pillars and the wide pillars of the fastback, which
+    // leave a pointed side window and the big rear window open. All lean in with the glass (the same shapeBody).
+    const house = { half: 2.5, belt: 0.94, roof: 1.36, tumble: 0.24, plan: 0.08 };
+    const skin = (pts, width, x) => smoothGeo(shapeBody(extrudeProfile(shp(pts), width, 0.03).translate(x || 0, 0, 0), house));
+    mk(smoothGeo(shapeBody(extrudeProfile(shp([[0.5, 0.9], [-0.3, 1.29], [-0.75, 1.32], [-2.1, 0.98]]), 1.66, 0.06), house)), SHARED.glass, g);
+    mk(skin([[-0.26, 1.25], [-0.3, 1.33], [-0.75, 1.36], [-1.25, 1.234], [-1.23, 1.18], [-0.75, 1.3]], 1.7), pm, g);
+    mk(mergeGeos([-1, 1].flatMap(sd => [
+      skin([[-1.0, 1.297], [-2.12, 1.015], [-2.12, 0.9], [-1.3, 0.9], [-1.6, 1.07]], 0.16, sd * 0.785),
+      skin([[0.53, 0.92], [-0.27, 1.31], [-0.36, 1.31], [0.42, 0.92]], 0.1, sd * 0.805)
+    ])), pm, g);
+    // faces: flat parts drawn from the front (x across, y up), set into the nose
+    const face = (pts, z, depth) => new THREE.ExtrudeGeometry(shp(pts), { depth, bevelEnabled: false }).translate(0, 0, z);
+    const both = pts => [pts, pts.map(([x, y]) => [-x, y]).reverse()];
+    // nose: the wide six-sided grille, the intake under it and one in each corner of the bumper
     mk(mergeGeos([
-      boxG(1.86, 0.04, 0.34, 0, 0.27, 2.42), boxG(1.5, 0.12, 0.05, 0, 0.35, 2.5),
-      boxG(0.06, 0.1, 2.1, 0.99, 0.33, 0.05), boxG(0.06, 0.1, 2.1, -0.99, 0.33, 0.05),
+      face([[-0.5, 0.74], [0.5, 0.74], [0.56, 0.64], [0.42, 0.48], [-0.42, 0.48], [-0.56, 0.64]], 2.5, 0.09),
+      face([[-0.44, 0.43], [0.44, 0.43], [0.38, 0.3], [-0.38, 0.3]], 2.48, 0.085),
+      ...both([[0.56, 0.48], [0.8, 0.5], [0.79, 0.34], [0.6, 0.31]]).map(q => face(q, 2.48, 0.085))
+    ]), darkGrille, g);
+    // slim headlights beside the grille, each with three short light bars
+    mk(mergeGeos(both([[0.6, 0.745], [0.84, 0.735], [0.83, 0.67], [0.62, 0.655]]).map(q => face(q, 2.5, 0.095))), SHARED.lens, g);
+    mk(mergeGeos([-1, 1].flatMap(sd => [0.655, 0.725, 0.795].map(x => boxG(0.04, 0.05, 0.02, sd * x, 0.702, 2.6)))), led, g);
+    // the vent in the bonnet, with a bar down its middle
+    mk(mergeGeos([boxG(0.27, 0.03, 0.44, 0.155, 0.975, 1.45, 0.04), boxG(0.27, 0.03, 0.44, -0.155, 0.975, 1.45, 0.04)]), darkGrille, g);
+    mk(mergeGeos([
+      boxG(1.9, 0.04, 0.34, 0, 0.27, 2.42),
+      boxG(0.06, 0.1, 2.1, 1.03, 0.33, 0.05), boxG(0.06, 0.1, 2.1, -1.03, 0.33, 0.05),
       boxG(1.5, 0.14, 0.3, 0, 0.33, -2.46)
     ]), SHARED.trim, g);
-    mk(boxG(1.26, 0.27, 0.05, 0, 0.53, 2.52), darkGrille, g);
-    mk(mergeGeos([
-      boxG(0.42, 0.05, 0.05, 0.66, 0.69, 2.45), boxG(0.42, 0.05, 0.05, -0.66, 0.69, 2.45),
-      boxG(0.045, 0.14, 0.05, 0.47, 0.6, 2.5), boxG(0.045, 0.14, 0.05, -0.47, 0.6, 2.5)
-    ]), led, g);
-    mk(mergeGeos([boxG(1.7, 0.045, 0.04, 0, 0.87, -2.45), boxG(0.3, 0.12, 0.04, 0.72, 0.8, -2.49), boxG(0.3, 0.12, 0.04, -0.72, 0.8, -2.49)]), red, g);
+    // tail: a black panel across the back with three upright lights on each side, and a slim third brake light under the lip
+    mk(boxG(1.56, 0.25, 0.05, 0, 0.74, -2.56), darkGrille, g);
+    mk(mergeGeos([...[-1, 1].flatMap(sd => [0.48, 0.59, 0.7].map(x => boxG(0.08, 0.2, 0.03, sd * x, 0.74, -2.59))), boxG(0.5, 0.025, 0.03, 0, 0.91, -2.575)]), red, g);
     mk(mergeGeos([-0.62, -0.46, 0.46, 0.62].map(x => cyl(0.055, 0.055, 0.24, 12).rotateX(Math.PI / 2).translate(x, 0.31, -2.54))), alu, g);
-    mk(mergeGeos([boxG(0.52, 0.12, 0.02, 0, 0.42, 2.56), boxG(0.52, 0.12, 0.02, 0, 0.62, -2.54)]), plateMat, g);
-    mk(mergeGeos([boxG(0.22, 0.1, 0.16, 1.04, 0.99, 0.42), boxG(0.22, 0.1, 0.16, -1.04, 0.99, 0.42)]), pm, g);
+    mk(mergeGeos([boxG(0.46, 0.11, 0.02, 0, 0.54, 2.6), boxG(0.52, 0.12, 0.02, 0, 0.5, -2.575)]), plateMat, g);
+    mk(mergeGeos([boxG(0.22, 0.1, 0.16, 1.07, 1.03, 0.42), boxG(0.22, 0.1, 0.16, -1.07, 1.03, 0.42)]), pm, g);
     const wheels = [], pivots = [];
     [[0.86, 1.45, true], [-0.86, 1.45, true], [0.88, -1.35, false], [-0.88, -1.35, false]].forEach(([x, z, f]) =>
-      wheel(g, { x, z, r: 0.38, w: 0.3, rim: gun, spokes: 5, caliper: 0xd0202a, front: f, list: wheels, pivots }));
-    brakeGlow(g, [[0.72, 0.82, -2.56], [-0.72, 0.82, -2.56], [0, 0.87, -2.5]], 1.25);
-    mk(mergeGeos([-1, 1].map(sd => boxG(0.14, 0.09, 0.04, sd * 0.42, 0.8, -2.51))), reverseLights.mat, g);
-    reverseLamps(g, [[0.42, 0.8, -2.56], [-0.42, 0.8, -2.56]], 0.95, -2.5, 3);
+      wheel(g, { x, z, r: 0.38, w: 0.3, rim: gun, spokes: 10, caliper: 0xd0202a, front: f, list: wheels, pivots }));
+    brakeGlow(g, [[0.59, 0.74, -2.64], [-0.59, 0.74, -2.64], [0, 0.91, -2.62]], 1.25);
+    mk(mergeGeos([-1, 1].map(sd => boxG(0.12, 0.07, 0.03, sd * 0.33, 0.74, -2.59))), reverseLights.mat, g);
+    reverseLamps(g, [[0.33, 0.74, -2.64], [-0.33, 0.74, -2.64]], 0.95, -2.5, 3);
     // battered: smashed tail light, boot lid sprung open, bumper hanging at one end. Critical: hood up, a dead headlight, door ajar
     const damageParts = [];
-    hinged(damageParts, 2, boxG(0.38, 0.19, 0.07, -0.72, 0.8, -2.545), SHARED.trim, g);
-    hinged(damageParts, 2, boxG(1.42, 0.05, 0.74, 0, 0, -0.37), pm, g, [0, 1.03, -1.6], [0.16, 0, 0]);
+    hinged(damageParts, 2, boxG(0.36, 0.23, 0.05, -0.59, 0.74, -2.6), SHARED.trim, g);
+    hinged(damageParts, 2, boxG(1.42, 0.05, 0.74, 0, 0, -0.37), pm, g, [0, 1.07, -1.75], [0.16, 0, 0]);
     hinged(damageParts, 2, boxG(1.6, 0.16, 0.2, -0.8, 0, 0), pm, g, [0.8, 0.4, -2.56], [0, 0, 0.1]);
-    hinged(damageParts, 3, boxG(1.62, 0.05, 1.4, 0, 0, 0.7), pm, g, [0, 1.0, 0.66], [-0.5, 0, 0]);
-    hinged(damageParts, 3, boxG(0.5, 0.13, 0.06, -0.66, 0.69, 2.51), SHARED.trim, g);
-    hinged(damageParts, 3, boxG(0.05, 0.5, 1.15, 0, 0, -0.57), pm, g, [-1.0, 0.66, 0.42], [0, -0.3, 0]);
-    const door = passengerDoor(g, { x: -0.985, z: 0.45, len: 1.16, y0: 0.36, y1: 0.97, w1: 1.3, max: 1.15 }, pm);
+    hinged(damageParts, 3, boxG(1.62, 0.05, 1.4, 0, 0, 0.7), pm, g, [0, 0.96, 0.66], [-0.5, 0, 0]);
+    hinged(damageParts, 3, boxG(0.28, 0.11, 0.04, -0.72, 0.702, 2.6), SHARED.trim, g);
+    hinged(damageParts, 3, boxG(0.05, 0.5, 1.15, 0, 0, -0.57), pm, g, [-1.05, 0.66, 0.42], [0, -0.3, 0]);
+    const door = passengerDoor(g, { x: -1.035, z: 0.45, len: 1.16, y0: 0.36, y1: 1.0, w1: 1.26, max: 1.15 }, pm);
     MODELS.car = { skid: { x: [-0.88, 0.88], z: -1.35, w: 0.28 }, g, paint: pm, base: C(base), wheels, pivots, r: 0.38, damageParts, dent: 1, smoke: [1.5, 1.1], stage: 0, door };
   }
 
@@ -6862,7 +6882,7 @@ const STORY = {
      [85, 'DISPATCH: Lady Ashford asks that the escaped inmate be brought to the mansion.', 'red']]
   ]
 };
-const VEH_DESC = { car: 'Steel-blue coupe', bike: 'Black superbike', truck: 'Green tractor unit' };
+const VEH_DESC = { car: 'Bright-blue coupe', bike: 'Black superbike', truck: 'Green tractor unit' };
 
 // ### Shows the story prologue before the first act.
 function showStoryIntro(){
