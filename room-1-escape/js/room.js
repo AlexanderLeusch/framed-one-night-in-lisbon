@@ -2132,12 +2132,7 @@ function updateDust(dt, t){
     for (const dx of [-.7, -.2, .2, .7]){ const b = cyl(.01, .01, .006, M.chrome, X + dx, .482, Z - .2, 6); }
     flat(1.9, .7, M.blob, X, Z - .25);
   }
-  { // a fire extinguisher on its bracket by the door, and a soap dispenser between the sinks
-    const X = -1.25, Z = D / 2 - .1;
-    cyl(.075, .075, .44, M.red, X, .6, Z, 18); cyl(.05, .075, .06, M.red, X, .85, Z, 18);
-    cyl(.02, .02, .06, M.black, X, .9, Z, 10); box(.12, .025, .04, M.black, X + .03, .935, Z);
-    { const hose = new THREE.Mesh(new THREE.TorusGeometry(.07, .008, 6, 16, Math.PI * 1.2), M.black); hose.position.set(X + .07, .78, Z + .02); hose.rotation.y = Math.PI / 2; add(hose); }
-    box(.16, .05, .1, M.dullSteel, X, .45, Z + .04); box(.05, .5, .01, M.dullSteel, X, .6, Z + .095);
+  { // a soap dispenser between the sinks (the fire extinguisher by the door is further down: see loadExtinguisher)
     box(.08, .16, .08, M.steel, -3.935, 1.1, 0); box(.02, .02, .03, M.black, -3.89, 1.015, 0);   // on the splashback
   }
   { // ### The wet-floor sign by the showers: a folding A-frame of moulded yellow plastic, as cleaners use them. Two panels
@@ -2437,11 +2432,52 @@ function linenCloth(cloth, mat, strength = 1){
 // ### Surfaces that are not metal only pick up a little of the vault, as soft fill light; the metal shows all of it.
 room.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial && !o.material.metalness && o.material.envMapIntensity === 1) o.material.envMapIntensity = .45; });
 
+// ### The fire extinguisher by the door is a real one: Poly Haven's "Korean Fire Extinguisher 01" (Um Joorin, CC0),
+// ### fetched once through its free API (models/fire-extinguisher.glb, the body and the gauge glass; the paper tag
+// ### is left off). Its scanned textures show red paint on steel as it ages: glossy where it is whole, dull and dusty
+// ### where hands and mops rub it, chipped to bare metal at the edges, the gauge under a scratched glass, the handle and
+// ### the stand grey steel. The word on its label band was repainted in English (FIRE EXTINGUISHER) in the same worn
+// ### white. Until the model has loaded, or if it cannot be, a simple extinguisher of cylinders stands in its place.
+const extinguisher = new THREE.Group();
+extinguisher.position.set(-1.25, 0, D / 2 - .14); extinguisher.rotation.y = Math.PI - .3; room.add(extinguisher);
+function extinguisherStandIn(){
+  const red = new THREE.MeshStandardMaterial({ color: 0x9c1f18, roughness: .35, metalness: .2 });
+  const part = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; extinguisher.add(o); return o; };
+  part(new THREE.CylinderGeometry(.075, .075, .44, 24), red, 0, .3, 0); part(new THREE.SphereGeometry(.075, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), red, 0, .52, 0);
+  part(new THREE.CylinderGeometry(.018, .022, .06, 12), M.dullSteel, 0, .61, 0); part(new THREE.BoxGeometry(.03, .02, .13), M.dullSteel, 0, .645, .03);
+  part(new THREE.CylinderGeometry(.11, .12, .06, 24), M.dark, 0, .03, 0);
+}
+extinguisherStandIn(); loadExtinguisher();
+flat(.5, .5, M.blob, -1.25, D / 2 - .14);
+function loadExtinguisher(){
+  fetch('models/fire-extinguisher.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(buf => {
+    const { json, acc } = glbParts(buf);
+    const arm = SCAN('fire-extinguisher-arm.jpg', false, 1, 1, 4), normal = SCAN('fire-extinguisher-normal.jpg', false, 1, 1, 4), color = SCAN('fire-extinguisher-color.jpg', true);
+    for (const t of [arm, normal, color]) t.flipY = false;   // glTF pictures are not flipped
+    const mats = [
+      // paint and steel: the scan's red, its gloss (green) and its bare metal (blue); the dust in its creases (red)
+      new THREE.MeshStandardMaterial({ map: color, normalMap: normal, roughnessMap: arm, metalnessMap: arm, aoMap: arm, roughness: 1, metalness: 1, envMapIntensity: 1.1 }),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .05, metalness: 0, transparent: true, opacity: .25, depthWrite: false })
+    ];
+    while (extinguisher.children.length) extinguisher.remove(extinguisher.children[0]);
+    json.meshes[0].primitives.forEach((prim, k) => {
+      const geo = new THREE.BufferGeometry(), A = prim.attributes;
+      geo.setAttribute('position', new THREE.BufferAttribute(acc(A.POSITION), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(acc(A.NORMAL), 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(acc(A.TEXCOORD_0), 2));
+      geo.setAttribute('uv2', geo.attributes.uv);
+      geo.setIndex(new THREE.BufferAttribute(acc(prim.indices), 1));
+      const m = new THREE.Mesh(geo, mats[k]); m.castShadow = k === 0; m.receiveShadow = true; m.renderOrder = k;
+      extinguisher.add(m);
+    });
+    shadowsMoved();
+  }).catch(() => {});
+}
 // ### Static meshes that share a material are merged into one mesh, so the room is drawn in a few dozen draw calls instead
 // ### of several hundred (and each shadow-casting light draws every caster once more). Objects that move or can be clicked
 // ### stay separate. Runs once, after the room is built.
 function mergeStatic(){
-  const keep = new Set([mop, carKey, doorPivot, lidPivot, hale.g, hall, haleShadow]), groups = new Map();
+  const keep = new Set([mop, carKey, doorPivot, lidPivot, hale.g, hall, haleShadow, extinguisher]), groups = new Map();
   room.updateMatrixWorld(true);
   (function walk(o){
     for (const c of o.children){
@@ -2768,7 +2804,7 @@ function bakeArm(arm){
 }
 // ### Reads a binary glTF file (.glb) with one skinned mesh, as the hand models are: the mesh, its joints and the matrices
 // ### that bind the skin to them. A few lines instead of three.js's GLTFLoader, so no other library has to be loaded.
-function readGlb(buf){
+function glbParts(buf){
   const dv = new DataView(buf);
   if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('not a glb file');
   const jsonLen = dv.getUint32(12, true), json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jsonLen))), bin = 20 + jsonLen + 8;
@@ -2777,6 +2813,10 @@ function readGlb(buf){
     const T = { 5126: Float32Array, 5125: Uint32Array, 5123: Uint16Array, 5121: Uint8Array }[a.componentType], st = bin + (bv.byteOffset || 0) + (a.byteOffset || 0);
     return new T(buf.slice(st, st + a.count * n * T.BYTES_PER_ELEMENT));
   };
+  return { json, acc };
+}
+function readGlb(buf){
+  const { json, acc } = glbParts(buf);
   const prim = json.meshes[0].primitives[0], A = prim.attributes, skin = json.skins[0];
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(acc(A.POSITION), 3));
