@@ -3695,7 +3695,7 @@ function updatePolice(dt){
       const impact = -((pvx - fx * p.speed) * nx + (pvz - fz * p.speed) * nz);
       if (live && impact > 3 && p.hitCool <= 0){
         p.hitCool = 0.6;
-        crash(impact * 0.8);
+        crash(impact * 0.8); sfx.hit(impact, 1);
         p.hp -= impact * V.ram * 0.09;
         p.stun = Math.max(p.stun, 0.4 + V.ram * 0.5);
         car.speed *= V.key === 'truck' ? 0.92 : 0.72; p.speed *= 0.4;
@@ -3887,22 +3887,19 @@ function buildTraffic(){
   return out;
 }
 
-// ### Shoving traffic. A hit vehicle is pushed away: momentum is shared by weight, so a motorcycle flies off a car, two cars
-// ### both give way, and a bus or a lorry hardly moves while your car bounces off it (a tram on its rails does not move at all).
-// ### A hit off its middle also turns it. The push is kept apart from the vehicle's own lane position (px, pz and the turn
-// ### ph); it slides out over the tyres' friction, stops at walls, lamp posts and parked cars, and once the stunned driver has
-// ### come round, steers back into the lane.
-const MASS = { sedan: 1, suv: 1.3, moto: 0.25, bus: 4, coach: 4, truck: 3.5, tram: Infinity }, PLAYER_MASS = { car: 1, bike: 0.3, truck: 3.5 };
-const massOf = o => o === courier ? 3.5 : MASS[o.fleet || o.type] || 1;
+// ### Shoving traffic. The rules (weights, how momentum is shared, how much a hit turns a vehicle) are in Core (shoveImpulse,
+// ### keepSpeed, shoveSpin). Here the push is kept apart from the vehicle's own lane position (px, pz and the turn ph); it slides
+// ### out over the tyres' friction, stops at walls, lamp posts and parked cars, and once the stunned driver has come round, the
+// ### vehicle steers back into its lane.
+const { MASS, PLAYER_MASS, SHOVE } = Core;
+const massOf = o => o === courier ? MASS.courier : MASS[o.fleet || o.type] || 1;
 // pushes o along (dx, dz) after a hit with this closing speed at the point (hx, hz); mp is the hitter's weight. Returns the share
 // of the momentum that went into o (0 for a tram, near 1 for a motorcycle hit by a lorry), so the hitter can keep the rest.
 function shove(o, dx, dz, impact, hx, hz, mp){
-  const m = massOf(o);
-  if (!Number.isFinite(m) || impact <= 0) return 0;
-  const share = mp / (mp + m), dv = impact * share * 1.25;
+  const m = massOf(o), { share, dv } = Core.shoveImpulse(impact, mp, m);
+  if (!dv) return 0;
   o.pvx = (o.pvx || 0) + dx * dv; o.pvz = (o.pvz || 0) + dz * dv;
-  const rx = hx - (o.x + (o.px || 0)), rz = hz - (o.z + (o.pz || 0));
-  o.pw = (o.pw || 0) - (rx * dz - rz * dx) * dv * 0.12 / Math.sqrt(Math.max(1, m));
+  o.pw = (o.pw || 0) + Core.shoveSpin(hx - (o.x + (o.px || 0)), hz - (o.z + (o.pz || 0)), dx, dz, dv, m);
   o.stun = Math.max(o.stun || 0, 2.5);
   return share;
 }
@@ -3910,14 +3907,14 @@ function stepShove(o, dt){
   if (!o.pvx && !o.pvz && !o.px && !o.pz && !o.ph && !o.pw) return;
   if (mode === 'highway' && o.stun > 0) o.stun -= dt;
   o.px = (o.px || 0) + (o.pvx || 0) * dt; o.pz = (o.pz || 0) + (o.pvz || 0) * dt; o.ph = (o.ph || 0) + (o.pw || 0) * dt;
-  const grip = Math.exp(-dt * 2.2); o.pvx = (o.pvx || 0) * grip; o.pvz = (o.pvz || 0) * grip; o.pw = (o.pw || 0) * Math.exp(-dt * 2.6);
+  const grip = Math.exp(-dt * SHOVE.grip); o.pvx = (o.pvx || 0) * grip; o.pvz = (o.pvz || 0) * grip; o.pw = (o.pw || 0) * Math.exp(-dt * SHOVE.turnGrip);
   if (mode === 'city') for (const c of collidersNear(o.x + o.px, o.z + o.pz)){
     const hit = collidePoint(o.x + o.px, o.z + o.pz, 1.0, c);
     if (hit){ o.px += hit[0] * hit[2]; o.pz += hit[1] * hit[2]; o.pvx *= 0.2; o.pvz *= 0.2; }
   }
-  const L = Math.hypot(o.px, o.pz); if (L > 14){ o.px *= 14 / L; o.pz *= 14 / L; o.pvx = o.pvz = 0; }
-  if ((o.stun || 0) <= 0 && Math.hypot(o.pvx, o.pvz) < 0.6){
-    const back = Math.exp(-dt * 0.9); o.px *= back; o.pz *= back; o.ph *= Math.exp(-dt * 1.3);
+  const L = Math.hypot(o.px, o.pz); if (L > SHOVE.max){ o.px *= SHOVE.max / L; o.pz *= SHOVE.max / L; o.pvx = o.pvz = 0; }
+  if ((o.stun || 0) <= 0 && Math.hypot(o.pvx, o.pvz) < SHOVE.rest){
+    const back = Math.exp(-dt * SHOVE.back); o.px *= back; o.pz *= back; o.ph *= Math.exp(-dt * SHOVE.turnBack);
     if (Math.abs(o.px) + Math.abs(o.pz) < 0.02 && Math.abs(o.ph) < 0.002) resetShove(o);
   }
 }
@@ -4468,11 +4465,30 @@ function tone(freqs, dur, type, vol){
     o.start(st); o.stop(st + dur + 0.05);
   });
 }
+let hitQuiet = 0;
 const sfx = {
   collect: () => tone([880, 1175, 1568], 0.18, 'triangle', 0.14),
   repair: () => tone([392, 523, 659], 0.16, 'square', 0.06),
   gate: () => tone([523, 659, 784, 1047, 1319], 0.26, 'sine', 0.12),
   crash: k => tone([110 + k * 2, 70], 0.16, 'square', Math.min(0.14, 0.04 + k * 0.004)),
+  // ### Hitting another vehicle sounds like what it is: the lighter it is, the higher and shorter the crunch of metal (a motorcycle
+  // ### clatters), the heavier, the deeper and longer the boom under it (a bus or a lorry thuds). Louder the harder the hit. Several
+  // ### contacts within a quarter of a second count as one crash, so a scrape does not rattle.
+  hit: (k, m) => {
+    if (!audio || muted || clock < hitQuiet) return;
+    hitQuiet = clock + 0.25;
+    const ctx = audio.ctx, t = ctx.currentTime, w = clamp(Number.isFinite(m) ? m : 1, 0.2, 5), loud = clamp(0.08 + k * 0.012, 0.08, 0.5);
+    // the crunch: noise through a band that sits lower the heavier the vehicle
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3400 / (1 + w * 1.1); bp.Q.value = 1.4; bp.connect(audio.gameVol);
+    noiseBurst(t, bp, loud, 0.12 + 0.05 * w);
+    // a light vehicle rings: two short metallic partials
+    if (w < 0.6){ tone([2200, 3300], 0.06, 'square', loud * 0.12); }
+    // the body of the hit: a falling low tone, deeper and longer for a heavy vehicle
+    const o = ctx.createOscillator(), gg = ctx.createGain(), f = 140 / (1 + w * 0.6), len = Math.min(0.5, 0.14 + 0.08 * w);
+    o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.5, t + len);
+    gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(loud * (0.5 + w * 0.15), t + 0.01); gg.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(gg).connect(audio.gameVol); o.start(t); o.stop(t + len + 0.05);
+  },
   win: () => tone([659, 784, 988, 1319], 0.3, 'triangle', 0.13),
   fail: () => tone([392, 330, 262], 0.3, 'sine', 0.12),
   zap: () => tone([180, 90], 0.14, 'sawtooth', 0.07),
@@ -6281,6 +6297,7 @@ function updateCar(dt){
           car.speed = vtz * fz * 0.85 + (V.key === 'truck' ? car.speed * 0.4 : 0);
           t.speed = Math.max(0, t.speed + (-hit[1] * t.dir) * impact * 0.3 * V.ram);
           // and sideways, by weight (forwards it is the change of speed above)
+          sfx.hit(impact, massOf(t));
           if (hit[0] && t !== courier) shove(t, -Math.sign(hit[0]), 0, impact * Math.abs(hit[0]), car.x, car.z, PLAYER_MASS[V.key] || 1);
         }
         break;
@@ -6295,7 +6312,7 @@ function updateCar(dt){
         // the hit vehicle is pushed away from you; you keep more speed the lighter it is
         const share = o.npc && impact > 1 ? shove(o.npc, -hit[0], -hit[1], impact, o.x, o.z, PLAYER_MASS[V.key] || 1) : 0;
         if (o.npc) o.npc.stun = Math.max(o.npc.stun, 2.5);
-        if (impact > 2){ worst = Math.max(worst, impact); car.speed *= o.npc ? 0.25 + 0.7 * share : 0.4; }
+        if (impact > 2){ worst = Math.max(worst, impact); car.speed *= o.npc ? Core.keepSpeed(share) : 0.4; if (o.npc) sfx.hit(impact, massOf(o.npc)); }
         break;
       }
     }
