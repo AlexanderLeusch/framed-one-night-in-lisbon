@@ -27,7 +27,7 @@ The clock only starts when the player presses **Start the clock** after the brie
 | Wrong code | costs **30 seconds** (`WRONG_CODE_PENALTY`), never below 0:00 |
 | Jammed door | when the clock hits 0:00 the first time, you get **one extra minute** (`WEDGE_GRACE`), once only |
 | The clock stops | in the briefing, in the pause menu (which also opens when the browser tab is hidden or the window loses focus), and after an ending |
-| The clock keeps running | while reading a clue, while playing a mini game and while turning the lock |
+| The clock keeps running | while reading a clue, while reading how a mini game works, while playing it and while turning the lock |
 
 ## Scenes and how to move
 
@@ -55,6 +55,8 @@ On a laptop or desktop you only walk with the arrow keys; there are no buttons f
 ## Clues and the code
 
 There are exactly **three clues**, one behind each of three spots. Clicking a spot opens a **mini game of at most 30 seconds**. Winning it gives the clue; losing it (or running out of the 30 seconds) gives nothing, and the same game can be tried again at once. Giving up (Esc or **Give up**), pausing or an ending stops the game without a result.
+
+The **first time** a mini game comes up, a card explains it before it starts: the goal, how it works step by step, the controls (mouse and keyboard, or touch on a touch screen), the 30 seconds and the prize. The game and its 30 seconds start only with **Start the game** (or Enter); **Back to the room** (or Esc) closes the card, and it comes up again next time. The game clock keeps running while you read. After you have started a game once, it opens at once: when you try again after a loss or come back after giving up. A new game shows every card again.
 
 | Spot | Where | Condition | Clue when won |
 |---|---|---|---|
@@ -128,6 +130,7 @@ After an ending, every action is refused except **Play again / Try again**, whic
 | Arrow keys (or `W A S D`) | Walk: up and down forwards and backwards, left and right sideways |
 | Drag the mouse or a finger | Look around, all the way round |
 | Click a pulsing marker or the object itself | Use it (the tile, the mirror and the scratches open their mini game) |
+| Enter / Esc on a mini game's first card | Start the game / back to the room |
 | Space, arrow keys, mouse | Play a mini game (see each game); while a game is open you do not walk |
 | "Walk to" buttons (touch screens only) | Glide to another scene |
 | "Clues" button (bottom left) | Read your clue notes |

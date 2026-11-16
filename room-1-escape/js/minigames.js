@@ -9,15 +9,38 @@
   'use strict';
 
   const TIME = 30;
-  // ### The seven games, in the order rules.js lists them, with the words on the card above each game.
+  // ### The seven games, in the order rules.js lists them. title and how are the words on the card above each game; goal,
+  // ### steps, keys (mouse and keyboard) and touch (touch screen) fill the card that explains a game the first time it
+  // ### comes up, before its 30 seconds start.
   const INFO = {
-    battleship: { title: 'Sink the <em>fleet</em>', name: 'Battleship', how: 'Fire at the enemy waters on the right. A hit lets you fire again. Ships never touch, not even at a corner, so the water around a sunk ship is marked for you. Sink all three of the bot’s ships before it sinks yours.' },
-    spotdiff: { title: 'Spot the <em>difference</em>', name: 'Spot the difference', how: 'Two photographs of the Titanic, five differences. Click them in either picture. A wrong click costs 2 seconds.' },
-    tictactoe: { title: 'Anchors and <em>icebergs</em>', name: 'Tic-tac-toe', how: 'You play the anchors, the bot plays the icebergs. Get three in a row. A draw starts a new round.' },
-    deckrun: { title: 'Run the <em>deck</em>', name: 'Deck run', how: 'Run to the bow as a sailor. Jump over crates, trunks, barrels and ice with Space, ↑ or a click. Three knocks and you are out.' },
-    deckclimb: { title: 'Climb the <em>decks</em>', name: 'Deck climb', how: 'Bounce up through the ship as a sailor: from the engine room past the crew quarters, second class and the long first class. Land on the boat deck to win. Steer with ← → or the mouse. Lifebuoys bounce you higher. Do not fall.' },
-    seagull: { title: 'The <em>seagull</em>', name: 'Seagull', how: 'Fly between the icebergs and the storm clouds. Flap with Space, ↑ or a click. Pass ten gaps.' },
-    pinball: { title: 'Vintage <em>pinball</em>', name: 'Pinball', how: 'Score 1,500 points with three balls. Flippers: ← and → (A and D), Space for both, or press the left or right half of the table. The ball shoots by itself, or press Space.' }
+    battleship: { title: 'Sink the <em>fleet</em>', name: 'Battleship', how: 'Fire at the enemy waters on the right. A hit lets you fire again. Ships never touch, not even at a corner, so the water around a sunk ship is marked for you. Sink all three of the bot’s ships before it sinks yours.',
+      goal: 'Sink all three of the bot’s ships before it sinks yours.',
+      steps: ['Your fleet is on the left, the enemy waters on the right. Each side has one ship of three squares and two of two.', 'Fire at a square of the enemy waters. A hit lets you fire again; a miss gives the bot its turn.', 'Ships are straight and never touch, not even at a corner, so the water around a sunk ship is marked for you.'],
+      keys: 'Click a square of the enemy waters to fire.', touch: 'Tap a square of the enemy waters to fire.' },
+    spotdiff: { title: 'Spot the <em>difference</em>', name: 'Spot the difference', how: 'Two photographs of the Titanic, five differences. Click them in either picture. A wrong click costs 2 seconds.',
+      goal: 'Find the five differences between the two pictures of the Titanic.',
+      steps: ['The picture on the right has five small changes.', 'Click a difference in either picture: a green circle marks it.', 'A wrong click costs 2 seconds.'],
+      keys: 'Click with the mouse.', touch: 'Tap the pictures.' },
+    tictactoe: { title: 'Anchors and <em>icebergs</em>', name: 'Tic-tac-toe', how: 'You play the anchors, the bot plays the icebergs. Get three in a row. A draw starts a new round.',
+      goal: 'Get three anchors in a row before the bot gets three icebergs.',
+      steps: ['You play the anchors and move first; the bot plays the icebergs.', 'A row, a column or a diagonal counts.', 'A draw starts a new round.'],
+      keys: 'Click a free square.', touch: 'Tap a free square.' },
+    deckrun: { title: 'Run the <em>deck</em>', name: 'Deck run', how: 'Run to the bow as a sailor. Jump over crates, trunks, barrels and ice with Space, ↑ or a click. Three knocks and you are out.',
+      goal: 'Run along the icy deck all the way to the bow.',
+      steps: ['The sailor runs by himself.', 'Jump over the crates, trunks, barrels and ice in his way.', 'Three knocks and you are out.'],
+      keys: 'Space, ↑ or W to jump, or click.', touch: 'Tap to jump.' },
+    deckclimb: { title: 'Climb the <em>decks</em>', name: 'Deck climb', how: 'Bounce up through the ship as a sailor: from the engine room past the crew quarters, second class and the long first class. Land on the boat deck to win. Steer with ← → or the mouse. Lifebuoys bounce you higher. Do not fall.',
+      goal: 'Bounce up through the ship and land on the boat deck.',
+      steps: ['The sailor bounces by himself on every platform he lands on.', 'Steer him up from the engine room past the crew quarters, second class and the long first class.', 'Lifebuoys bounce you higher. Miss the platforms and fall, and you lose.'],
+      keys: '← → (A D) to steer, or move the mouse.', touch: 'Slide your finger left and right.' },
+    seagull: { title: 'The <em>seagull</em>', name: 'Seagull', how: 'Fly between the icebergs and the storm clouds. Flap with Space, ↑ or a click. Pass ten gaps.',
+      goal: 'Fly the seagull through ten gaps.',
+      steps: ['The seagull flies on by itself and sinks unless you flap.', 'Fly through the gaps between the icebergs below and the storm clouds above.', 'An iceberg, a cloud or the sea ends the flight.'],
+      keys: 'Space, ↑ or W to flap, or click.', touch: 'Tap to flap.' },
+    pinball: { title: 'Vintage <em>pinball</em>', name: 'Pinball', how: 'Score 1,500 points with three balls. Flippers: ← and → (A and D), Space for both, or press the left or right half of the table. The ball shoots by itself, or press Space.',
+      goal: 'Score 1,500 points with three balls.',
+      steps: ['The ball shoots by itself, or press Space to shoot it.', 'The pop bumpers, the slingshots, the two lifebuoy targets and the R-M-S lanes at the top all score.', 'Keep the ball from falling between the flippers.'],
+      keys: '← and → (A and D) for the flippers, Space for both.', touch: 'Press the left or right half of the table.' }
   };
   const GAMES = Object.keys(INFO);
 

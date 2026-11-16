@@ -249,6 +249,12 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
 
     // ---------- Room 1: the escape room ----------
     const hs = k => click(`[data-hotspot="${k}"]`);
+    // ### The first time a mini game comes up, a card explains it; the game and its 30 s start with "Start the game".
+    const startMini = async () => {
+      await waitFor("!!document.querySelector('#card [data-do=\"mini-start\"]')", 5000, 'the card that explains the mini game');
+      assert.equal(await evaluate("!!document.querySelector('#card .mg')"), false, 'no game and no 30 s while the rules are read');
+      await click('[data-do="mini-start"]');
+    };
     const seconds = async () => { const [m, sec] = (await text('#time')).split(':').map(Number); return m * 60 + sec; };
 
     await t.test('the game and music volumes are set in the menu, kept, and refused when tampered with', async () => {
@@ -422,8 +428,17 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await hs('go:stall');
       assert.equal(await evaluate("!!document.querySelector('[data-hotspot=\"take:carkey\"]')"), false);
       assert.equal(await evaluate("!!document.querySelector('[data-hotspot=\"play:tile\"]')"), true);
-      // the tile opens its mini game; giving it up (Esc) gives nothing
+      // the tile opens its mini game; the first time a card explains it (closing it unread shows it again next time)
       await hs('play:tile');
+      await waitFor("!!document.querySelector('#card [data-do=\"mini-start\"]')", 5000, 'the card that explains battleship');
+      assert.match(await text('#card'), /Sink all three/);
+      assert.match(await text('#card'), /Controls/);
+      assert.match(await text('#card'), /car key/);
+      await key('keydown', 'Escape');
+      assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'Esc closes the card');
+      await hs('play:tile');
+      await startMini();
+      // giving the game up (Esc) gives nothing
       await waitFor("!!document.querySelector('#card .mg[data-game=\"battleship\"] .bs-grid.theirs button')", 5000, 'battleship');
       assert.match(await text('#card'), /car key/);
       assert.equal(await text('#card .mg-secs'), '30');
@@ -474,9 +489,16 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await hs('play:mirror');
       assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'rejected: no mini game at the dry mirror');
       await hs('tap'); await hs('play:mirror');
+      await startMini();
       await waitFor("!!document.querySelector('#card .mg[data-game=\"spotdiff\"] canvas')", 5000, 'spot the difference');
       await click('[data-do="close"]');
+      // started once, the game now opens at once
+      await hs('play:mirror');
+      await waitFor("!!document.querySelector('#card .mg[data-game=\"spotdiff\"] canvas')", 5000, 'spot the difference again');
+      assert.equal(await evaluate("!!document.querySelector('#card [data-do=\"mini-start\"]')"), false, 'no rules card the second time');
+      await click('[data-do="close"]');
       await hs('go:door'); await hs('play:scratches');
+      await startMini();
       await waitFor("!!document.querySelector('#card .mg[data-game=\"tictactoe\"] .ttt-cell')", 5000, 'tic-tac-toe');
       for (const c of [0, 1, 2]){
         await waitFor(`!document.querySelector('.ttt-cell[data-cell="${c}"]').disabled`, 5000, 'the player’s turn');

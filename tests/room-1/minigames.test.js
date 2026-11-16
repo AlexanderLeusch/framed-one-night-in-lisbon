@@ -14,6 +14,16 @@ test('there are seven games, the same seven the rules know, each at most 30 seco
   for (const g of M.GAMES) assert.ok(M.INFO[g].title && M.INFO[g].how && M.INFO[g].name, g);
 });
 
+test('every game has the words for the card that explains it before its first play', () => {
+  for (const g of M.GAMES){
+    const i = M.INFO[g];
+    assert.ok(i.goal && i.keys && i.touch, g);
+    assert.ok(Array.isArray(i.steps) && i.steps.length >= 2 && i.steps.every(t => typeof t === 'string' && t.length > 10), g);
+    // the card is filled with esc(): no markup in these words
+    assert.ok(![i.goal, i.keys, i.touch, ...i.steps].some(t => /[<>]/.test(t)), g);
+  }
+});
+
 test('every new game deals three different mini games, and over many games all seven come up', () => {
   const seen = new Set(), rand = seeded(7);
   for (let i = 0; i < 200; i++){
