@@ -966,11 +966,21 @@ const hot = (key, ...meshes) => { (HOT[key] = HOT[key] || []).push(...meshes); m
 
 // ### A wall: green tiles up to 1.8 m, a dark green cap tile, cream blocks above, and its own coat of stains. runs are
 // ### [metres from the wall's left end as seen from the room, height] of pipe brackets and shower heads that rust or drip.
-function wall(len, x, z, ry, runs, corners){
+// ### gaps lists where the trim on top of the tiles stops, as [from, to] in metres along the wall (u, as in wallStains):
+// ### a mirror hung on the wall interrupts it, the trim is never laid across the front of it.
+function wall(len, x, z, ry, runs, corners, gaps = []){
   const st = wallStains(len, runs, corners);
   plane(len, TILE_H, stained(M.tiles(len), st, 0, TILE_H / H), x, TILE_H / 2, z, ry);
   plane(len, H - TILE_H, stained(blockMat(len, H - TILE_H), st, TILE_H / H, 1), x, TILE_H + (H - TILE_H) / 2, z, ry);
-  const trim = box(len, .05, .03, M.cove, x, TILE_H, z); trim.rotation.y = ry; trim.position.x += Math.sin(ry) * .015; trim.position.z += Math.cos(ry) * .015;
+  let from = 0;
+  for (const [a, b] of [...gaps, [len, len]]){
+    if (a - from > .001){
+      const c = (from + a) / 2 - len / 2;   // the piece's middle, from the middle of the wall
+      const trim = box(a - from, .05, .03, M.cove, x + Math.cos(ry) * c + Math.sin(ry) * .015, TILE_H, z - Math.sin(ry) * c + Math.cos(ry) * .015);
+      trim.rotation.y = ry;
+    }
+    from = b;
+  }
 }
 // ### Lays a wall's stain picture over the tiles or the blocks (v0..v1 is the part of the picture that surface shows): the
 // ### colour is mixed towards the stain by its alpha, and stained glaze turns matt. That is one more texture read per
@@ -1047,7 +1057,7 @@ wall(W, 0, -D / 2, 0, [1, 3, 5, 7].map(u => [u, 2.72]));            // north, ru
 // south (door wall), built around the doorway so the open door shows the corridor in the briefing
 wall(3.45, -2.275, D / 2, Math.PI, [], [false, true]); wall(3.45, 2.275, D / 2, Math.PI, [], [true, false]);
 plane(1.1, H - 2.14, blockMat(1.1, H - 2.14), 0, 2.14 + (H - 2.14) / 2, D / 2, Math.PI);
-wall(D, -W / 2, 0, Math.PI / 2, [[1.5, 2.72], [4.5, 2.72]]);  // west (sinks), rust where the pipes turn down
+wall(D, -W / 2, 0, Math.PI / 2, [[1.5, 2.72], [4.5, 2.72]], undefined, [[D / 2 - 1.14, D / 2 + 1.14]]);  // west (sinks), rust where the pipes turn down; the trim stops at the mirror's backing plate
 wall(D, W / 2, 0, -Math.PI / 2, [[3.45, 1.98, 'shower'], [4.55, 1.98, 'shower']]);  // east, under the shower heads
 // skirting drain channel and floor drain
 cyl(.12, .12, .01, M.dark, 0, .006, .3, 24);
@@ -1416,35 +1426,203 @@ doorLight.visible = false;
 // ### nothing to unscrew). A deck with two deep pressed bowls and a rolled front edge, an apron that hides the plumbing,
 // ### a splashback with a metering push button for cold and hot (the red one) and a short spout over each bowl, and a
 // ### pressed soap dish between them. The hot tap really runs: a stream falls into the bowl under it and splashes there.
+// ### Years of use show on it: limescale where the water lands and dries, rust round the drains, grime in the corners,
+// ### scuffs on the apron, security bolts that hold it to the wall and a yellowed bead of silicone along the wall.
 const SINK = { x: -3.75, top: .89, bx: -3.73, bowls: [-.65, .65], wall: -3.975 };
 const bowls = [], hotButton = [];
+// ### Brushed stainless steel (a satin "No. 4" finish): fine lines ground into the steel along the unit, each one a little
+// ### duller or brighter than the steel round it. GRAIN metres of steel make one picture, and every part of the unit gets
+// ### its texture coordinates in metres (sinkUv), so the grain keeps its size everywhere and is never stretched.
+const SINK_STEEL = (() => {
+  const GRAIN = .5, PX = COARSE ? 256 : 512, r = mulberry32(5150);
+  const hgt = document.createElement('canvas'), rgh = document.createElement('canvas');
+  hgt.width = hgt.height = rgh.width = rgh.height = PX;
+  const h = hgt.getContext('2d'), g = rgh.getContext('2d');
+  h.fillStyle = 'rgb(128,128,128)'; h.fillRect(0, 0, PX, PX);
+  g.fillStyle = 'rgb(0,84,255)'; g.fillRect(0, 0, PX, PX);   // green: the gloss (roughness about .33), blue: all metal
+  // broad, faint bands where the belt pressed harder, then the fine lines; both wrap round, so the picture tiles
+  const line = (c, x, y, l, t, style) => { c.fillStyle = style; c.fillRect(x, y, l, t); if (x + l > PX) c.fillRect(x - PX, y, l, t); };
+  for (let i = 0; i < 40; i++){ const y = r() * PX, t = 4 + r() * 18, l = PX * (.4 + r() * .6), x = r() * PX; line(g, x, y, l, t, `rgba(0,${r() < .5 ? 60 : 110},255,.12)`); }
+  for (let i = 0; i < PX * 18; i++){
+    const y = r() * PX, x = r() * PX, l = PX * (.05 + r() * .7), t = .5 + r() * .9, up = r() < .5;
+    line(h, x, y, l, t, `rgba(${up ? 255 : 0},${up ? 255 : 0},${up ? 255 : 0},${.05 + r() * .12})`);
+    line(g, x, y, l, t, `rgba(0,${up ? 66 : 112},255,${.08 + r() * .12})`);
+  }
+  // a few deeper scratches across the grain, where something hard was dragged over the steel
+  for (let i = 0; i < 12; i++){
+    const x = r() * PX, y = r() * PX, a = (r() - .5) * 1.2, l = 10 + r() * 60;
+    for (const [c, st] of [[h, 'rgba(0,0,0,.35)'], [g, 'rgba(0,150,255,.4)']]){ c.strokeStyle = st; c.lineWidth = .8; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); c.stroke(); }
+  }
+  const tex = (c, aniso) => { const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; return t; };
+  const normal = tex(normalFromHeight(hgt, PX / GRAIN, .6), Math.min(ANISO, 4)), rough = tex(rgh, ANISO);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xc6cacb, metalness: 1, roughness: 1, roughnessMap: rough, metalnessMap: rough,
+    normalMap: normal, normalScale: new THREE.Vector2(.6, .6), envMapIntensity: 1.15 });
+  return { GRAIN, PX, mat, normal, rough, hgt, rgh };
+})();
+// ### Gives a box (w x h x d) texture coordinates in metres, with the grain along each face's longest side; the deck and
+// ### apron run along the unit, the end panels from the wall forwards.
+function sinkUv(geo, w, h, d){
+  const uv = geo.attributes.uv, G = SINK_STEEL.GRAIN;
+  for (let i = 0; i < uv.count; i++){
+    const f = Math.floor(i / 4), u = uv.getX(i), v = uv.getY(i);
+    const [su, sv] = f < 2 ? [d, h] : f < 4 ? [w, d] : [w, h];
+    if (sv > su) uv.setXY(i, v * sv / G, u * su / G); else uv.setXY(i, u * su / G, v * sv / G);
+  }
+  return geo;
+}
+// ### A long tube (a rolled edge, the splashback's rounded top) along z, its grain along its length.
+function sinkTube(rad, len, x, y, z, seg){
+  const geo = new THREE.CylinderGeometry(rad, rad, len, seg), uv = geo.attributes.uv, G = SINK_STEEL.GRAIN;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getY(i) * len / G, uv.getX(i) * 2 * Math.PI * rad / G);
+  const m = new THREE.Mesh(geo, SINK_STEEL.mat); m.position.set(x, y, z); m.rotation.x = Math.PI / 2; return add(m);
+}
+const sinkBox = (w, h, d, x, y, z) => { const m = new THREE.Mesh(sinkUv(new THREE.BoxGeometry(w, h, d), w, h, d), SINK_STEEL.mat); m.position.set(x, y, z); return add(m); };
+// ### A decal of wear laid over a flat part of the unit: a w x h picture painted by draw(g, W, H, X, Y), where X and Y turn
+// ### metres from the decal's left and top edge into pixels. The marks are limescale, rust and dirt, not steel: matt and
+// ### without the metal's gloss. up says whether it lies flat (the deck) or stands against the wall (facing the room).
+function sinkDecal(w, h, x, y, z, up, draw){
+  const PX = COARSE ? 256 : 420, W = Math.round(w * PX), H = Math.round(h * PX);
+  const tex = canvasTex(W, H, (g) => draw(g, W, H, m => m * PX, m => m * PX));
+  const geo = new THREE.PlaneGeometry(w, h);
+  if (up) geo.rotateX(-Math.PI / 2);
+  geo.rotateY(Math.PI / 2);   // the picture's left edge at the south end (+z), as seen from the room
+  const mat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: .88, metalness: 0,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.receiveShadow = true; m.renderOrder = 1; room.add(m);
+  return m;
+}
+// ### Little marks the decals and the bowls share: a dried drop (a ring of limescale with a faint middle), a soft blob,
+// ### a run of water that dried on its way down.
+function dropRing(g, x, y, rad, a, rgb = '236,232,220'){
+  g.strokeStyle = `rgba(${rgb},${a})`; g.lineWidth = Math.max(.6, rad * .35); g.beginPath(); g.ellipse(x, y, rad, rad * .85, 0, 0, 7); g.stroke();
+  g.fillStyle = `rgba(${rgb},${a * .3})`; g.fill();
+}
+function softBlob(g, x, y, rad, rgba){ const gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, rgba); gr.addColorStop(1, rgba.replace(/[\d.]+\)$/, '0)')); g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2); }
+function dribble(g, x, y, len, wide, rgba, r){
+  g.strokeStyle = rgba; g.lineCap = 'round';
+  let cx = x, cy = y;
+  for (let k = 0; k < 8; k++){ const ny = cy + len / 8, nx = cx + (r() - .5) * wide * .6; g.lineWidth = Math.max(.5, wide * (1 - k / 9)); g.beginPath(); g.moveTo(cx, cy); g.lineTo(nx, ny); g.stroke(); cx = nx; cy = ny; }
+}
+// ### Each bowl gets its own pictures, painted round the bowl (u, all the way round) and from the drain up to the rim (v),
+// ### so the grain runs in circles, as on a spun steel bowl: limescale round the drain, a tide line of dried splashes,
+// ### rust where the stream lands and drips down to the drain, a few grey water marks up the sides. hot says whether the
+// ### tap above it is the one that runs (its bowl is the dirtier one).
+function sinkBowlMat(hot, seed){
+  const r = mulberry32(seed), W = COARSE ? 512 : 1024, H = COARSE ? 160 : 320;
+  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+  const col = mk(), rgh = mk(), hgt = mk(), c = col.getContext('2d'), g = rgh.getContext('2d'), h = hgt.getContext('2d');
+  c.fillStyle = '#ffffff'; c.fillRect(0, 0, W, H);
+  g.fillStyle = 'rgb(0,72,255)'; g.fillRect(0, 0, W, H);
+  h.fillStyle = 'rgb(128,128,128)'; h.fillRect(0, 0, W, H);
+  const Y = v => (1 - v) * H, U = u => ((u % 1) + 1) % 1 * W;   // v 0 is the drain, 1 the rim; u .75 faces the wall
+  // marks near the seam are painted on both sides of it, each copy with the same random numbers
+  const both = fn => { const s = r() * 4294967296 >>> 0; for (const o of [0, W, -W]) fn(o, mulberry32(s)); };
+  // the circular grain, as on the deck
+  for (let i = 0; i < W * 9; i++){
+    const y = r() * H, x = r() * W, l = W * (.03 + r() * .4), t = .5 + r() * .8, up = r() < .5;
+    h.fillStyle = `rgba(${up ? 255 : 0},${up ? 255 : 0},${up ? 255 : 0},${.05 + r() * .12})`; h.fillRect(x, y, l, t); h.fillRect(x - W, y, l, t);
+    g.fillStyle = `rgba(0,${up ? 60 : 100},255,${.08 + r() * .1})`; g.fillRect(x, y, l, t); g.fillRect(x - W, y, l, t);
+  }
+  // the bottom is duller and darker: soap, skin and grey water dry there
+  const bottom = c.createLinearGradient(0, Y(0), 0, Y(.45)); bottom.addColorStop(0, 'rgba(150,146,136,.55)'); bottom.addColorStop(1, 'rgba(150,146,136,0)');
+  c.fillStyle = bottom; c.fillRect(0, 0, W, H);
+  const dullB = g.createLinearGradient(0, Y(0), 0, Y(.45)); dullB.addColorStop(0, 'rgba(0,150,200,.6)'); dullB.addColorStop(1, 'rgba(0,150,200,0)');
+  g.fillStyle = dullB; g.fillRect(0, 0, W, H);
+  // limescale crusting round the drain: chalky, rough and no longer metal, in uneven flakes
+  for (let i = 0; i < (hot ? 900 : 500); i++){
+    const v = .06 + Math.pow(r(), 1.6) * .16, x = r() * W, y = Y(v), rad = 1 + r() * (hot ? 5 : 3.5);
+    c.fillStyle = `rgba(232,228,214,${.25 + r() * .45})`; c.beginPath(); c.arc(x, y, rad, 0, 7); c.fill();
+    g.fillStyle = `rgba(0,230,40,${.3 + r() * .4})`; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill();
+    h.fillStyle = `rgba(255,255,255,${.2 + r() * .3})`; h.beginPath(); h.arc(x, y, rad * .8, 0, 7); h.fill();
+  }
+  // a tide line of dried splashes high up the side, where the water from the tap hits and runs back
+  for (let i = 0; i < (hot ? 700 : 300); i++){
+    const v = .68 + (r() - .5) * .12 + Math.sin(r() * 6.28) * .02, x = r() * W;
+    dropRing(c, x, Y(v), 1 + r() * 3.5, .2 + r() * .35); dropRing(g, x, Y(v), 1 + r() * 3.5, .4, '0,200,90');
+  }
+  // grey water marks running down the sides to the bottom
+  for (let i = 0; i < 40; i++){ const x = r() * W, v0 = .55 + r() * .4, l = (v0 - .1) * H * (.4 + r() * .6), wd = 2 + r() * 3, a = .15 + r() * .2; both((o, q) => dribble(c, x + o, Y(v0), l, wd, `rgba(170,166,154,${a})`, q)); }
+  if (hot){
+    // rust: an orange-brown stain where the stream lands, running down to the drain, and drips down from the rim under the spout
+    for (let k = 0; k < 30; k++){ const x = U(.75 + (r() - .5) * .05), y = Y(.2 + r() * .12), rad = 6 + r() * 14, a = .12 + r() * .15; both(o => softBlob(c, x + o, y, rad, `rgba(150,92,52,${a})`)); }
+    both(o => { c.fillStyle = 'rgba(140,84,46,.35)'; c.beginPath(); c.ellipse(U(.75) + o, Y(.12), W * .04, H * .1, 0, 0, 7); c.fill(); });
+    for (let k = 0; k < 7; k++){ const x = U(.75 + (r() - .5) * .08), l = H * (.5 + r() * .3), wd = 2 + r() * 2.5, a = .2 + r() * .2; both((o, q) => dribble(c, x + o, Y(.97), l, wd, `rgba(146,90,50,${a})`, q)); }
+    both(o => { g.fillStyle = 'rgba(0,200,70,.5)'; g.beginPath(); g.ellipse(U(.75) + o, Y(.16), W * .05, H * .14, 0, 0, 7); g.fill(); });
+  }
+  // a rusty ring right round the drain, where the strainer meets the bowl
+  c.fillStyle = `rgba(128,82,48,${hot ? .55 : .3})`; c.fillRect(0, Y(.085), W, H * .03);
+  g.fillStyle = 'rgba(0,210,60,.6)'; g.fillRect(0, Y(.085), W, H * .03);
+  const t = (cv, srgb, aniso) => { const x = new THREE.CanvasTexture(cv); if (srgb) x.encoding = THREE.sRGBEncoding; x.anisotropy = aniso; x.wrapS = THREE.RepeatWrapping; return x; };
+  const rm = t(rgh, false, ANISO);
+  return new THREE.MeshStandardMaterial({ color: 0xc8cccd, map: t(col, true, ANISO), roughnessMap: rm, metalnessMap: rm, roughness: 1, metalness: 1,
+    normalMap: t(normalFromHeight(hgt, W / 1.07, .5), false, Math.min(ANISO, 4)), normalScale: new THREE.Vector2(.5, .5), side: THREE.DoubleSide, envMapIntensity: 1.1 });
+}
+// ### The perforated strainer in each drain: rings of small holes round a centre screw, and a crust in the holes.
+const strainerMat = new THREE.MeshStandardMaterial({ metalness: 1, roughness: .35, color: 0xd6dadb, map: canvasTex(128, 128, (g, w) => {
+  g.fillStyle = '#e8e8e6'; g.fillRect(0, 0, w, w);
+  for (const [n, rr] of [[6, .2], [12, .38], [18, .56], [24, .74]]) for (let i = 0; i < n; i++){
+    const a = i / n * Math.PI * 2 + rr, x = w / 2 + Math.cos(a) * rr * w / 2, y = w / 2 + Math.sin(a) * rr * w / 2;
+    g.fillStyle = '#0b0b0a'; g.beginPath(); g.arc(x, y, w * .028, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(200,190,160,.5)'; g.lineWidth = 1; g.stroke();
+  }
+  g.fillStyle = '#9a9c9a'; g.beginPath(); g.arc(w / 2, w / 2, w * .07, 0, 7); g.fill();
+  g.fillStyle = '#2a2a28'; g.fillRect(w / 2 - w * .05, w / 2 - 1.5, w * .1, 3);
+  softBlob(g, w * .4, w * .62, w * .3, 'rgba(150,100,60,.35)');
+}) });
+// ### Security bolt heads: smooth domes with two little holes, so no ordinary screwdriver fits.
+const boltMat = new THREE.MeshStandardMaterial({ color: 0xb9bdbe, metalness: 1, roughness: .3 });
+function securityBolt(x, y, z, nx, nz){
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.0075, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2), boltMat);
+  head.scale.y = .45; head.position.set(x, y, z); head.rotation.set(nz ? Math.sign(nz) * Math.PI / 2 : 0, 0, nx ? -Math.sign(nx) * Math.PI / 2 : 0); add(head);
+  for (const s of [-1, 1]){
+    const pin = new THREE.Mesh(new THREE.CircleGeometry(.0011, 8), M.dark);
+    pin.position.set(x + nx * .0035 + (nz ? s * .0028 : 0), y, z + nz * .0035 + (nx ? s * .0028 : 0)); pin.lookAt(pin.position.x + nx, y, pin.position.z + nz); room.add(pin);
+  }
+}
+// ### The bead of silicone where the unit meets the wall: once white, now yellowed, with grey mould in its lower parts.
+const siliconeMat = new THREE.MeshStandardMaterial({ roughness: .55, map: canvasTex(32, 512, (g, w, h) => {
+  g.fillStyle = '#d9d2bb'; g.fillRect(0, 0, w, h);
+  const r = mulberry32(611);
+  for (let i = 0; i < 600; i++){ const y = r() * h, low = y / h; g.fillStyle = `rgba(52,56,50,${(.08 + r() * .4) * (.3 + low)})`; g.beginPath(); g.arc(r() * w, y, .6 + r() * 1.8, 0, 7); g.fill(); }
+  softBlob(g, w / 2, h * .9, h * .12, 'rgba(70,66,52,.35)');
+}) });
+function siliconeBead(len, x, y, z, along){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(.0048, .0048, len, 8), siliconeMat); m.position.set(x, y, z);
+  if (along === 'z') m.rotation.x = Math.PI / 2;
+  room.add(m); m.receiveShadow = true; return m;
+}
 {
-  // the deck, cut out for the bowls (shape y becomes -z), its edges rounded off
+  // the deck, cut out for the bowls (shape y becomes -z), its edges rounded off; its grain runs along the unit
   const ds = new THREE.Shape(); roundedRect(ds, -.242, -1.292, .242, 1.292, .02);
   for (const z of SINK.bowls){ const hole = new THREE.Path(); hole.absellipse(SINK.bx - SINK.x, -z, .148, .186, 0, Math.PI * 2, true); ds.holes.push(hole); }
   const dg = new THREE.ExtrudeGeometry(ds, { depth: .02, bevelEnabled: true, bevelThickness: .008, bevelSize: .008, bevelSegments: 3, curveSegments: 28 });
-  dg.rotateX(-Math.PI / 2); dg.translate(SINK.x, SINK.top - .028, 0); add(new THREE.Mesh(dg, M.steel));
-  // the bowls, pressed in one piece: steep sides rounding into a flat bottom, a chrome drain with a slotted strainer
+  { const uv = dg.attributes.uv, G = SINK_STEEL.GRAIN; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getY(i) / G, uv.getX(i) / G); }
+  dg.rotateX(-Math.PI / 2); dg.translate(SINK.x, SINK.top - .028, 0); add(new THREE.Mesh(dg, SINK_STEEL.mat));
+  // the bowls, pressed in one piece: steep sides rounding into a flat bottom, a polished weld round the rim, a chrome
+  // drain with a perforated strainer
   for (const z of SINK.bowls){
     const pts = [[0, -.155], [.045, -.153], [.09, -.146], [.125, -.128], [.152, -.1], [.17, -.066], [.18, -.036], [.185, -.014], [.19, -.006]];
     const geo = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, SINK.top + y)), 44); geo.scale(.8, 1, 1); geo.translate(SINK.bx, 0, z);
-    bowls.push(add(new THREE.Mesh(geo, M.bowl)));
-    cyl(.026, .026, .004, M.chrome, SINK.bx, SINK.top - .153, z, 24); cyl(.019, .019, .002, M.dark, SINK.bx, SINK.top - .15, z, 20);
-    for (const a of [0, Math.PI / 2]) box(.034, .002, .004, M.chrome, SINK.bx, SINK.top - .149, z).rotation.y = a;
+    bowls.push(add(new THREE.Mesh(geo, sinkBowlMat(z < 0, z < 0 ? 77 : 78))));
+    const weld = new THREE.Mesh(new THREE.TorusGeometry(.188, .0028, 6, 64), boltMat); weld.rotation.x = Math.PI / 2; weld.scale.set(.8, 1, 1);
+    weld.position.set(SINK.bx, SINK.top - .002, z); room.add(weld);
+    cyl(.031, .031, .003, M.chrome, SINK.bx, SINK.top - .1535, z, 28);   // the flange
+    const strainer = new THREE.Mesh(new THREE.CircleGeometry(.027, 28), strainerMat); strainer.rotation.x = -Math.PI / 2; strainer.rotation.z = z;
+    strainer.position.set(SINK.bx, SINK.top - .1515, z); room.add(strainer);
     // under the bowl: the tailpiece and the waste pipe into the wall, and the supply pipe
     cyl(.018, .018, .19, M.pipe, SINK.bx, SINK.top - .25, z, 12);
     cyl(.022, .022, .27, M.pipe, -3.865, SINK.top - .345, z, 12).rotation.z = Math.PI / 2;
     pipe(.72, -3.85, .36, z + (z < 0 ? -.1 : .1));
   }
   // a rolled front edge, an apron down to the knees and closed ends, so nothing can be hidden under the bowls
-  cyl(.016, .016, 2.6, M.steel, -3.5, SINK.top - .014, 0, 16).rotation.x = Math.PI / 2;
-  box(.012, .25, 2.6, M.steel, -3.506, SINK.top - .155, 0);
-  for (const s of [-1, 1]) box(.494, .25, .012, M.steel, -3.753, SINK.top - .155, s * 1.294);
-  cyl(.008, .008, 2.6, M.steel, -3.503, SINK.top - .28, 0, 10).rotation.x = Math.PI / 2;
+  sinkTube(.016, 2.6, -3.5, SINK.top - .014, 0, 16);
+  sinkBox(.012, .25, 2.6, -3.506, SINK.top - .155, 0);
+  for (const s of [-1, 1]) sinkBox(.494, .25, .012, -3.753, SINK.top - .155, s * 1.294);
+  sinkTube(.008, 2.6, -3.503, SINK.top - .28, 0, 10);
   // the splashback with its rounded top, and a cove where it meets the deck
-  box(.025, .22, 2.6, M.steel, -3.9875, SINK.top + .11, 0);
-  cyl(.0125, .0125, 2.6, M.steel, -3.9875, SINK.top + .22, 0, 12).rotation.x = Math.PI / 2;
-  cyl(.009, .009, 2.6, M.steel, SINK.wall, SINK.top + .002, 0, 8).rotation.x = Math.PI / 2;
+  sinkBox(.025, .22, 2.6, -3.9875, SINK.top + .11, 0);
+  sinkTube(.0125, 2.6, -3.9875, SINK.top + .22, 0, 12);
+  sinkTube(.009, 2.6, SINK.wall, SINK.top + .002, 0, 8);
   // over each bowl a short chrome spout with its aerator, a push button for cold (blue dot) and one for hot (red dot)
   const dot = c => new THREE.MeshStandardMaterial({ color: c, roughness: .45 });
   const red = dot(0xb33a2c), blue = dot(0x2c5a9a);
@@ -1461,16 +1639,77 @@ const bowls = [], hotButton = [];
       if (z < 0 && mat === red) hotButton.push(b, c);
     }
   }
-  // the soap dish, pressed into a shallow tray, empty
-  box(.11, .005, .17, M.dullSteel, -3.88, SINK.top + .003, 0);
-  for (const s of [-1, 1]){ box(.11, .016, .005, M.dullSteel, -3.88, SINK.top + .008, s * .083); box(.005, .016, .17, M.dullSteel, -3.88 + s * .053, SINK.top + .008, 0); }
+  // the soap dish, pressed into a shallow tray, empty but for a crust of old soap
+  sinkBox(.11, .005, .17, -3.88, SINK.top + .003, 0);
+  for (const s of [-1, 1]){ sinkBox(.11, .016, .005, -3.88, SINK.top + .008, s * .083); sinkBox(.005, .016, .17, -3.88 + s * .053, SINK.top + .008, 0); }
+  sinkDecal(.16, .1, -3.88, SINK.top + .0057, 0, true, (g, w, h) => {
+    const r = mulberry32(912);
+    for (let i = 0; i < 26; i++) softBlob(g, w * (.15 + r() * .7), h * (.2 + r() * .6), 3 + r() * 9, `rgba(226,214,196,${.25 + r() * .3})`);
+    g.fillStyle = 'rgba(120,110,90,.35)'; g.fillRect(0, 0, 3, h); g.fillRect(w - 3, 0, 3, h);
+  });
+  // security bolts: along the top of the splashback, and two on each end panel where brackets hold it to the wall
+  for (const z of [-1.2, -.3, .3, 1.2]) securityBolt(-3.9748, SINK.top + .19, z, 1, 0);
+  for (const s of [-1, 1]) for (const y of [SINK.top - .07, SINK.top - .23]) securityBolt(-3.94, y, s * 1.3003, 0, s);
+  // silicone along the top of the splashback and down both ends, where the unit meets the tiles
+  siliconeBead(2.6, -3.9975, SINK.top + .2295, 0, 'z');
+  for (const s of [-1, 1]) siliconeBead(.5, -3.9972, SINK.top - .03, s * 1.3015);
+  // ### The wear on the flat parts. The deck: grime in the back corner, limescale drops and rings round both bowls (more
+  // ### round the one with the running tap), a smear of soap from the dish, greasy hand marks along the front edge.
+  sinkDecal(2.584, .484, SINK.x, SINK.top + .0006, 0, true, (g, w, h, X, Y) => {
+    const r = mulberry32(1919), zpx = z => X(1.292 - z), xpx = x => Y(x - (SINK.x - .242));   // canvas x along the unit, y from the wall
+    const back = g.createLinearGradient(0, 0, 0, xpx(SINK.x - .2)); back.addColorStop(0, 'rgba(74,64,48,.6)'); back.addColorStop(1, 'rgba(74,64,48,0)');
+    g.fillStyle = back; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 160; i++) softBlob(g, r() * w, xpx(SINK.x - .242 + Math.pow(r(), 2) * .06), 2 + r() * 8, `rgba(66,58,44,${.15 + r() * .25})`);
+    for (const z of SINK.bowls){
+      const hotOne = z < 0, cx = zpx(z), cy = xpx(SINK.bx);
+      for (let i = 0; i < (hotOne ? 520 : 260); i++){
+        const a = r() * Math.PI * 2, d = 1.03 + Math.pow(r(), 1.8) * (hotOne ? .55 : .4);
+        const x = cx + Math.cos(a) * X(.186) * d, y = cy + Math.sin(a) * Y(.148) * d;
+        dropRing(g, x, y, .8 + r() * 3.2, .2 + r() * .4);
+      }
+      softBlob(g, cx, cy + Y(.17), X(.12), `rgba(226,222,210,${hotOne ? .22 : .12})`);   // a dried splash halo in front of the bowl
+    }
+    for (let i = 0; i < 18; i++) softBlob(g, zpx((r() - .5) * .3), xpx(SINK.x - .15 + r() * .2), 4 + r() * 10, `rgba(220,208,186,${.15 + r() * .2})`);
+    for (let i = 0; i < 70; i++) softBlob(g, r() * w, h - Y(Math.pow(r(), 2) * .07), 4 + r() * 10, `rgba(48,44,38,${.08 + r() * .1})`);
+    // the bowls themselves are holes in the decal
+    g.globalCompositeOperation = 'destination-out';
+    for (const z of SINK.bowls){ g.fillStyle = '#000'; g.beginPath(); g.ellipse(zpx(z), xpx(SINK.bx), X(.186) - 1, Y(.148) - 1, 0, 0, 7); g.fill(); }
+    g.globalCompositeOperation = 'source-over';
+  });
+  // the splashback: limescale and a rusty trickle under the spouts, grime ringing the push buttons and in the cove
+  sinkDecal(2.58, .2, SINK.wall + .0006, SINK.top + .105, 0, false, (g, w, h, X, Y) => {
+    const r = mulberry32(2024), zpx = z => X(1.29 - z), ypx = y => Y(SINK.top + .205 - y);
+    const cove = g.createLinearGradient(0, h, 0, h - Y(.04)); cove.addColorStop(0, 'rgba(70,60,46,.6)'); cove.addColorStop(1, 'rgba(70,60,46,0)');
+    g.fillStyle = cove; g.fillRect(0, 0, w, h);
+    for (const z of SINK.bowls){
+      const hotOne = z < 0;
+      for (let i = 0; i < (hotOne ? 220 : 110); i++){ const x = zpx(z) + (r() - .5) * X(.42), y = ypx(SINK.top + .01 + Math.pow(r(), 1.5) * .12); dropRing(g, x, y, .7 + r() * 2.4, .2 + r() * .35); }
+      for (let k = 0; k < (hotOne ? 6 : 3); k++) dribble(g, zpx(z) + (r() - .5) * X(.05), ypx(SINK.top + .09), Y(.08), 1.5 + r() * 2, hotOne && k < 3 ? `rgba(140,86,48,${.3 + r() * .2})` : `rgba(230,226,214,${.25 + r() * .2})`, r);
+      for (const dz of [.12, -.12]){ const bz = z - Math.sign(z) * dz; g.strokeStyle = 'rgba(58,50,38,.45)'; g.lineWidth = 3; g.beginPath(); g.arc(zpx(bz), ypx(SINK.top + .145), X(.036), 0, 7); g.stroke(); softBlob(g, zpx(bz), ypx(SINK.top + .145), X(.05), 'rgba(50,46,40,.18)'); }
+    }
+    for (let i = 0; i < 90; i++) softBlob(g, r() * w, ypx(SINK.top + Math.pow(r(), 2) * .1), 2 + r() * 6, `rgba(64,56,44,${.1 + r() * .2})`);
+  });
+  // the apron: dried drips down from the rolled edge, black scuffs from shoes and knees, dirt from the mop at the bottom
+  sinkDecal(2.58, .25, -3.5 + .0006, SINK.top - .155, 0, false, (g, w, h, X, Y) => {
+    const r = mulberry32(2025);
+    for (let i = 0; i < 60; i++){ const x = r() * w, rust = r() < .2; dribble(g, x, 0, Y(.04 + r() * .2), 1 + r() * 2.5, rust ? `rgba(140,88,52,${.15 + r() * .2})` : `rgba(226,222,212,${.12 + r() * .22})`, r); }
+    for (let i = 0; i < 45; i++){
+      const x = r() * w, y = h - Y(.02 + r() * .13), l = X(.02 + r() * .07), a = (r() - .5) * .5;
+      g.strokeStyle = `rgba(24,22,20,${.18 + r() * .3})`; g.lineWidth = 1 + r() * 2.5; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + l / 2, y + (r() - .5) * 6, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+    const mop = g.createLinearGradient(0, h, 0, h - Y(.07)); mop.addColorStop(0, 'rgba(78,66,48,.55)'); mop.addColorStop(1, 'rgba(78,66,48,0)');
+    g.fillStyle = mop; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 26; i++) softBlob(g, r() * w, Y(.01 + r() * .05), 6 + r() * 14, `rgba(40,38,34,${.08 + r() * .1})`);   // hands on the edge
+  });
 }
 hot('tap', ...hotButton, bowls[0]);
 // ### The mirror: a sheet of polished steel (MIRROR draws its picture) on a backing plate, in a frame of steel channel held
 // ### by tamper-proof screws. The steam lies on it, under the frame.
 const mirror = plane(MIRROR.SIZE[0], MIRROR.SIZE[1], MIRROR.mat, MIRROR.P0.x, MIRROR.P0.y, MIRROR.P0.z, Math.PI / 2);
-box(.01, .8, 2.28, M.dullSteel, -3.996, 1.6, 0);
-for (const s of [-1, 1]){ box(.026, .04, 2.24, M.steel, -3.983, 1.6 + s * .37, 0); box(.026, .78, .04, M.steel, -3.983, 1.6, s * 1.1); }
+// the backing plate and the frame are brushed steel like the sinks, their grain along each bar
+sinkBox(.01, .8, 2.28, -3.996, 1.6, 0);
+for (const s of [-1, 1]){ sinkBox(.026, .04, 2.24, -3.983, 1.6 + s * .37, 0); sinkBox(.026, .78, .04, -3.983, 1.6, s * 1.1); }
 for (const [y, z] of [[-.37, -1.1], [-.37, -.55], [-.37, 0], [-.37, .55], [-.37, 1.1], [.37, -1.1], [.37, -.55], [.37, 0], [.37, .55], [.37, 1.1], [0, -1.1], [0, 1.1]]){
   cyl(.008, .008, .004, M.chrome, -3.968, 1.6 + y, z, 10).rotation.z = Math.PI / 2; cyl(.0025, .0025, .005, M.dark, -3.968, 1.6 + y, z, 6).rotation.z = Math.PI / 2;
 }
@@ -3382,12 +3621,19 @@ function renderLock(){
 // ### A clue spot that is used ("play" accepted by Rules, cue "game") opens its mini game from minigames.js in the card. A
 // ### win is sent to Rules as "win", which gives the clue; a loss offers the same game again. Closing the card, pausing or
 // ### an ending stops the game without a result. The clock keeps running while you play.
-let mini = null, miniSpot = null;
+// ### The first time a mini game comes up, a card explains it before it starts, the way the briefing explains the room:
+// ### the goal, how it works, the controls (mouse and keys, or touch), the 30 seconds and the prize. The game and its
+// ### 30 seconds start only with "Start the game"; Hale's clock keeps running while you read. From then on that game
+// ### starts at once (trying again, or coming back after giving up). Closing the card unread shows it again next time,
+// ### and a new game shows every card again.
+let mini = null, miniSpot = null, miniRules = null;
+const rulesSeen = new Set();
 const SPOT_NAME = { tile: 'The crooked tile', mirror: 'Writing on the mirror', scratches: 'Scratches by the door' };
 const SPOT_PRIZE = { tile: 'the car key', mirror: 'the first two digits of the code', scratches: 'the last two digits of the code' };
 function showMini(spot, id){
   const info = MiniGames.INFO[id];
   if (!info) return;
+  if (!rulesSeen.has(id)){ showMiniRules(spot, id); return; }
   showCard(`<div class="eyebrow">${SPOT_NAME[spot]} · mini game · ${MiniGames.TIME} seconds</div><h2>${info.title}</h2>
     <p>${esc(info.how)} Win to get <b>${SPOT_PRIZE[spot]}</b>.</p><div id="miniHost"></div>
     <div class="actions"><button class="mg-quit" data-do="close">Give up <small>Esc</small></button></div>`, 'mini');
@@ -3396,6 +3642,20 @@ function showMini(spot, id){
     sound: miniSound,
     onEnd: (won, reason) => { mini = null; if (S.ending) return; if (won) act('win', spot); else showMiniLost(spot, id, reason); }
   });
+}
+// ### The card that explains a mini game before its first play.
+function showMiniRules(spot, id){
+  const info = MiniGames.INFO[id];
+  miniSpot = spot; miniRules = id;
+  showCard(`<div class="eyebrow">${SPOT_NAME[spot]} · mini game · how to play</div><h2>${info.title}</h2>
+    <div class="howto mg-rules">
+      <b>Goal</b><span>${esc(info.goal)}</span>
+      <b>How</b><ol>${info.steps.map(t => `<li>${esc(t)}</li>`).join('')}</ol>
+      <b>Controls</b><span>${esc(COARSE ? info.touch : info.keys)}</span>
+      <b>Time</b><span>${MiniGames.TIME} seconds, counted from the moment you start. Hale’s clock keeps running while you read.</span>
+      <b>Prize</b><span>Win to get ${esc(SPOT_PRIZE[spot])}. Lose, and you can try again at once.</span>
+    </div>
+    <div class="actions"><button class="btn" data-do="mini-start">Start the game <small>Enter</small></button><button class="btn ghost" data-do="close">Back to the room <small>Esc</small></button></div>`, 'mini-rules');
 }
 function showMiniLost(spot, id, reason){
   showCard(`<div class="eyebrow">${SPOT_NAME[spot]} · ${esc(MiniGames.INFO[id].name)}</div><h2>Not <em>this time</em></h2>
@@ -3454,9 +3714,10 @@ card.addEventListener('click', e => {
   else if (d === 'resume') resumeRoom();
   else if (d === 'pause') showPause();
   else if (d === 'ask-new') showAskNew();
-  else if (d === 'new'){ paused = false; seenScenes.clear(); held.clear(); hatchAnim = -1; climb = null; tileVel = 0; endingShown = false; act('new'); writeStore(R.SAVE_KEY, ''); hud.classList.add('off'); goView('intro', .8); doorFlash = 0; windowLight.intensity = .9; showBrief(0); }
+  else if (d === 'new'){ paused = false; seenScenes.clear(); rulesSeen.clear(); held.clear(); hatchAnim = -1; climb = null; tileVel = 0; endingShown = false; act('new'); writeStore(R.SAVE_KEY, ''); hud.classList.add('off'); goView('intro', .8); doorFlash = 0; windowLight.intensity = .9; showBrief(0); }
   else if (d === 'close') hideCard();
   else if (d === 'replay' && miniSpot) use('play', miniSpot);
+  else if (d === 'mini-start' && miniSpot && miniRules){ rulesSeen.add(miniRules); use('play', miniSpot); }   // asks Rules again: the spot may have changed while you read
   else if (d === 'try') act('try');
 });
 $('btnPause').addEventListener('click', e => { e.currentTarget.blur(); if (S.ending || S.scene === 'intro') return; if (paused) resumeRoom(); else showPause(); });
