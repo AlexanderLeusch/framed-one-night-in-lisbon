@@ -129,6 +129,9 @@ pre .c{ color:#7fd4e2; }
     <tr><td>Visible damage</td><td>Dents, scratches, loose parts, dark rising smoke and fire, in four stages.</td><td>09</td></tr>
     <tr><td>Engine sound and radio</td><td>A physical model of each real engine, with load, overrun and idle; seven radio stations. No sound files.</td><td>09</td></tr>
     <tr><td>Story mode</td><td><i>The Necklace Job</i>: three acts, an optional hidden letter, a courier lorry and three endings.</td><td>10</td></tr>
+    <tr><td>Lisbon finale</td><td>Six pieces of evidence, then the witness Marta Silva, who gets in when you stop beside her; through the gate the car crosses the 25 de Abril bridge at first light, to a synthesised heroic theme.</td><td>10</td></tr>
+    <tr><td>Living traffic</td><td>Cars, SUVs, lorries, buses, coaches, motorcycles and trams; headlights on the road and brake lights at night; police wrecks that stay; hit vehicles are pushed away by weight and sound like what they are.</td><td>06, 07, 09</td></tr>
+    <tr><td>The river and the bridge</td><td>A water shader with Gerstner swells, ripples, sky reflection and the far bank's lights as streaks; a suspension bridge after the real one.</td><td>08</td></tr>
     <tr><td>Quality</td><td>Rules as pure tested functions, integrity hashes, a security policy, validated input, and CI that deploys only when all tests pass.</td><td>13</td></tr>
     <tr><td>Room 1</td><td><i>Plot Twist: Cell Block D</i>, a 3D prison escape room, separate from the chase until the group connects them.</td><td>14</td></tr>
   </table>
@@ -299,6 +302,8 @@ composer.render()  or  renderer.render(scene, camera)               <span class=
     <tr><td>Tables</td><td><code>MODES</code>, <code>VEH</code>, <code>BAIXA</code>, <code>streetAt</code>, <code>KEY_MAP</code>, <code>REV_SPEED</code>, <code>REPAIR_AMOUNT</code></td></tr>
     <tr><td>Stored data and menu input</td><td><code>parsePick</code>, <code>parseBest</code>, <code>applyPick</code>, <code>actionAllowed</code></td></tr>
     <tr><td>Driving</td><td><code>topSpeed</code>, <code>stepSpeed</code>, <code>collidePoint</code>, <code>frameDt</code>, <code>vehStats</code>, <code>zeroTo80</code></td></tr>
+    <tr><td>Steering</td><td><code>GRIP</code>, <code>YAW_RATE</code>, <code>stepSteer</code>, <code>turnRate</code> (the tightest turn the tyres allow: speed × turn rate ≤ GRIP × handling), <code>stepYaw</code></td></tr>
+    <tr><td>Shoving traffic</td><td><code>MASS</code>, <code>PLAYER_MASS</code>, <code>SHOVE</code>, <code>shoveImpulse</code> (momentum shared by weight), <code>keepSpeed</code>, <code>shoveSpin</code></td></tr>
     <tr><td>Damage</td><td><code>crashDamage</code>, <code>addDamage</code>, <code>repairDamage</code>, <code>isWrecked</code>, <code>damageStage</code>, <code>smokeFor</code></td></tr>
     <tr><td>Police</td><td><code>PURSUIT</code>, <code>wantedStars</code>, <code>pursuit</code>, <code>copTopSpeed</code>, <code>helicopterDue</code>, <code>trackStep</code>, <code>inSpotlight</code>, <code>bustStep</code>, <code>edgeDistance</code></td></tr>
     <tr><td>Hills</td><td><code>hillHeight</code>, <code>gradeAt</code>, <code>slopeTop</code></td></tr>
@@ -307,6 +312,7 @@ composer.render()  or  renderer.render(scene, camera)               <span class=
     <tr><td>Scoring</td><td><code>driveTime</code>, <code>runStars</code>, <code>isNewBest</code>, <code>fmtTime</code>, <code>fmtTimeExact</code></td></tr>
     <tr><td>Tram rails</td><td><code>RAIL</code>, <code>trackOffset</code>, <code>railCrossings</code>, <code>railShake</code></td></tr>
     <tr><td>Drivers &amp; leaderboard</td><td><code>cleanName</code>, <code>sameName</code>, <code>parseBoard</code>, <code>addDriver</code>, <code>recordRun</code>, <code>boardRows</code></td></tr>
+    <tr><td>Evidence and witness</td><td><code>EVIDENCE</code>, <code>WITNESS</code>, <code>WITNESS_RULE</code>, <code>witnessGetsIn</code> (closer than 7 m and slower than 3 m/s), <code>witnessGivesUp</code>, <code>witnessSpotOk</code> (70–200 m away, inside the map)</td></tr>
     <tr><td>Story</td><td><code>newStory</code>, <code>beginAct</code>, <code>retryAct</code>, <code>finishOpen</code>, <code>storyEnding</code>, <code>dueRadio</code></td></tr>
   </table>
 </section>
@@ -330,11 +336,16 @@ composer.render()  or  renderer.render(scene, camera)               <span class=
   <h3>Three traffic systems</h3>
   <table>
     <tr><th>Map</th><th>Model</th><th>Behaviour</th></tr>
-    <tr><td>City</td><td>Node to node on a grid</td><td>Right-hand lane to the next intersection, straight / left / right on a circular arc (3.5 m or 10.5 m radius), stops at red and amber, keeps distance, stops briefly when hit. Leftover distance carries over between straight and arc.</td></tr>
+    <tr><td>City</td><td>Node to node on a grid</td><td>Cars, SUVs, two 12 m buses, four motorcycles and three trams. Right-hand lane to the next intersection, straight / left / right on a circular arc (3.5 m or 10.5 m radius; a bus never takes the tight right turn), stops at red and amber, keeps its distance to the <i>back</i> of the vehicle ahead (each kind has its half length in <code>NPC_KIND</code>), stops briefly when hit. Leftover distance carries over between straight and arc.</td></tr>
     <tr><td>Highway</td><td>Fixed lanes, position along z</td><td>Lane-dependent cruise speed (fast left lane, lorries right), car-following behind any vehicle including player and police, recycled 380–760 m ahead or behind.</td></tr>
     <tr><td>Countryside</td><td>Position s along the spline</td><td>Both directions in their own lane, same car-following rule, recycled around the player’s s.</td></tr>
   </table>
   <p>All three use the same following rule: <code>desired = min(cruise, speedAhead + (gap − safeGap) × k)</code>, approached smoothly (proportional change, at most 14 m/s² braking).</p>
+  <ul>
+    <li><b>Models.</b> <code>makeBusParts</code> (city bus and touring coach) and <code>makeMotoParts</code> (a motorcycle with its rider) are instanced like the cars. A <code>Fleet</code> tips each vehicle with the slope under its axles (<code>reach</code>) and sideways across the road, and rests it on the higher side of a crease; a motorcycle stays upright.</li>
+    <li><b>At night.</b> Every vehicle throws a soft pool of headlight on the road ahead (<code>RoadLights</code>, one instanced mesh per map), and its bright brake lights (<code>stopGlow</code>) are on while it slows down or waits, so a car at a dark crossing can be seen.</li>
+    <li><b>Police wrecks</b> stay where they stopped, dented and smoking, until the car is sent back or the player is far away; traffic stops behind them.</li>
+  </ul>
   <h3>Police AI</h3>
   <ul>
     <li><b>Wanted stars</b>: <code>Core.wantedStars</code> gives 1 to 5 stars from the time on the run or the progress, whichever is further along. <code>Core.PURSUIT</code> says what each star means: 1 to 4 cars, up to 10 % faster, quicker reinforcements, tougher cars.</li>
@@ -363,6 +374,8 @@ turn = steer · min(1, v/6) · 2.5 · VEH.handling / (1 + 0.035 · v)
 damage += max(0, (impact − 4) · 1.0 · VEH.dmg)              <span class="c">// impact = closing speed in m/s</span></pre>
   <h3>Collisions</h3>
   <p>Each vehicle is approximated by 1–3 circles along its length (<code>VEH.samples</code>, radius <code>VEH.r</code>). <code>collidePoint()</code> tests a circle against a box or circle and returns the push-out normal and depth. Above 2 m/s into the obstacle it counts as a crash (speed drops to 30 %, damage and sparks); below it the vehicle slides along. Traffic and police use the same function with relative velocity.</p>
+  <p><b>Shoving.</b> A hit vehicle is pushed away by weight (<code>Core.shoveImpulse</code>): it gets the share m<sub>hitter</sub> / (m<sub>hitter</sub> + m<sub>target</sub>) of the closing speed, and the player keeps more speed the lighter the vehicle (<code>Core.keepSpeed</code>). A hit off the middle turns it (<code>Core.shoveSpin</code>). In <code>game.js</code> the push is kept apart from the vehicle's lane position (<code>px, pz, ph</code>): <code>stepShove</code> lets it slide out over the tyres' friction, stops it at walls, lamp posts and parked cars and at 14 m, and steers it back into the lane once the driver has come round. A tram does not move.</p>
+  <p><b>Steering</b> follows the same idea of grip: <code>Core.turnRate</code> never lets the sideways pull pass <code>GRIP × handling</code>, so a car draws a wide arc at speed instead of flicking round like a bicycle, and <code>Core.stepYaw</code> lets the turn rate build up and fade.</p>
   <h3>Map boundary</h3>
   <p>Every map has an edge: the square around downtown (±150 m), the start and end walls of the highway, and the rim of the countryside terrain. <code>boundaryDistance()</code> returns how far the player is from it.</p>
   <table>
@@ -404,6 +417,12 @@ damage += max(0, (impact − 4) · 1.0 · VEH.dmg)              <span class="c">
     <li><code>warmUp()</code> compiles every shader at start-up and at each run, temporarily making hidden objects (police cars, gate, smoke, courier) visible to the compiler.</li>
     <li>Smaller savings: one obstacle list per frame instead of one per caller, a stamp-based collider lookup instead of a quadratic duplicate check, and spark materials are freed after use.</li>
   </ul>
+  <h3>Light on the ground</h3>
+  <p>Light pools are additive flat shapes, so they must lie on the surface they light: <code>groundPool</code> cuts each street lamp's pool along the kerbs, so the part on the pavement lies just above the pavement and the part on the street 2.5 cm above the asphalt (one square at pavement height used to float 21 cm over the street and hid the wheels of parked cars). The helicopter's searchlight is a real spot light, there from the start with no strength so no shader is rebuilt; the player's headlights are two wide, soft spot lights.</p>
+  <h3>The river</h3>
+  <p><code>riverMaterial</code> is a shader in the manner of the three.js ocean example: two long Gerstner swells move the surface in the vertex shader; shorter waves and fine ripples only tip the normal per pixel, fading with distance so far water does not flicker. A Fresnel mix shows the dark water when looking down and the sky towards the horizon, using the sky dome's own colour uniforms (so the finale's dawn shows in the river). The lights of the far bank are found where the reflected ray meets a wall 680 m out, and the ripples stretch them into trembling streaks; the moon leaves a glitter path.</p>
+  <h3>The 25 de Abril bridge</h3>
+  <p>Built after the real suspension bridge, but with a 300 m main span: two towers on concrete foundations with four cross beams, two main cables over the deck edges with a hanger every 10 m, a deep steel truss under a six-lane road with a central barrier, concrete piers, anchor blocks, lamps and red warning lights. Its steel is lit like the rest of the scene, with a faint glow of its own for the night.</p>
   <h3>Vehicle bodies</h3>
   <p>A car starts as a 2D side silhouette with arcs for the wheel arches. <code>extrudeProfile</code> extrudes it with bevelled edges, <code>shapeBody</code> pulls vertices inwards towards the roof (tumblehome) and at the corners, and <code>smoothGeo</code> welds vertices so the paint shades smoothly. Glass, lights, lenses and chrome are separate parts with their own materials.</p>
 </section>
@@ -429,6 +448,12 @@ damage += max(0, (impact − 4) · 1.0 · VEH.dmg)              <span class="c">
     <li><b>Skid marks:</b> <code>Core.skidAmount</code> says how hard the rear tyres slide, for the marks, the tyre smoke and the squeal. <code>updateSkids</code> writes dark strips to a fixed ring of 900 quads, placed with <code>groundH</code> so they lie on the hills; the oldest fade before they are overwritten.</li>
     <li><b>Silence rules:</b> silent in the menu and pause; all audio is suspended while the tab is hidden.</li>
   </ul>
+  <h3>Engine bus, crashes and the finale theme</h3>
+  <ul>
+    <li>Pitched loops alone sound even, like a drone, so after them the engine bus adds <b>grit</b> (the level wobbles with slow random noise), an <b>exhaust roar</b> (noise around the firing frequency, growing with throttle and rpm), a little more low end, less of the buzzing band around 2.5 kHz and a soft saturation. The gearbox whine is a faint sine.</li>
+    <li><b>Crashes by weight</b> (<code>sfx.hit</code>): noise through a band that sits lower the heavier the vehicle, a metallic ring for a motorcycle and a deeper, longer boom for a bus or lorry.</li>
+    <li>The <b>heroic theme</b> of the finale (<code>playAnthem</code>) is synthesised with the radio's instruments: brass, strings, a trumpet melody, timpani and a cymbal in a small hall reverb, on the music volume.</li>
+  </ul>
   <h3>HUD</h3>
   <table>
     <tr><th>Element</th><th>Shows</th><th>Built with</th></tr>
@@ -449,7 +474,7 @@ damage += max(0, (impact − 4) · 1.0 · VEH.dmg)              <span class="c">
   <p>A three-act campaign, started from the main menu, that continues <i>Plot Twist – The Missing Necklace</i> and starts where room 1 ends: inmate 4471 has escaped through the tunnel, and Officer Hale, a secret ally, helps over the radio (his lines are orange, police dispatch is red). The detective who investigated the stolen Starfall necklace is framed for the theft; the mastermind is the necklace’s owner, Lady Ashford, who staged it for the insurance money. Free ride stays available next to it.</p>
   <table>
     <tr><th>Act</th><th>Map</th><th>Goal</th><th>Story element</th></tr>
-    <tr><td>1 · The Scatter</td><td>City</td><td>Recover the 8 shards</td><td>Optional sealed letter hidden in a park, not shown on the radar</td></tr>
+    <tr><td>1 · The Evidence</td><td>City</td><td>Recover the 6 pieces of evidence, pick up the witness, drive through the gate</td><td>Optional sealed letter hidden in a park, not shown on the radar</td></tr>
     <tr><td>2 · The Courier</td><td>Highway</td><td>Catch the gold-marked lorry, take the clasp</td><td>The toll at the finish only opens with the clasp</td></tr>
     <tr><td>3 · Homecoming</td><td>Countryside</td><td>Reach the Ashford mansion</td><td>Confrontation decides the ending</td></tr>
   </table>
@@ -466,6 +491,11 @@ damage += max(0, (impact − 4) · 1.0 · VEH.dmg)              <span class="c">
     <li><code>finish()</code> and <code>gameOver()</code> hand over to <code>storyFinish()</code> and <code>storyGameOver()</code> when a story is running; <code>showEnding()</code> picks Ending A or B from <code>story.letter</code>.</li>
     <li>The rules are in <code>core.js</code> and tested in <code>tests/room-2/story.test.js</code>: <code>beginAct</code> (only acts 1–3), <code>retryAct</code>, <code>finishOpen</code> (the toll needs the clasp), <code>storyEnding</code> (A or B) and <code>dueRadio</code> (each radio line once).</li>
     <li>The courier lorry drives in the right lane with the same car-following rule as traffic, stops before the toll, and is collidable; traffic treats it as an obstacle.</li>
+  </ul>
+  <h3>The witness and the finale</h3>
+  <ul>
+    <li>After the sixth piece, <code>spawnWitness</code> puts Marta Silva on a pavement (<code>Core.witnessSpotOk</code>). She waves under a golden light, gold on the radar and the guide arrow. <code>updateWitness</code> lets her walk to the door when <code>Core.witnessGetsIn</code> says the player has stopped beside her, and back if <code>Core.witnessGivesUp</code>; with her on board the gate opens.</li>
+    <li>Through the gate, <code>startFinale</code> sets the state <code>finale</code>: a black plane in front of the camera fades out, the car is put on the bridge (<code>onBridge</code>) and drives south on its own, the police and the helicopter are gone, <code>setDawn</code> turns the sky, haze and light slowly towards the first light of the morning, and two camera shots follow the car. Then <code>finish()</code> shows the result card; in the story this ends act 1. <code>endFinale</code> brings the night back for a new run or the menu.</li>
   </ul>
   <div class="note gold"><b>Design rule carried over from the original project:</b> the letter is optional but decides the ending. Players who only follow the obvious path reach Ending B; players who explore reach the truth.</div>
 </section>
