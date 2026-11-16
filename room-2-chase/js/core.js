@@ -377,6 +377,23 @@
   // the turn rate (rad/s, positive turns towards +x like a heading) from a push (dx, dz) of dv at (rx, rz) from the vehicle's middle
   const shoveSpin = (rx, rz, dx, dz, dv, mTarget) => -(rx * dz - rz * dx) * dv * SHOVE.spin / Math.sqrt(Math.max(1, mTarget));
 
+  // ---------- Scraping ----------
+  // ### Sliding along a wall or another vehicle is a scrape: sparks fly, metal grinds and the paint leaves a scratch on the wall.
+  // ### What counts is the speed along the surface, not into it (that part is the crash): (vx, vz) is the speed of the vehicle
+  // ### against what it touches and (nx, nz) the direction out of that surface. Below SCRAPE.min nothing happens; from there the
+  // ### scrape grows to full at SCRAPE.full. sparkCount is how many sparks fly in a frame of dt seconds, at most SCRAPE.sparks per
+  // ### second. game.js lays a scratch every SCRAPE.step metres, SCRAPE.marks at most, the oldest SCRAPE.fade fading away.
+  const SCRAPE = Object.freeze({ min: 3, full: 22, sparks: 90, step: 0.45, marks: 400, fade: 40 });
+  function scrapeLevel(vx, vz, nx, nz){
+    if (![vx, vz, nx, nz].every(Number.isFinite)) return 0;
+    const n = Math.hypot(nx, nz);
+    if (!(n > 0)) return 0;
+    const along = Math.abs(vx * nz - vz * nx) / n;
+    if (along < SCRAPE.min) return 0;
+    return 0.15 + 0.85 * clamp((along - SCRAPE.min) / (SCRAPE.full - SCRAPE.min), 0, 1);
+  }
+  const sparkCount = (level, dt) => level > 0 && level <= 1 ? SCRAPE.sparks * level * clamp(Number.isFinite(dt) ? dt : 0, 0, MAX_DT) : 0;
+
   // ---------- Damage ----------
   // ### Impacts under 3 m/s are free; above that damage grows linearly and is scaled by the vehicle (the truck takes 55 %).
   // ### A crash costs damage above CRASH_FREE m/s of closing speed (about 14 km/h), CRASH_FACTOR % per m/s beyond it, times the
@@ -942,7 +959,7 @@
     MODES, VEH, REV_SPEED, REPAIR_AMOUNT, MAX_DT, STORY_ACTS, KEY_MAP, BAIXA, streetAt, TRAM_LOOP, tramNext, RAIL, trackOffset, railCrossings, railShake, routeTo, routeMarks,
     EVIDENCE, WITNESS, WITNESS_RULE, witnessGetsIn, witnessGivesUp, witnessSpotOk, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
     parsePick, parseBest, applyPick, actionAllowed,
-    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
+    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, SCRAPE, scrapeLevel, sparkCount, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
     crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
     driveTime, runStars, isNewBest,
