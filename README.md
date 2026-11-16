@@ -52,7 +52,7 @@ A 3D police-chase driving game that runs in any modern browser. Pick a map and a
 | Vehicles | Muscle coupe (balanced), Superbike (fastest, most agile), Tractor unit (slowest, toughest, best at ramming) |
 | Story mode | *The Necklace Job*, after the escape: 3 acts on the 3 maps, Officer Hale on the radio, 2 story items (a hidden letter, a clasp), 3 endings. Which one you get depends on whether you found the letter in act 1 |
 | Systems | Seven synthesised radio stations, hills on every map, wanted stars and a police helicopter, visible damage, police AI with a bust meter, crash damage and repair kits, synthesised engine sounds, map-boundary force field, radar, Ultra/Balanced graphics |
-| Controls | `W A S D` or arrow keys to drive, `Space` handbrake, hold `C` to look back, `P` / `Esc` pause, `M` map (Lisbon), `N` sound, `R` radio, volume sliders for game and music in the menu and the pause, `Enter` confirms. On phones: touch pads (brake and gas together are the handbrake, the round button looks back), and steering by tilting the phone sideways |
+| Controls | `W A S D` or arrow keys to drive, `Space` handbrake, hold `C` to look back, `E` nitro (a charge for every third pickup), `P` / `Esc` pause, `M` map (Lisbon), `N` sound, `R` radio, volume sliders for game and music in the menu and the pause, `Enter` confirms. On phones: touch pads (brake and gas together are the handbrake, the round button looks back, the flame button fires nitro), and steering by tilting the phone sideways |
 
 ## Run it locally
 

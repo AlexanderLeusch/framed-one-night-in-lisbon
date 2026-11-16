@@ -112,6 +112,7 @@ The city is a hand-built model of the real Baixa, not map data loaded by the gam
 |---|---|
 | Crash | impacts under 4 m/s (about 14 km/h) are free; above that, damage = (impact − 4) × 1.0 × the vehicle's damage factor. A wall at 122 km/h costs the car 30 %, the truck 17 %. One crash counts once: for 0.35 s after contact, only a harder hit costs more |
 | Scrape | sliding along a wall or another vehicle faster than 3 m/s (about 11 km/h), measured along the surface, throws sparks and grinds, harder the faster you slide (full at 22 m/s). Along house walls, parked cars and the wall in the middle of the highway it leaves pale scratches with a little of your paint; the newest 400 stay. A scrape costs no damage; only the part of your speed into the wall counts as a crash |
+| Nitro | every third piece of evidence or shard you pick up fills one nitro charge, three at most (with a full tank the next fill is lost). In Lisbon that is a charge after the 3rd and the 6th piece. `E` or the flame button fires one: for 2.5 s your top speed is 30 % higher and the vehicle is pushed forward with 14 m/s² on top of the engine, a blue flame burns behind it and the view widens. One burns at a time, not while reversing, and only during a run. Afterwards the speed falls back to the normal top speed. The charges are shown under the damage bar; the bar beside them fills towards the next charge and drains while one burns |
 | 25 % damage | the paint shows dents (deepest at the nose and the tail), long scratches and dirt, and loses its shine as the damage grows; thin grey smoke rises from the engine |
 | 50 % damage | warning: "Engine damaged: top speed reduced." Loose parts and a smashed light; the engine misfires; the smoke turns dark |
 | 75 % damage | hood up (car), screen gone (motorcycle), hanging bumper and cracked windscreen (truck); a thick black column of smoke; sparks at speed |
@@ -226,6 +227,7 @@ The last map and vehicle, the best times, the drivers and leaderboards, the radi
 | `W A S D` or arrow keys | Drive |
 | `Space` | Handbrake |
 | `C` (hold) | Look back: the camera turns round and looks down the road behind you for as long as you hold it, so you can see how close the police are. "Rear view" shows at the top. Only while driving |
+| `E` | Fire a nitro charge (see Nitro below) |
 | `P` / `Esc` | Pause |
 | `M` | The large map of the Baixa (Lisbon only); `M` again closes it. A tap on the radar does the same |
 | `N` | Sound on or off |
@@ -233,5 +235,5 @@ The last map and vehicle, the best times, the drivers and leaderboards, the radi
 | `R` | Next radio station (`Shift` + `R` for the one before) |
 | `Enter` / `Space` | Press the button in focus. With no button in focus, `Enter` presses the card's main button. While driving, `Space` is the handbrake |
 | `Tab` | Move between the buttons of a card |
-| Touch pads | Steer on the left; brake and gas on the right. Both together are the handbrake. The round button beside the brake looks back while you hold it |
+| Touch pads | Steer on the left; brake and gas on the right. Both together are the handbrake. The round button beside the brake looks back while you hold it; the flame button fires a nitro charge |
 | Tilt (phones) | Hold the phone sideways and lower one side, like a steering wheel: from 3° it starts to steer, at 24° it is at full lock. The steering buttons go away while tilt works. Upright, or if the sensor is refused or missing, the buttons stay. Choose `Tilt` or `Buttons` in the menu or on the pause card. The sensor is only read in the browser and nothing is stored or sent |
