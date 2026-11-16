@@ -602,13 +602,16 @@ const WATER = (() => {
   // ### height h shows the floor's mirror picture shifted up by 2 (h - floor) (camera and mirrored room move together),
   // ### so each point looks the picture up that far lower down. The water itself is murky grey-brown with grey scum and
   // ### bubbles on it; seen from above you look into it, and the flatter you look the more it mirrors the room.
-  const bucketMat = new THREE.ShaderMaterial({
-    uniforms: { tRefl: mat.uniforms.tRefl, tNoise: mat.uniforms.tNoise, texMat: mat.uniforms.texMat, time: mat.uniforms.time, lift: { value: 0 }, tScum: { value: null } },
+  // ### The water in the toilet bowl is the same, only yellower and browner (murk is the colour of the water itself) and
+  // ### duller (gloss scales the mirroring: deep in the steel bowl little of the room reaches the water).
+  const murks = [];
+  const murkMat = (lift, scum, murk, gloss) => { const m = new THREE.ShaderMaterial({
+    uniforms: { tRefl: mat.uniforms.tRefl, tNoise: mat.uniforms.tNoise, texMat: mat.uniforms.texMat, time: mat.uniforms.time, lift: { value: lift }, tScum: { value: scum }, murk: { value: new THREE.Color(murk) }, gloss: { value: gloss } },
     vertexShader: `
       uniform mat4 texMat; uniform float lift; varying vec4 vProj; varying vec3 vWorld; varying vec2 vUv;
       void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vUv = uv; vProj = texMat * (w - vec4(0.0, lift, 0.0, 0.0)); gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: `
-      uniform sampler2D tRefl, tNoise, tScum; uniform float time; varying vec4 vProj; varying vec3 vWorld; varying vec2 vUv;
+      uniform sampler2D tRefl, tNoise, tScum; uniform float time, gloss; uniform vec3 murk; varying vec4 vProj; varying vec3 vWorld; varying vec2 vUv;
       void main(){
         // fine slow ripples: the water in a bucket hardly moves
         vec2 w = vec2(sin(vWorld.x * 47.0 + time * 0.7) + sin(vWorld.z * 59.0 - time * 0.9), sin(vWorld.z * 41.0 + time * 0.8) + sin(vWorld.x * 53.0 - time * 0.6)) * 0.0009;
@@ -616,26 +619,26 @@ const WATER = (() => {
         vec2 b = vec2(0.0012, 0.002) * p.w;
         vec3 refl = (sRGBToLinear(texture2DProj(tRefl, p + vec4(b, 0.0, 0.0))).rgb + sRGBToLinear(texture2DProj(tRefl, p - vec4(b, 0.0, 0.0))).rgb
           + sRGBToLinear(texture2DProj(tRefl, p + vec4(b.y, -b.x, 0.0, 0.0))).rgb + sRGBToLinear(texture2DProj(tRefl, p - vec4(b.y, -b.x, 0.0, 0.0))).rgb) * 0.25;
-        refl *= 1.0 + smoothstep(0.6, 1.0, max(refl.r, max(refl.g, refl.b))) * 2.5;
-        float F = 0.25 + 0.75 * pow(1.0 - clamp(normalize(cameraPosition - vWorld).y, 0.0, 1.0), 4.0);
+        refl *= 1.0 + smoothstep(0.6, 1.0, max(refl.r, max(refl.g, refl.b))) * 2.5 * gloss;
+        float F = (0.25 + 0.75 * pow(1.0 - clamp(normalize(cameraPosition - vWorld).y, 0.0, 1.0), 4.0)) * gloss;
         // the murk: grey-brown, cloudier in patches, darker in the shadow of the bucket's wall
         float n = texture2D(tNoise, vWorld.xz * 5.0 + vec2(time * 0.003, 0.0)).r;
         float r = length((vUv - 0.5) * 2.0);
-        vec3 murk = vec3(0.075, 0.068, 0.05) * (0.75 + 0.6 * n) * (1.0 - 0.45 * smoothstep(0.7, 1.0, r));
+        vec3 water = murk * (0.75 + 0.6 * n) * (1.0 - 0.45 * smoothstep(0.7, 1.0, r));
         // grey scum and bubbles drift slowly round
         float c = cos(time * 0.02), s = sin(time * 0.02); vec2 su = mat2(c, -s, s, c) * (vUv - 0.5) + 0.5;
         vec4 scum = sRGBToLinear(texture2D(tScum, su));
         float sc = clamp((scum.r - 0.03) * 4.0, 0.0, 1.0);
-        vec3 col = mix(murk, refl, F * (1.0 - sc * 0.7));
+        vec3 col = mix(water, refl, F * (1.0 - sc * 0.7));
         col = mix(col, scum.rgb * 0.6, sc * 0.6);
         // a thin wet ring where the water meets the plastic catches the light
         col += refl * smoothstep(0.93, 1.0, r) * 0.6;
         gl_FragColor = linearToOutputTexel(vec4(col, 1.0));
-        gl_FragColor.a = mix(0.86, 1.0, max(F, sc));
+        gl_FragColor.a = mix(1.0 - 0.14 * gloss, 1.0, max(F, sc));   // the duller, the less of the bowl shows through
         gl_FragColor.rgb *= gl_FragColor.a;
       }`,
     transparent: true, depthWrite: false, premultipliedAlpha: true
-  });
+  }); murks.push(m); return m; };
   const boxes = [], mirror = new THREE.PerspectiveCamera(), frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
   const camPos = new THREE.Vector3(), look = new THREE.Vector3(), rot = new THREE.Matrix4(), plane = new THREE.Plane(), clip = new THREE.Vector4(), q = new THREE.Vector4(), size = new THREE.Vector2();
   const N = new THREE.Vector3(0, 1, 0), P0 = new THREE.Vector3(0, .004, 0);
@@ -651,9 +654,9 @@ const WATER = (() => {
     // ### Whether a foot at x, z lands in the water of a puddle (the middle four fifths of it; buckets do not count).
     wetAt(x, z){ return boxes.some(b => b.max.y < .05 && Math.abs(x - (b.min.x + b.max.x) / 2) < .4 * (b.max.x - b.min.x) && Math.abs(z - (b.min.z + b.max.z) / 2) < .4 * (b.max.z - b.min.z)); },
     // ### The water in a bucket: a disc of radius r at height y, with a picture of the scum and bubbles on it.
-    bucket(r, x, y, z, scum){
-      bucketMat.uniforms.lift.value = 2 * (y - P0.y); bucketMat.uniforms.tScum.value = scum;
-      const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48), bucketMat); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = 1; room.add(m);
+    // ### murk is the water's own colour (linear), grey-brown mop water if left out; gloss how much it mirrors (0 to 1).
+    bucket(r, x, y, z, scum, murk = new THREE.Color(.075, .068, .05), gloss = 1){
+      const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48), murkMat(2 * (y - P0.y), scum, murk, gloss)); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = 1; room.add(m);
       boxes.push(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, y, z), new THREE.Vector3(2 * r, .02, 2 * r)));
       return m;
     },
@@ -687,9 +690,9 @@ const WATER = (() => {
       q.set((Math.sign(clip.x) + e[8]) / e[0], (Math.sign(clip.y) + e[9]) / e[5], -1, (1 + e[10]) / e[14]);
       clip.multiplyScalar(2 / clip.dot(q));
       e[2] = clip.x; e[6] = clip.y; e[10] = clip.z + 1; e[14] = clip.w;
-      mat.visible = bucketMat.visible = false;
+      mat.visible = false; for (const m of murks) m.visible = false;
       renderer.setRenderTarget(rt); renderer.render(scene, mirror); renderer.setRenderTarget(null);
-      mat.visible = bucketMat.visible = true;
+      mat.visible = true; for (const m of murks) m.visible = true;
     }
   };
 })();
@@ -1747,7 +1750,19 @@ const TOILET = { x: 3.25, z: -2.82, top: .958 }, BOWL_Z = -2.418, BOWL_SZ = 1.22
   lathe([[.175, 0], [.186, .012], [.186, .034], [.165, .06], [.158, .13], [.172, .22], [.2, .31], [.218, .37], [.228, .404], [.226, .424], [.212, .432], [.197, .426], [.19, .41],
     [.184, .38], [.16, .32], [.12, .27], [.072, .236], [.0, .226]], 44, 1, BOWL_SZ, T.x, BOWL_Z);
   box(.26, .24, .22, M.steel, T.x, .12, T.z + .28);   // the apron that joins bowl and cabinet
-  const water = new THREE.Mesh(new THREE.CircleGeometry(.137, 40), M.water); water.rotation.x = -Math.PI / 2; water.scale.y = BOWL_SZ; water.position.set(T.x, .29, BOWL_Z); water.receiveShadow = true; room.add(water);
+  // ### The water in the bowl mirrors the room like the puddles and the mop water do (WATER.bucket): murky yellow-brown,
+  // ### with a film of yellowish foam and bubbles on it (this picture, on black where there is none) and a brown tide
+  // ### line on the steel just above it.
+  const frnd = mulberry32(6116);   // its own dice, so the rest of the room keeps its looks
+  const foamTex = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 14; i++){ const x = frnd() * w, y = frnd() * h, r = 5 + frnd() * 18, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(150,128,70,.4)'); gr.addColorStop(1, 'rgba(150,128,70,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+    for (let i = 0; i < 40; i++){ const x = frnd() * w, y = frnd() * h, r = .8 + frnd() * 2.5; g.strokeStyle = 'rgba(210,200,160,.5)'; g.lineWidth = .8; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); }
+    for (let i = 0; i < 25; i++){ g.fillStyle = `rgba(${90 + frnd() * 40 | 0},${70 + frnd() * 30 | 0},40,.7)`; g.fillRect(frnd() * w, frnd() * h, 1 + frnd() * 3, 1 + frnd() * 2); }   // flecks floating in it
+  });
+  const water = WATER.bucket(.137, T.x, .29, BOWL_Z, foamTex, new THREE.Color(.07, .048, .012), .08); water.scale.y = BOWL_SZ;
+  const tide = lathe([[.1365, .2905], [.142, .296], [.149, .305]], 44, 1, BOWL_SZ, T.x, BOWL_Z);
+  tide.castShadow = false; tide.material = new THREE.MeshStandardMaterial({ color: 0x4a3a20, roughness: .8, transparent: true, opacity: .4, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, side: THREE.DoubleSide });
   cyl(.045, .045, .002, M.dark, T.x, .238, BOWL_Z - .03, 16);
   for (const dx of [-.215, .215]) cyl(.014, .014, .012, M.chrome, T.x + dx, .006, BOWL_Z + .03, 6);   // floor bolts
   // the cold-water supply: a stop valve on the wall and a chrome pipe into the side of the cabinet
@@ -2039,6 +2054,131 @@ function updateDust(dt, t){
   dust.pts.geometry.attributes.position.needsUpdate = true; dust.pts.geometry.attributes.color.needsUpdate = true;
 }
 
+// ### The bin by the sinks: an open can of brushed stainless steel with a rolled rim, a black bin liner pulled over the
+// ### rim and gathered in folds below it, and the used paper towels from the dispenser above heaped inside, so you see
+// ### them when you look in. No free library offers paper towels or a paper scan (Poly Haven has none; ambientCG and
+// ### Openverse were out of reach), so they are made here: every towel is a ball crumpled by a dozen random creases
+// ### (planes it is folded along) and a fine crinkle, squashed as it settled, darker in its folds, some still damp and
+// ### grey. One towel did not go all the way in and hangs over the rim. Their paper is painted: recycled off-white with
+// ### flecks of fibre and the embossed dot pattern of a paper towel as a normal map. The bin has its own random numbers,
+// ### so the rest of the room keeps its look. x, z is the middle of its foot.
+function buildBin(x, z){
+  const rr = mulberry32(2210), TAU = Math.PI * 2;
+  const outR = y => .15 + y * .043, inR = y => outR(y) - .006;   // the wall: 30 cm across at the foot, 34 at the rim
+  // the can, turned on a lathe: foot, wall, the rim rolled outwards, the inside and the floor
+  const prof = [[0, .002], [.134, .002], [.146, .005], [.15, .013]];
+  for (let i = 1; i <= 12; i++){ const y = .013 + i * (.425 - .013) / 12; prof.push([outR(y), y]); }
+  prof.push([.174, .428], [.177, .435], [.176, .443], [.17, .447], [.164, .443], [.1625, .434]);
+  for (let i = 1; i <= 10; i++){ const y = .434 - i * (.434 - .03) / 10; prof.push([inR(y), y]); }
+  prof.push([.13, .024], [0, .024]);
+  const can = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 48),
+    steelMat(0xb7bfc3, 1.5, { roughnessMap: SCAN('steel-scratches-rough.jpg', false, 3, 1), normalMap: SCAN('steel-scratches-normal.jpg', false, 3, 1, 4) }));
+  can.position.set(x, 0, z); add(can);
+
+  // ### The liner: rows of points round the can (angle a), from its bottom up the inside, over the rim and down the outside
+  // ### to an uneven hem. Below the rim it is pulled tight; the spare plastic gathers in soft folds that stand out more
+  // ### towards the hem.
+  const ph = [0, 0, 0, 0, 0, 0].map(() => rr() * TAU);
+  const fold = a => Math.max(0, .6 * Math.sin(5 * a + ph[0]) + .4 * Math.sin(11 * a + ph[1]) + .5 * Math.sin(2 * a + ph[2]));
+  const hem = a => .372 + .012 * Math.sin(3 * a + ph[3]) + .006 * Math.sin(7 * a + ph[4]);
+  const rows = [];
+  for (let k = 0; k <= 8; k++){ const y = .032 + k * (.43 - .032) / 8, t = 1 - k / 8; rows.push(a => [inR(y) - .0015 - fold(a + 1) * t * .01, y]); }
+  for (const [r, y] of [[.1635, .4465], [.17, .4508], [.1772, .4478], [.1806, .44]]) rows.push(() => [r, y]);
+  for (let k = 1; k <= 6; k++){ const t = k / 6; rows.push(a => { const y = .44 - t * (.44 - hem(a)); return [outR(y) + .0035 + fold(a) * t * .013, y]; }); }
+  const NA = 96, lp = [], li = [];
+  for (const row of rows) for (let i = 0; i <= NA; i++){ const a = i / NA * TAU, [r, y] = row(a); lp.push(Math.cos(a) * r, y, Math.sin(a) * r); }
+  for (let j = 0; j < rows.length - 1; j++) for (let i = 0; i < NA; i++){ const p = j * (NA + 1) + i, q = p + NA + 1; li.push(p, q, p + 1, p + 1, q, q + 1); }
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); lg.setIndex(li); lg.computeVertexNormals();
+  const linerMat = new THREE.MeshStandardMaterial({ color: 0x17181a, roughness: .34, side: THREE.DoubleSide });
+  const liner = new THREE.Mesh(lg, linerMat); liner.position.set(x, 0, z); add(liner);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(inR(.032) - .002, 32), linerMat); floor.rotation.x = -Math.PI / 2; floor.position.set(x, .033, z); add(floor);
+
+  // ### The paper: recycled off-white with grey and brown flecks and the odd blue fibre; its relief is the embossed dots of
+  // ### a paper towel and the fibres, turned into a normal map. One picture is about 6 cm of paper.
+  const paper = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#ece8de'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 40; i++){ const px = rr() * w, py = rr() * h, r = 10 + rr() * 30, gr = g.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, `rgba(205,196,178,${.15 + rr() * .2})`); gr.addColorStop(1, 'rgba(205,196,178,0)'); g.fillStyle = gr; g.fillRect(px - r, py - r, r * 2, r * 2); }
+    for (let i = 0; i < 700; i++){
+      const px = rr() * w, py = rr() * h, l = 1 + rr() * 5, a = rr() * TAU, c = rr();
+      g.strokeStyle = c < .04 ? 'rgba(70,95,150,.5)' : c < .5 ? `rgba(150,140,120,${.2 + rr() * .3})` : `rgba(255,255,250,${.3 + rr() * .4})`;
+      g.lineWidth = .5 + rr() * .7; g.beginPath(); g.moveTo(px, py); g.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); g.stroke();
+    }
+  }, [1, 1]);
+  const relief = document.createElement('canvas'); relief.width = relief.height = 256;
+  { const g = relief.getContext('2d'); g.fillStyle = '#7a7a7a'; g.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 256; y += 8) for (let px = (y / 8 % 2) * 4; px < 256; px += 8){ const gr = g.createRadialGradient(px, y, 0, px, y, 3.2); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(px - 4, y - 4, 8, 8); }
+    for (let i = 0; i < 900; i++){ const px = rr() * 256, py = rr() * 256, l = 2 + rr() * 6, a = rr() * TAU; g.strokeStyle = `rgba(${rr() < .5 ? '0,0,0' : '255,255,255'},.25)`; g.lineWidth = .6; g.beginPath(); g.moveTo(px, py); g.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); g.stroke(); } }
+  const paperNormal = new THREE.CanvasTexture(normalFromHeight(relief, 256 / .06, .35)); paperNormal.wrapS = paperNormal.wrapT = THREE.RepeatWrapping; paperNormal.anisotropy = ANISO;
+  const towelMat = new THREE.MeshStandardMaterial({ map: paper, normalMap: paperNormal, normalScale: new THREE.Vector2(.6, .6), roughness: .95, vertexColors: true, side: THREE.DoubleSide });
+
+  // ### A crumpled towel: a ball pushed in and out along a dozen random crease planes (a triangle wave across each, so
+  // ### the folds are sharp), with a fine crinkle that depends only on the point (so the ball stays closed), then
+  // ### squashed, turned and put at px, py, pz. Its folds are darker; a damp towel is greyer.
+  const pos = [], uv = [], col = [], icos = [2, 3].map(n => new THREE.IcosahedronGeometry(1, n));
+  const tri = v => Math.abs(v - Math.floor(v) - .5) * 2;
+  const crinkle = (a, b, c) => { const s = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5; return s - Math.floor(s) - .5; };
+  const m4 = new THREE.Matrix4(), v = new THREE.Vector3(), q = new THREE.Vector3();
+  function wad(px, py, pz, s, flatY, damp, fine){
+    const IP = icos[fine ? 1 : 0].attributes.position.array, IU = icos[fine ? 1 : 0].attributes.uv.array;
+    const cr = [];
+    for (let k = 0, n = 10 + (rr() * 6 | 0); k < n; k++) cr.push([new THREE.Vector3(rr() - .5, rr() - .5, rr() - .5).normalize(), .45 + rr() * .5, rr(), .1 + rr() * .14]);
+    m4.makeRotationFromEuler(new THREE.Euler(rr() * TAU, rr() * TAU, rr() * TAU));
+    const sx = s * (.85 + rr() * .35), sz = s * (.85 + rr() * .35), sy = s * flatY, ou = rr(), ov = rr(), us = s / .015;
+    const tone = damp ? .66 + rr() * .1 : .9 + rr() * .1;
+    for (let i = 0; i < IP.length; i += 3){
+      q.set(IP[i], IP[i + 1], IP[i + 2]);
+      let r = 1;
+      for (const [d, per, off, amp] of cr) r += amp * (tri(q.dot(d) / per + off) - .5);
+      r += crinkle(q.x, q.y, q.z) * .07;
+      v.copy(q).multiplyScalar(r).applyMatrix4(m4);
+      // nothing pokes through the liner: points past the wall are pulled in onto it
+      let wx = px + v.x * sx - x, wy = py + v.y * sy, wz = pz + v.z * sz - z;
+      const lim = inR(Math.min(wy, .43)) - .004, rad = Math.hypot(wx, wz);
+      if (rad > lim){ wx *= lim / rad; wz *= lim / rad; }
+      pos.push(x + wx, wy, z + wz);
+      const j = i / 3 * 2; uv.push(IU[j] * us * 2 + ou, IU[j + 1] * us + ov);
+      const c = tone * clamp(.78 + (r - 1) * 1.3, .55, 1.05);
+      col.push(c, c * .985, c * .96);
+    }
+  }
+  // ### The heap: layers of towels, each laid where it does not sink too far into the others, higher in the middle where
+  // ### they are thrown. The bin is about three quarters full, so you look down past the liner onto the paper; the
+  // ### towels you can see are finer.
+  for (const [y0, n, sz, fine] of [[.2, 14, .05], [.25, 16, .048], [.295, 18, .045, 1], [.335, 15, .043, 1], [.362, 5, .04, 1]]){
+    const placed = [];
+    for (let tries = 0; placed.length < n && tries < 400; tries++){
+      const s = sz * (.8 + rr() * .45), R = inR(y0) - s * .75, a = rr() * TAU, d = Math.sqrt(rr()) * R;
+      const px = Math.cos(a) * d, pz = Math.sin(a) * d;
+      if (placed.some(([qx, qz, qs]) => Math.hypot(px - qx, pz - qz) < (s + qs) * .8)) continue;
+      placed.push([px, pz, s]);
+      wad(x + px, y0 + .025 * (1 - d / R) + rr() * .012, z + pz, s, .6 + rr() * .3, rr() < .18, fine);
+    }
+  }
+  // ### The towel caught on the rim, facing the room: a sheet lying on the heap, bent over the rim and hanging down
+  // ### outside, creased across and along and pinched together where it bends.
+  {
+    const A = .35, ca = Math.cos(A), sa = Math.sin(A), NU = 14, NV = 26, path = [[.05, .392], [.1, .405], [.14, .43], [.166, .458], [.177, .461], [.186, .452], [.19, .43], [.191, .405], [.189, .38], [.185, .355]];
+    const at = t => { const f = t * (path.length - 1), i = Math.min(path.length - 2, Math.floor(f)), k = f - i; return [path[i][0] + (path[i + 1][0] - path[i][0]) * k, path[i][1] + (path[i + 1][1] - path[i][1]) * k]; };
+    const cr = []; for (let k = 0; k < 9; k++){ const a = rr() * Math.PI; cr.push([Math.cos(a), Math.sin(a), .03 + rr() * .05, rr(), .004 + rr() * .006]); }
+    const sp = [], su = [];
+    for (let j = 0; j <= NV; j++) for (let i = 0; i <= NU; i++){
+      const t = j / NV, u = (i / NU - .5) * .15 * (1 - .4 * Math.exp(-(((t - .45) / .18) ** 2))) * (1 - .3 * t) + Math.sin(t * 7 + i * .3) * .006 * t, [r, y] = at(t);
+      const [r1, y1] = at(Math.min(1, t + .01)), [r0, y0] = at(Math.max(0, t - .01)), tl = Math.hypot(r1 - r0, y1 - y0), nr = -(y1 - y0) / tl, ny = (r1 - r0) / tl;
+      let hgt = 0; for (const [dx, dy, per, off, amp] of cr) hgt += amp * (tri((u * dx + t * .23 * dy) / per + off) - .5);
+      hgt += crinkle(u, t, 1) * .002;
+      const rr2 = r + nr * hgt, yy = y + ny * hgt;
+      sp.push(x + ca * rr2 - sa * u, yy, z + sa * rr2 + ca * u); su.push(i / NU * 3.3, t * 3.3);
+    }
+    const ix = (i, j) => j * (NU + 1) + i;
+    for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) for (const [a, b] of [[0, 0], [0, 1], [1, 0], [1, 0], [0, 1], [1, 1]]){
+      const k = ix(i + a, j + b); pos.push(sp[k * 3], sp[k * 3 + 1], sp[k * 3 + 2]); uv.push(su[k * 2], su[k * 2 + 1]); col.push(.95, .935, .91);
+    }
+  }
+  const tg = new THREE.BufferGeometry();
+  tg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); tg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); tg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  tg.computeVertexNormals(); icos.forEach(g => g.dispose());
+  add(new THREE.Mesh(tg, towelMat));
+}
 // ### Details that make the washroom feel used and real: tiled skirting, soft shadows in every corner, a camera watching,
 // ### an air vent, the light switch and intercom by the door, a towel dispenser and a bin by the sinks, lamp housings.
 {
@@ -2079,8 +2219,7 @@ function updateDust(dt, t){
   { const b = cyl(.02, .02, .02, M.red, .88, 1.38, D / 2 - .025, 16); b.rotation.x = Math.PI / 2; }
   // a paper-towel dispenser and a steel bin by the sinks
   box(.12, .38, .3, M.steel, -3.93, 1.4, 2.05); box(.02, .012, .22, M.dark, -3.87, 1.22, 2.05);
-  cyl(.17, .15, .44, M.dullSteel, -3.68, .22, 2.25, 22); cyl(.155, .155, .004, M.dark, -3.68, .43, 2.25, 22);
-  { const r = new THREE.Mesh(new THREE.TorusGeometry(.17, .008, 6, 28), M.steel); r.rotation.x = Math.PI / 2; r.position.set(-3.68, .44, 2.25); add(r); }
+  buildBin(-3.68, 2.25);
   flat(.55, .55, M.blob, -3.68, 2.25);
   // ### More of a real prison washroom: a stainless urinal trough on the north wall under the house rules, a barred
   // ### window of wired glass high up with the night behind it, two push-button showers on the east wall with their drain,
@@ -2132,12 +2271,7 @@ function updateDust(dt, t){
     for (const dx of [-.7, -.2, .2, .7]){ const b = cyl(.01, .01, .006, M.chrome, X + dx, .482, Z - .2, 6); }
     flat(1.9, .7, M.blob, X, Z - .25);
   }
-  { // a fire extinguisher on its bracket by the door, and a soap dispenser between the sinks
-    const X = -1.25, Z = D / 2 - .1;
-    cyl(.075, .075, .44, M.red, X, .6, Z, 18); cyl(.05, .075, .06, M.red, X, .85, Z, 18);
-    cyl(.02, .02, .06, M.black, X, .9, Z, 10); box(.12, .025, .04, M.black, X + .03, .935, Z);
-    { const hose = new THREE.Mesh(new THREE.TorusGeometry(.07, .008, 6, 16, Math.PI * 1.2), M.black); hose.position.set(X + .07, .78, Z + .02); hose.rotation.y = Math.PI / 2; add(hose); }
-    box(.16, .05, .1, M.dullSteel, X, .45, Z + .04); box(.05, .5, .01, M.dullSteel, X, .6, Z + .095);
+  { // a soap dispenser between the sinks (the fire extinguisher by the door is further down: see loadExtinguisher)
     box(.08, .16, .08, M.steel, -3.935, 1.1, 0); box(.02, .02, .03, M.black, -3.89, 1.015, 0);   // on the splashback
   }
   { // ### The wet-floor sign by the showers: a folding A-frame of moulded yellow plastic, as cleaners use them. Two panels
@@ -2437,11 +2571,52 @@ function linenCloth(cloth, mat, strength = 1){
 // ### Surfaces that are not metal only pick up a little of the vault, as soft fill light; the metal shows all of it.
 room.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial && !o.material.metalness && o.material.envMapIntensity === 1) o.material.envMapIntensity = .45; });
 
+// ### The fire extinguisher by the door is a real one: Poly Haven's "Korean Fire Extinguisher 01" (Um Joorin, CC0),
+// ### fetched once through its free API (models/fire-extinguisher.glb, the body and the gauge glass; the paper tag
+// ### is left off). Its scanned textures show red paint on steel as it ages: glossy where it is whole, dull and dusty
+// ### where hands and mops rub it, chipped to bare metal at the edges, the gauge under a scratched glass, the handle and
+// ### the stand grey steel. The word on its label band was repainted in English (FIRE EXTINGUISHER) in the same worn
+// ### white. Until the model has loaded, or if it cannot be, a simple extinguisher of cylinders stands in its place.
+const extinguisher = new THREE.Group();
+extinguisher.position.set(-1.25, 0, D / 2 - .14); extinguisher.rotation.y = Math.PI - .3; room.add(extinguisher);
+function extinguisherStandIn(){
+  const red = new THREE.MeshStandardMaterial({ color: 0x9c1f18, roughness: .35, metalness: .2 });
+  const part = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; extinguisher.add(o); return o; };
+  part(new THREE.CylinderGeometry(.075, .075, .44, 24), red, 0, .3, 0); part(new THREE.SphereGeometry(.075, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), red, 0, .52, 0);
+  part(new THREE.CylinderGeometry(.018, .022, .06, 12), M.dullSteel, 0, .61, 0); part(new THREE.BoxGeometry(.03, .02, .13), M.dullSteel, 0, .645, .03);
+  part(new THREE.CylinderGeometry(.11, .12, .06, 24), M.dark, 0, .03, 0);
+}
+extinguisherStandIn(); loadExtinguisher();
+flat(.5, .5, M.blob, -1.25, D / 2 - .14);
+function loadExtinguisher(){
+  fetch('models/fire-extinguisher.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(buf => {
+    const { json, acc } = glbParts(buf);
+    const arm = SCAN('fire-extinguisher-arm.jpg', false, 1, 1, 4), normal = SCAN('fire-extinguisher-normal.jpg', false, 1, 1, 4), color = SCAN('fire-extinguisher-color.jpg', true);
+    for (const t of [arm, normal, color]) t.flipY = false;   // glTF pictures are not flipped
+    const mats = [
+      // paint and steel: the scan's red, its gloss (green) and its bare metal (blue); the dust in its creases (red)
+      new THREE.MeshStandardMaterial({ map: color, normalMap: normal, roughnessMap: arm, metalnessMap: arm, aoMap: arm, roughness: 1, metalness: 1, envMapIntensity: 1.1 }),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .05, metalness: 0, transparent: true, opacity: .25, depthWrite: false })
+    ];
+    while (extinguisher.children.length) extinguisher.remove(extinguisher.children[0]);
+    json.meshes[0].primitives.forEach((prim, k) => {
+      const geo = new THREE.BufferGeometry(), A = prim.attributes;
+      geo.setAttribute('position', new THREE.BufferAttribute(acc(A.POSITION), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(acc(A.NORMAL), 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(acc(A.TEXCOORD_0), 2));
+      geo.setAttribute('uv2', geo.attributes.uv);
+      geo.setIndex(new THREE.BufferAttribute(acc(prim.indices), 1));
+      const m = new THREE.Mesh(geo, mats[k]); m.castShadow = k === 0; m.receiveShadow = true; m.renderOrder = k;
+      extinguisher.add(m);
+    });
+    shadowsMoved();
+  }).catch(() => {});
+}
 // ### Static meshes that share a material are merged into one mesh, so the room is drawn in a few dozen draw calls instead
 // ### of several hundred (and each shadow-casting light draws every caster once more). Objects that move or can be clicked
 // ### stay separate. Runs once, after the room is built.
 function mergeStatic(){
-  const keep = new Set([mop, carKey, doorPivot, lidPivot, hale.g, hall, haleShadow]), groups = new Map();
+  const keep = new Set([mop, carKey, doorPivot, lidPivot, hale.g, hall, haleShadow, extinguisher]), groups = new Map();
   room.updateMatrixWorld(true);
   (function walk(o){
     for (const c of o.children){
@@ -2768,7 +2943,7 @@ function bakeArm(arm){
 }
 // ### Reads a binary glTF file (.glb) with one skinned mesh, as the hand models are: the mesh, its joints and the matrices
 // ### that bind the skin to them. A few lines instead of three.js's GLTFLoader, so no other library has to be loaded.
-function readGlb(buf){
+function glbParts(buf){
   const dv = new DataView(buf);
   if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('not a glb file');
   const jsonLen = dv.getUint32(12, true), json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jsonLen))), bin = 20 + jsonLen + 8;
@@ -2777,6 +2952,10 @@ function readGlb(buf){
     const T = { 5126: Float32Array, 5125: Uint32Array, 5123: Uint16Array, 5121: Uint8Array }[a.componentType], st = bin + (bv.byteOffset || 0) + (a.byteOffset || 0);
     return new T(buf.slice(st, st + a.count * n * T.BYTES_PER_ELEMENT));
   };
+  return { json, acc };
+}
+function readGlb(buf){
+  const { json, acc } = glbParts(buf);
   const prim = json.meshes[0].primitives[0], A = prim.attributes, skin = json.skins[0];
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(acc(A.POSITION), 3));

@@ -85,8 +85,8 @@ shard-heist/
 │   ├── js/rules.js          the rules: scenes, items, clues, lock, clock, saved games (pure functions)
 │   ├── js/room.js           the 3D washroom, camera, markers, cards, sound
 │   ├── js/boot.js           error screen (load failures, no WebGL, unexpected errors)
-│   ├── textures/            CC0 scans from Poly Haven: concrete, cinder blocks, scratched steel, the vault HDRI, the tunnel's brick, stone and wood, the uniforms' fabrics
-│   ├── models/              the two hand models (MIT, WebXR Input Profiles) with their licence
+│   ├── textures/            CC0 scans from Poly Haven: concrete, cinder blocks, scratched steel, the vault HDRI, the tunnel's brick, stone and wood, the uniforms' fabrics, the fire extinguisher's painted steel
+│   ├── models/              the two hand models (MIT, WebXR Input Profiles) and the fire extinguisher (CC0, Poly Haven), with their licences
 │   ├── sounds/              CC0 recordings: the hot tap, the air vent, footsteps (steps/) and the climb down the ladder (ladder.mp3), with their credits
 │   └── fonts/               the two fonts with their licences
 │
@@ -211,6 +211,8 @@ All radio music is composed and synthesised by the game at run time, so there ar
 Escape-room scans from [Poly Haven](https://polyhaven.com) (CC0, fetched through its public API and kept in `room-1-escape/textures/`): the textures *Hangar Concrete Floor*, *Concrete Wall 004* and *Blue Metal Plate*, and the HDRI *Bank Vault*; for the tunnel under the hatch *Castle Brick 07* (Rob Tuytel), *Stone Brick Wall 001* (Dimitrios Savva, Rico Cilliers), *Worn Brick Floor* (Amal Kumar) and, for the ladder, *Rough Wood* (Rob Tuytel); for Officer Hale's uniform *Poly Wool Herringbone* and *Stretch Poplin* (colormass, Rico Cilliers) and, dyed black for his boots, belt and cap visor, *Brown Leather* (Rob Tuytel); the prisoner's uniform is woven of *Rough Linen* (colormass, Rico Cilliers). The cobwebs and the dust are painted and animated in code. CC0 asks for no credit; we give it anyway.
 
 Escape-room recordings (CC0, kept in `room-1-escape/sounds/` with their sources in `CREDITS.md`): the hot tap is *tap-water-1* from Owlish Media's *Sound Effects Pack* on OpenGameArt, and the air vent is *Fan* by lllBabaBooeylll on Freesound (536942). The footsteps (`room-1-escape/sounds/steps/`) are Owlish Media's hard shoe steps on concrete, rubberduck's wet steps for the puddles and Kenney's *Impact Sounds* wood steps for the ladder, all CC0. The rest of the climb down the ladder (`ladder.mp3`: creaking wood, hands on the rungs, clothes, a boot on stone) joins seven short recordings by rubberduck and Owlish Media from the CC0 collection *Free-SFX* on GitHub. They are bundled with the game. When it can, the air vent instead plays a CC0 ventilation recording from Freesound that the game finds through the [Openverse](https://openverse.org) API (no key); the pause card names it and its creator.
+
+The fire extinguisher by the door is Poly Haven's model *Korean Fire Extinguisher 01* (Um Joorin, CC0), fetched through its public API: the body and gauge glass are in `room-1-escape/models/fire-extinguisher.glb` (the paper tag left off), its painted-steel scans in `room-1-escape/textures/fire-extinguisher-*.jpg`, with the Korean word on its stand repainted in English; see `LICENSE-fire-extinguisher.txt`.
 
 The escape room's hands are the *generic-hand* models of the [WebXR Input Profiles](https://github.com/immersive-web/webxr-input-profiles) (© 2019 Amazon, MIT licence; copied unchanged into `room-1-escape/models/` with the licence in `LICENSE-hands.txt`). They are files, not an npm package: nothing is installed.
 

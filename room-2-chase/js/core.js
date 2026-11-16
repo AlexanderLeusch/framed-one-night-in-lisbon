@@ -358,6 +358,25 @@
   }
   const stepYaw = (yaw, turn, dt, v) => yaw + (turn - yaw) * Math.min(1, clamp(dt, 0, MAX_DT) * (YAW_RATE[v.key] || YAW_RATE.car));
 
+  // ---------- Shoving traffic ----------
+  // ### A hit vehicle is pushed away. Momentum is shared by weight (MASS for the traffic, PLAYER_MASS for the hitter): the hit
+  // ### vehicle gets the share mHitter / (mHitter + mTarget) of the closing speed, times SHOVE.boost for a little bounce, so a
+  // ### motorcycle flies off a car, two cars both give way and a bus hardly moves. A tram on its rails (infinite weight) does not
+  // ### move at all. The hitter keeps more of its own speed the lighter the vehicle it hit (keepSpeed). A hit off the middle turns
+  // ### the vehicle (shoveSpin), less for a heavy one. game.js lets the push slide out over the tyres' friction, up to SHOVE.max.
+  const MASS = Object.freeze({ sedan: 1, suv: 1.3, moto: 0.25, bus: 4, coach: 4, truck: 3.5, courier: 3.5, tram: Infinity });
+  const PLAYER_MASS = Object.freeze({ car: 1, bike: 0.3, truck: 3.5 });
+  const SHOVE = Object.freeze({ boost: 1.25, spin: 0.12, max: 14, grip: 2.2, turnGrip: 2.6, back: 0.9, turnBack: 1.3, rest: 0.6 });
+  // the speed (m/s) the hit vehicle gets and the share of the momentum that went into it; nothing for bad values or a tram
+  function shoveImpulse(impact, mHitter, mTarget){
+    if (!(impact > 0) || !(mHitter > 0) || !(mTarget > 0) || !Number.isFinite(impact) || !Number.isFinite(mHitter) || !Number.isFinite(mTarget)) return { share: 0, dv: 0 };
+    const share = mHitter / (mHitter + mTarget);
+    return { share, dv: impact * share * SHOVE.boost };
+  }
+  const keepSpeed = share => 0.25 + 0.7 * clamp(Number.isFinite(share) ? share : 0, 0, 1);
+  // the turn rate (rad/s, positive turns towards +x like a heading) from a push (dx, dz) of dv at (rx, rz) from the vehicle's middle
+  const shoveSpin = (rx, rz, dx, dz, dv, mTarget) => -(rx * dz - rz * dx) * dv * SHOVE.spin / Math.sqrt(Math.max(1, mTarget));
+
   // ---------- Damage ----------
   // ### Impacts under 3 m/s are free; above that damage grows linearly and is scaled by the vehicle (the truck takes 55 %).
   // ### A crash costs damage above CRASH_FREE m/s of closing speed (about 14 km/h), CRASH_FACTOR % per m/s beyond it, times the
@@ -923,7 +942,7 @@
     MODES, VEH, REV_SPEED, REPAIR_AMOUNT, MAX_DT, STORY_ACTS, KEY_MAP, BAIXA, streetAt, TRAM_LOOP, tramNext, RAIL, trackOffset, railCrossings, railShake, routeTo, routeMarks,
     EVIDENCE, WITNESS, WITNESS_RULE, witnessGetsIn, witnessGivesUp, witnessSpotOk, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
     parsePick, parseBest, applyPick, actionAllowed,
-    vehStats, zeroTo80, topSpeed, stepSpeed, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
+    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
     crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
     driveTime, runStars, isNewBest,

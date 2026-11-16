@@ -390,6 +390,19 @@ test('all three vehicles have reversing lights, and the hills are visible at nig
   assert.match(game, /facade\(style, x - w \/ 2, x \+ w \/ 2, low - 3, base \+ h,/, 'houses reach below their lowest corner');
 });
 
+test('escape room: the fire extinguisher is the Poly Haven model, shipped with its licence and loaded by room.js', () => {
+  const dir = path.join(ROOT, 'room-1-escape', 'models');
+  const buf = fs.readFileSync(path.join(dir, 'fire-extinguisher.glb'));
+  assert.equal(buf.readUInt32LE(0), 0x46546C67, 'fire-extinguisher.glb is a binary glTF file');
+  const json = JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString());
+  assert.equal(json.meshes[0].primitives.length, 2, 'the painted body and the gauge glass, as room.js expects');
+  for (const k of ['POSITION', 'NORMAL', 'TEXCOORD_0']) assert.ok(json.meshes[0].primitives.every(p => p.attributes[k] !== undefined), k);
+  assert.match(fs.readFileSync(path.join(dir, 'LICENSE-fire-extinguisher.txt'), 'utf8'), /CC0/);
+  const room = fs.readFileSync(path.join(ROOT, 'room-1-escape', 'js', 'room.js'), 'utf8');
+  assert.match(room, /fetch\('models\/fire-extinguisher\.glb'\)/);
+  for (const f of ['color', 'normal', 'arm']) assert.ok(room.includes(`'fire-extinguisher-${f}.jpg'`), f);
+});
+
 test('escape room: the real hand models are shipped with their licence and are what room.js loads', () => {
   const dir = path.join(ROOT, 'room-1-escape', 'models');
   for (const side of ['right', 'left']){

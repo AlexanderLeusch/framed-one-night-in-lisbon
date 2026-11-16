@@ -1,0 +1,8 @@
+fire-extinguisher.glb and ../textures/fire-extinguisher-color.jpg, -normal.jpg and -arm.jpg are the model
+"Korean Fire Extinguisher 01" by Um Joorin from Poly Haven (https://polyhaven.com/a/korean_fire_extinguisher_01),
+fetched through the Poly Haven API (api.polyhaven.com). Only the body and the gauge glass are kept (the paper tag is
+left off), packed into one binary glTF file; the Korean word on the stand's label (소화기, "fire extinguisher") was
+painted over and replaced by FIRE EXTINGUISHER in the colour and normal pictures.
+
+License: CC0 1.0 Universal (public domain dedication), https://creativecommons.org/publicdomain/zero/1.0/
+No credit is required; we give it anyway.
