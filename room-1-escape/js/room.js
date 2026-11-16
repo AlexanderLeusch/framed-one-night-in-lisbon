@@ -602,13 +602,16 @@ const WATER = (() => {
   // ### height h shows the floor's mirror picture shifted up by 2 (h - floor) (camera and mirrored room move together),
   // ### so each point looks the picture up that far lower down. The water itself is murky grey-brown with grey scum and
   // ### bubbles on it; seen from above you look into it, and the flatter you look the more it mirrors the room.
-  const bucketMat = new THREE.ShaderMaterial({
-    uniforms: { tRefl: mat.uniforms.tRefl, tNoise: mat.uniforms.tNoise, texMat: mat.uniforms.texMat, time: mat.uniforms.time, lift: { value: 0 }, tScum: { value: null } },
+  // ### The water in the toilet bowl is the same, only yellower and browner (murk is the colour of the water itself) and
+  // ### duller (gloss scales the mirroring: deep in the steel bowl little of the room reaches the water).
+  const murks = [];
+  const murkMat = (lift, scum, murk, gloss) => { const m = new THREE.ShaderMaterial({
+    uniforms: { tRefl: mat.uniforms.tRefl, tNoise: mat.uniforms.tNoise, texMat: mat.uniforms.texMat, time: mat.uniforms.time, lift: { value: lift }, tScum: { value: scum }, murk: { value: new THREE.Color(murk) }, gloss: { value: gloss } },
     vertexShader: `
       uniform mat4 texMat; uniform float lift; varying vec4 vProj; varying vec3 vWorld; varying vec2 vUv;
       void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vUv = uv; vProj = texMat * (w - vec4(0.0, lift, 0.0, 0.0)); gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: `
-      uniform sampler2D tRefl, tNoise, tScum; uniform float time; varying vec4 vProj; varying vec3 vWorld; varying vec2 vUv;
+      uniform sampler2D tRefl, tNoise, tScum; uniform float time, gloss; uniform vec3 murk; varying vec4 vProj; varying vec3 vWorld; varying vec2 vUv;
       void main(){
         // fine slow ripples: the water in a bucket hardly moves
         vec2 w = vec2(sin(vWorld.x * 47.0 + time * 0.7) + sin(vWorld.z * 59.0 - time * 0.9), sin(vWorld.z * 41.0 + time * 0.8) + sin(vWorld.x * 53.0 - time * 0.6)) * 0.0009;
@@ -616,26 +619,26 @@ const WATER = (() => {
         vec2 b = vec2(0.0012, 0.002) * p.w;
         vec3 refl = (sRGBToLinear(texture2DProj(tRefl, p + vec4(b, 0.0, 0.0))).rgb + sRGBToLinear(texture2DProj(tRefl, p - vec4(b, 0.0, 0.0))).rgb
           + sRGBToLinear(texture2DProj(tRefl, p + vec4(b.y, -b.x, 0.0, 0.0))).rgb + sRGBToLinear(texture2DProj(tRefl, p - vec4(b.y, -b.x, 0.0, 0.0))).rgb) * 0.25;
-        refl *= 1.0 + smoothstep(0.6, 1.0, max(refl.r, max(refl.g, refl.b))) * 2.5;
-        float F = 0.25 + 0.75 * pow(1.0 - clamp(normalize(cameraPosition - vWorld).y, 0.0, 1.0), 4.0);
+        refl *= 1.0 + smoothstep(0.6, 1.0, max(refl.r, max(refl.g, refl.b))) * 2.5 * gloss;
+        float F = (0.25 + 0.75 * pow(1.0 - clamp(normalize(cameraPosition - vWorld).y, 0.0, 1.0), 4.0)) * gloss;
         // the murk: grey-brown, cloudier in patches, darker in the shadow of the bucket's wall
         float n = texture2D(tNoise, vWorld.xz * 5.0 + vec2(time * 0.003, 0.0)).r;
         float r = length((vUv - 0.5) * 2.0);
-        vec3 murk = vec3(0.075, 0.068, 0.05) * (0.75 + 0.6 * n) * (1.0 - 0.45 * smoothstep(0.7, 1.0, r));
+        vec3 water = murk * (0.75 + 0.6 * n) * (1.0 - 0.45 * smoothstep(0.7, 1.0, r));
         // grey scum and bubbles drift slowly round
         float c = cos(time * 0.02), s = sin(time * 0.02); vec2 su = mat2(c, -s, s, c) * (vUv - 0.5) + 0.5;
         vec4 scum = sRGBToLinear(texture2D(tScum, su));
         float sc = clamp((scum.r - 0.03) * 4.0, 0.0, 1.0);
-        vec3 col = mix(murk, refl, F * (1.0 - sc * 0.7));
+        vec3 col = mix(water, refl, F * (1.0 - sc * 0.7));
         col = mix(col, scum.rgb * 0.6, sc * 0.6);
         // a thin wet ring where the water meets the plastic catches the light
         col += refl * smoothstep(0.93, 1.0, r) * 0.6;
         gl_FragColor = linearToOutputTexel(vec4(col, 1.0));
-        gl_FragColor.a = mix(0.86, 1.0, max(F, sc));
+        gl_FragColor.a = mix(1.0 - 0.14 * gloss, 1.0, max(F, sc));   // the duller, the less of the bowl shows through
         gl_FragColor.rgb *= gl_FragColor.a;
       }`,
     transparent: true, depthWrite: false, premultipliedAlpha: true
-  });
+  }); murks.push(m); return m; };
   const boxes = [], mirror = new THREE.PerspectiveCamera(), frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
   const camPos = new THREE.Vector3(), look = new THREE.Vector3(), rot = new THREE.Matrix4(), plane = new THREE.Plane(), clip = new THREE.Vector4(), q = new THREE.Vector4(), size = new THREE.Vector2();
   const N = new THREE.Vector3(0, 1, 0), P0 = new THREE.Vector3(0, .004, 0);
@@ -651,9 +654,9 @@ const WATER = (() => {
     // ### Whether a foot at x, z lands in the water of a puddle (the middle four fifths of it; buckets do not count).
     wetAt(x, z){ return boxes.some(b => b.max.y < .05 && Math.abs(x - (b.min.x + b.max.x) / 2) < .4 * (b.max.x - b.min.x) && Math.abs(z - (b.min.z + b.max.z) / 2) < .4 * (b.max.z - b.min.z)); },
     // ### The water in a bucket: a disc of radius r at height y, with a picture of the scum and bubbles on it.
-    bucket(r, x, y, z, scum){
-      bucketMat.uniforms.lift.value = 2 * (y - P0.y); bucketMat.uniforms.tScum.value = scum;
-      const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48), bucketMat); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = 1; room.add(m);
+    // ### murk is the water's own colour (linear), grey-brown mop water if left out; gloss how much it mirrors (0 to 1).
+    bucket(r, x, y, z, scum, murk = new THREE.Color(.075, .068, .05), gloss = 1){
+      const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48), murkMat(2 * (y - P0.y), scum, murk, gloss)); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = 1; room.add(m);
       boxes.push(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, y, z), new THREE.Vector3(2 * r, .02, 2 * r)));
       return m;
     },
@@ -687,9 +690,9 @@ const WATER = (() => {
       q.set((Math.sign(clip.x) + e[8]) / e[0], (Math.sign(clip.y) + e[9]) / e[5], -1, (1 + e[10]) / e[14]);
       clip.multiplyScalar(2 / clip.dot(q));
       e[2] = clip.x; e[6] = clip.y; e[10] = clip.z + 1; e[14] = clip.w;
-      mat.visible = bucketMat.visible = false;
+      mat.visible = false; for (const m of murks) m.visible = false;
       renderer.setRenderTarget(rt); renderer.render(scene, mirror); renderer.setRenderTarget(null);
-      mat.visible = bucketMat.visible = true;
+      mat.visible = true; for (const m of murks) m.visible = true;
     }
   };
 })();
@@ -1747,7 +1750,19 @@ const TOILET = { x: 3.25, z: -2.82, top: .958 }, BOWL_Z = -2.418, BOWL_SZ = 1.22
   lathe([[.175, 0], [.186, .012], [.186, .034], [.165, .06], [.158, .13], [.172, .22], [.2, .31], [.218, .37], [.228, .404], [.226, .424], [.212, .432], [.197, .426], [.19, .41],
     [.184, .38], [.16, .32], [.12, .27], [.072, .236], [.0, .226]], 44, 1, BOWL_SZ, T.x, BOWL_Z);
   box(.26, .24, .22, M.steel, T.x, .12, T.z + .28);   // the apron that joins bowl and cabinet
-  const water = new THREE.Mesh(new THREE.CircleGeometry(.137, 40), M.water); water.rotation.x = -Math.PI / 2; water.scale.y = BOWL_SZ; water.position.set(T.x, .29, BOWL_Z); water.receiveShadow = true; room.add(water);
+  // ### The water in the bowl mirrors the room like the puddles and the mop water do (WATER.bucket): murky yellow-brown,
+  // ### with a film of yellowish foam and bubbles on it (this picture, on black where there is none) and a brown tide
+  // ### line on the steel just above it.
+  const frnd = mulberry32(6116);   // its own dice, so the rest of the room keeps its looks
+  const foamTex = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 14; i++){ const x = frnd() * w, y = frnd() * h, r = 5 + frnd() * 18, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(150,128,70,.4)'); gr.addColorStop(1, 'rgba(150,128,70,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+    for (let i = 0; i < 40; i++){ const x = frnd() * w, y = frnd() * h, r = .8 + frnd() * 2.5; g.strokeStyle = 'rgba(210,200,160,.5)'; g.lineWidth = .8; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); }
+    for (let i = 0; i < 25; i++){ g.fillStyle = `rgba(${90 + frnd() * 40 | 0},${70 + frnd() * 30 | 0},40,.7)`; g.fillRect(frnd() * w, frnd() * h, 1 + frnd() * 3, 1 + frnd() * 2); }   // flecks floating in it
+  });
+  const water = WATER.bucket(.137, T.x, .29, BOWL_Z, foamTex, new THREE.Color(.07, .048, .012), .08); water.scale.y = BOWL_SZ;
+  const tide = lathe([[.1365, .2905], [.142, .296], [.149, .305]], 44, 1, BOWL_SZ, T.x, BOWL_Z);
+  tide.castShadow = false; tide.material = new THREE.MeshStandardMaterial({ color: 0x4a3a20, roughness: .8, transparent: true, opacity: .4, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, side: THREE.DoubleSide });
   cyl(.045, .045, .002, M.dark, T.x, .238, BOWL_Z - .03, 16);
   for (const dx of [-.215, .215]) cyl(.014, .014, .012, M.chrome, T.x + dx, .006, BOWL_Z + .03, 6);   // floor bolts
   // the cold-water supply: a stop valve on the wall and a chrome pipe into the side of the cabinet
