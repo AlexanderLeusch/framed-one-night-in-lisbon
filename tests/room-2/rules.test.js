@@ -859,3 +859,25 @@ test('scraping: rejected for bad values, and the sparks follow the scrape and th
   assert.equal(Core.sparkCount(2, 1 / 60), 0, 'rejected: a level above 1');
   assert.ok(Core.sparkCount(1, 10) <= Core.SCRAPE.sparks, 'a long frame is capped');
 });
+
+test('looking back: only while the key is held during a run', () => {
+  assert.equal(Core.LOOK.key, 'KeyC');
+  assert.equal(Core.lookingBack(true, 'play'), true);
+  assert.equal(Core.lookingBack(false, 'play'), false, 'rejected: key not held');
+  for (const st of ['menu', 'pause', 'over', 'done', 'finale']) assert.equal(Core.lookingBack(true, st), false, 'rejected in ' + st);
+  assert.equal(Core.lookingBack('yes', 'play'), false, 'rejected: not a real key state');
+});
+
+test('looking back: the camera sits ahead of the vehicle, above it, and looks back down the road', () => {
+  const cam = [7, 3], h = 0.7, fx = Math.sin(h), fz = Math.cos(h), v = Core.lookBackView(10, 2, -5, h, cam);
+  assert.ok((v.px - 10) * fx + (v.pz + 5) * fz > 0, 'ahead of the vehicle');
+  assert.ok((v.tx - 10) * fx + (v.tz + 5) * fz < -20, 'looking at the road behind');
+  assert.ok(v.py > 2 + 1 && v.py > v.ty, 'above the vehicle, looking slightly down');
+  assert.ok(Math.abs((v.px - 10) * fz - (v.pz + 5) * fx) < 1e-9, 'straight ahead, not to one side');
+  const truck = Core.lookBackView(10, 2, -5, h, [9, 4]);
+  assert.ok(Math.hypot(truck.px - 10, truck.pz + 5) > Math.hypot(v.px - 10, v.pz + 5), 'further out for a vehicle with a longer chase camera');
+  assert.equal(Core.lookBackView(NaN, 0, 0, 0, cam), null, 'rejected: bad position');
+  assert.equal(Core.lookBackView(0, 0, 0, Infinity, cam), null, 'rejected: bad heading');
+  assert.equal(Core.lookBackView(0, 0, 0, 0, [0, 3]), null, 'rejected: no camera distance');
+  assert.equal(Core.lookBackView(0, 0, 0, 0, null), null, 'rejected: no camera');
+});

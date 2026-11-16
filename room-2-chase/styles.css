@@ -206,6 +206,14 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-display);overflow
 .pad.brake{--c:var(--stop);height:80px;border-color:rgba(255,93,108,.5)}
 .pad.gas{--c:var(--go);width:64px;height:104px;border-color:rgba(78,240,160,.5)}
 .pad.steer.down{background:rgba(255,255,255,.2)}
+/* look back: a small round button beside the brake, held to look behind */
+.pad.look{--c:var(--spark);width:52px;height:52px;border-radius:50%;align-self:center;border-color:rgba(85,236,255,.45)}
+.pad.look svg{width:22px;height:22px}
+.pad.look.down{background:rgba(85,236,255,.22)}
+/* the label at the top middle while the camera looks back */
+.look-tag{position:fixed;left:50%;top:calc(18px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 14px 6px 10px;border-radius:12px;background:var(--glass);border:1px solid rgba(85,236,255,.45);color:var(--ink);font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);pointer-events:none;z-index:5}
+.look-tag[hidden]{display:none}
+.look-tag svg{width:16px;height:16px;stroke:var(--spark)}
 
 #overlay{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(8,8,22,.25),rgba(8,8,22,.66));
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(16px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-bottom,0px));overflow-y:auto}
@@ -387,6 +395,7 @@ kbd{font-family:var(--f-mono);font-size:12px;color:var(--ink);background:rgba(25
   .pad{width:62px;height:62px}
   .pad.brake{width:58px;height:66px}
   .pad.gas{width:56px;height:84px}
+  .pad.look{width:44px;height:44px}
   #touch .grp{gap:8px}
 }
 @media (pointer:fine){.touch-only{display:none}}

@@ -96,12 +96,16 @@
 <div id="edgeWarn" aria-hidden="true"></div>
 <div class="ew-banner" id="ewBanner" role="status"><svg id="ewArrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8 9.5h-4.6v9.5H8.6V12H4z"/></svg><span><b>Map boundary</b><small>Turn back</small></span></div>
 
+<!-- ### LOOK BACK: shown while the camera looks back (C, or the look-back button on a touch screen) -->
+<div class="look-tag" id="lookTag" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>Rear view</span></div>
+
 <div id="touch">
   <div class="grp">
     <button class="pad steer" data-key="left" aria-label="Steer left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
     <button class="pad steer" data-key="right" aria-label="Steer right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
   </div>
   <div class="grp">
+    <button class="pad look" data-key="look" aria-label="Look back while held"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><circle cx="12" cy="12" r="2.2"/></svg></button>
     <button class="pad brake" id="tBrake" data-key="down" aria-label="Brake and reverse"><span>Brake</span></button>
     <button class="pad gas" id="tGas" data-key="up" aria-label="Gas"><span>Gas</span></button>
   </div>
