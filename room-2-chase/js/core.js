@@ -456,6 +456,19 @@
   const addDamage = (damage, add) => clamp(damage + Math.max(0, add), 0, 100);
   const repairDamage = damage => Math.max(0, damage - REPAIR_AMOUNT);
   const isWrecked = damage => damage >= 100;
+  // ### The green guide arrow to a repair kit: from KIT_GUIDE_AT % damage on (when the engine loses top speed) it points at the
+  // ### nearest kit still lying there, on every map. Below that, or with no kit left, there is none.
+  const KIT_GUIDE_AT = 50;
+  function kitToGuide(kits, x, z, damage){
+    if (!(damage >= KIT_GUIDE_AT) || !Array.isArray(kits) || !Number.isFinite(x) || !Number.isFinite(z)) return null;
+    let best = null, bestD = Infinity;
+    for (const k of kits){
+      if (!k || k.taken || !Number.isFinite(k.x) || !Number.isFinite(k.z)) continue;
+      const d = Math.hypot(k.x - x, k.z - z);
+      if (d < bestD){ bestD = d; best = k; }
+    }
+    return best;
+  }
   // ### What damage looks like. Stage 0 is clean, 1 dented, 2 battered (loose parts, a smashed light), 3 critical (hood up and
   // ### worse). Smoke starts at 25 %, thickens and turns from grey to black, and at 88 % the engine burns.
   const damageStage = damage => damage >= 75 ? 3 : damage >= 50 ? 2 : damage >= 25 ? 1 : 0;
@@ -1003,7 +1016,7 @@
     EVIDENCE, WITNESS, WITNESS_RULE, witnessGetsIn, witnessGivesUp, witnessSpotOk, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
     parsePick, parseBest, applyPick, actionAllowed,
     vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, SCRAPE, scrapeLevel, sparkCount, LOOK, lookingBack, lookBackView, NITRO, newNitro, nitroPickup, nitroFire, nitroOn, nitroStep, nitroTop, nitroPush, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
-    crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
+    crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, KIT_GUIDE_AT, kitToGuide, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
     driveTime, runStars, isNewBest,
     NAME_MAX, DRIVERS_MAX, BOARD_KEEP, BOARD_SHOW, cleanName, sameName, newBoard, parseBoard, addDriver, recordRun, boardRows, boardList, monthKey, monthName,
