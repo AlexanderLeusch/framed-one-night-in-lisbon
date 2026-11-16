@@ -929,3 +929,17 @@ test('nitro: raises the top speed and pushes forward while it burns, the same at
   for (let t = 0; t < 2; t += 1 / 60){ const top = Core.nitroTop(30, m); sp = Core.nitroPush(Core.stepSpeed(sp, keys, 1 / 60, top, Core.VEH.car), m, 1 / 60, top); Core.nitroStep(m, 1 / 60); }
   assert.ok(sp > 30 && sp <= 30 * Core.NITRO.top, 'faster than the top speed, within the raised one');
 });
+
+test('kit guide: points at the nearest repair kit left, only from KIT_GUIDE_AT % damage on', () => {
+  const kits = [{ x: 100, z: 0, taken: false }, { x: 0, z: 30, taken: false }, { x: 5, z: 5, taken: true }];
+  assert.equal(Core.kitToGuide(kits, 0, 0, Core.KIT_GUIDE_AT - 1), null, 'not below the threshold');
+  assert.equal(Core.kitToGuide(kits, 0, 0, 0), null);
+  assert.equal(Core.kitToGuide(kits, 0, 0, Core.KIT_GUIDE_AT), kits[1], 'the nearest kit not yet taken');
+  assert.equal(Core.kitToGuide(kits, 90, 0, 80), kits[0]);
+  assert.equal(Core.kitToGuide(kits.map(k => ({ ...k, taken: true })), 0, 0, 80), null, 'none when every kit is taken');
+  assert.equal(Core.kitToGuide([], 0, 0, 80), null);
+  assert.equal(Core.kitToGuide(null, 0, 0, 80), null, 'rejected: no kit list');
+  assert.equal(Core.kitToGuide(kits, NaN, 0, 80), null, 'rejected: bad position');
+  assert.equal(Core.kitToGuide(kits, 0, 0, NaN), null, 'rejected: bad damage');
+  assert.equal(Core.kitToGuide([{ x: NaN, z: 0 }, kits[0]], 0, 0, 80), kits[0], 'a broken kit entry is skipped');
+});

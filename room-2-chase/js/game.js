@@ -4942,6 +4942,7 @@ const ui = {
   pBrake: $('pBrake'), pGas: $('pGas'), pBrakeV: $('pBrakeV'), pGasV: $('pGasV'), tBrake: $('tBrake'), tGas: $('tGas'),
   dash: $('dash'), dmg: $('dmg'), dmgPct: $('dmgPct'), dmgState: $('dmgState'), dfill: $('dfill'),
   guide: $('guide'), guideArrow: $('guideArrow'), guideName: $('guideName'), guideDist: $('guideDist'),
+  kitGuide: $('kitGuide'), kitArrow: $('kitArrow'), kitDist: $('kitDist'),
   pursuit: $('pursuit'), edge: $('edgeWarn'), edgeBanner: $('ewBanner'), edgeArrow: $('ewArrow'), purState: $('purState'), cops: [...$('cops').children], stars: $('stars'), bustPct: $('bustPct'), bfill: $('bfill')
 };
 const DIAMOND = '<svg class="chip" viewBox="0 0 16 16"><path d="M8 1.5 14.5 8 8 14.5 1.5 8Z"/></svg>';
@@ -5003,7 +5004,7 @@ function renderChips(){
     `<span class="count">${collected}/${items.length}</span>`;
 }
 const pedal = { thr: 0, brk: 0 };
-const last = { guide: '', guideDeg: 999, street: '', time: '', speed: -1, rpm: -1, sig: '', gear: '', hb: null, thr: -1, brk: -1, dmg: -1, km: '', pur: '', bust: -1 };
+const last = { guide: '', guideDeg: 999, kit: '', kitDeg: 999, kitLow: null, street: '', time: '', speed: -1, rpm: -1, sig: '', gear: '', hb: null, thr: -1, brk: -1, dmg: -1, km: '', pur: '', bust: -1 };
 // ### Updates the HUD. A value is only written when it has changed, because touching the page every frame is slow.
 function updateHud(dt){
   // in story mode this line names the act instead
@@ -5714,6 +5715,19 @@ function updateGuide(){
   }
   if (Math.abs(deg - last.guideDeg) > 0.5){ last.guideDeg = deg; ui.guideArrow.style.transform = `rotate(${deg.toFixed(1)}deg)`; }
 }
+// ### The green arrow to the nearest repair kit (Core.kitToGuide), from 50 % damage on and on every map. It sits above the
+// ### evidence arrow, or in its place when there is none.
+function updateKitGuide(){
+  const k = state === 'play' ? Core.kitToGuide(kits, car.x, car.z, damage) : null;
+  if (!k){ if (!ui.kitGuide.hidden) ui.kitGuide.hidden = true; last.kit = ''; return; }
+  if (ui.kitGuide.hidden) ui.kitGuide.hidden = false;
+  const low = ui.guide.hidden;
+  if (low !== last.kitLow){ last.kitLow = low; ui.kitGuide.classList.toggle('low', low); }
+  const d = Math.hypot(k.x - car.x, k.z - car.z), deg = Core.guideTurn(car.x, car.z, car.heading, k.x, k.z) * 180 / Math.PI;
+  const key = String(Math.round(d / 10));
+  if (key !== last.kit){ last.kit = key; ui.kitDist.textContent = d < 15 ? 'right here' : Math.round(d / 10) * 10 + ' m'; }
+  if (Math.abs(deg - last.kitDeg) > 0.5){ last.kitDeg = deg; ui.kitArrow.style.transform = `rotate(${deg.toFixed(1)}deg)`; }
+}
 // what is collected on this map
 const what = () => mode === 'city' ? 'pieces of evidence' : 'shards';
 // ### Pauses the run and shows the pause card.
@@ -6168,7 +6182,7 @@ function crash(impact, add = Core.crashDamage(impact, V)){
   burst(car.x + fx * 2, car.y + 0.8, car.z + fz * 2, SPARKS, Math.min(26, 6 + Math.round(impact)), 0.6);
   ui.dash.classList.remove('hit'); void ui.dash.offsetWidth; ui.dash.classList.add('hit');
   if (Core.isWrecked(damage)){ gameOver('wrecked'); return; }
-  if (damage >= 50 && !warnedDamage){ warnedDamage = true; toast('Engine damaged: top speed reduced. Find a repair kit.', 'red', 3200); }
+  if (damage >= 50 && !warnedDamage){ warnedDamage = true; toast(kits.some(k => !k.taken) ? 'Engine damaged: top speed reduced. Follow the green arrow to a repair kit.' : 'Engine damaged: top speed reduced.', 'red', 3200); }
 }
 
 // ### Ends a run at the gate and shows the score and stars.
@@ -7260,6 +7274,7 @@ function frame(now){
   updateHud(dt);
   if (state !== 'menu') drawRadar();
   updateGuide();
+  updateKitGuide();
   updateRoute();
   if (composer && GFX[gfx].post) composer.render(); else renderer.render(scene, camera);
 }

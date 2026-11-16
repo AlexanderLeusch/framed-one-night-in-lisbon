@@ -119,6 +119,7 @@ The city is a hand-built model of the real Baixa, not map data loaded by the gam
 | 88 % damage | the engine is on fire |
 | **100 % damage** | **vehicle wrecked: game over** |
 | Repair kit | removes 40 % damage, and the damage you see goes with it |
+| Kit arrow | from 50 % damage on, a green arrow on every map points to the nearest repair kit still lying there, with its distance (above the evidence arrow in Lisbon) |
 
 ## Police
 

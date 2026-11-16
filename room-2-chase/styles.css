@@ -209,6 +209,11 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-display);overflow
 .guide small{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;color:var(--muted)}
 .guide.gold{border-color:rgba(255,200,87,.55)}
 .guide.gold .g-arrow{fill:var(--gold);filter:drop-shadow(0 0 6px rgba(255,200,87,.7))}
+/* the green arrow to the nearest repair kit from 50 % damage on: above the evidence arrow, or in its place (.low) */
+.guide.kit{bottom:calc(80px + env(safe-area-inset-bottom,0px));border-color:rgba(78,240,160,.55)}
+.guide.kit.low{bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+.guide.kit .g-arrow{fill:#4ef0a0;filter:drop-shadow(0 0 6px rgba(78,240,160,.7))}
+.guide.kit b{font-size:16px}
 /* the map of the evidence before a Lisbon run */
 .ov-map{display:block;width:min(100%,58vh);aspect-ratio:1;margin:0 auto;border-radius:14px;border:1px solid var(--line);background:#0e1022}
 #touch.tilt .grp:first-child{visibility:hidden}
@@ -358,6 +363,9 @@ kbd{font-family:var(--f-mono);font-size:12px;color:var(--ink);background:rgba(25
   .guide{bottom:auto;top:calc(282px + env(safe-area-inset-top,0px));padding:6px 12px 6px 8px}
   .g-arrow{width:26px;height:26px}
   .guide b{font-size:16px}
+  .guide.kit,.guide.kit.low{bottom:auto;top:calc(334px + env(safe-area-inset-top,0px))}
+  .guide.kit.low{top:calc(282px + env(safe-area-inset-top,0px))}
+  .guide.kit b{font-size:14px}
   .mission-name{font-size:18px}
   .time{font-size:24px}
   .icon-btn{width:36px;height:36px}
