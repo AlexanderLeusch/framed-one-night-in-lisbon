@@ -103,6 +103,18 @@
     Object.freeze({ key: 'balaclava', name: 'Balaclava', found: 'The balaclava from the photos. There are hairs inside it, and they are not yours.' })
   ]);
 
+  // ### The witness, the last thing to bring along in Lisbon. With the six pieces in the car she waits on a pavement 70 to 200 m
+  // ### away (and inside the map); she gets in when the player stops next to her (closer than 7 m and slower than 3 m/s, about
+  // ### 11 km/h, either way), and goes back to wait if the player drives off more than 12 m before she has reached the door.
+  const WITNESS = Object.freeze({ name: 'Marta Silva', job: 'a night-shift nurse', found: 'Marta Silva is in the car. She saw a man climb out of the museum window that night, and she will say so in court. That is the last piece of evidence. Drive to the golden gate at the south-west corner of the Baixa, the way out to the 25 de Abril bridge: follow the golden beam.' });
+  const WITNESS_RULE = Object.freeze({ reach: 7, slow: 3, leave: 12, near: 70, far: 200, edge: 8 });
+  const witnessGetsIn = (dist, speed) => Number.isFinite(dist) && Number.isFinite(speed) && dist < WITNESS_RULE.reach && Math.abs(speed) < WITNESS_RULE.slow;
+  const witnessGivesUp = dist => !(dist <= WITNESS_RULE.leave);
+  function witnessSpotOk(x, z, carX, carZ, limit){
+    const d = Math.hypot(x - carX, z - carZ), edge = limit - WITNESS_RULE.edge;
+    return d >= WITNESS_RULE.near && d <= WITNESS_RULE.far && Math.abs(x) <= edge && Math.abs(z) <= edge;
+  }
+
   // ---------- The city map: Lisbon's Baixa ----------
   // ### The Baixa was rebuilt as a street grid after the 1755 earthquake, so it fits the game's 7 x 7 grid of roads. The names
   // ### are real and in their real order (ns: west to east, ew: north to south), checked against OpenStreetMap; the Baixa has
@@ -329,6 +341,22 @@
     if (m === t) return [0, -1, t + r];
     return [0, 1, b + r];
   }
+
+  // ---------- Steering ----------
+  // ### Steering with the weight of a car, but quick: the wheel turns in within about 0.15 s (STEER_IN) and comes back a little
+  // ### faster (STEER_OUT). How tightly a vehicle can turn is limited by the grip of its tyres: the sideways pull (speed x turn
+  // ### rate) never passes GRIP x handling, so at walking pace it turns tightly and at speed it draws a wide arc instead of
+  // ### flicking round like a bicycle. The handbrake lets the rear step out (x 1.5). The turn rate itself (yaw) builds up and fades
+  // ### smoothly, more slowly for the heavy truck. A vehicle that does not move does not turn.
+  const GRIP = Object.freeze({ car: 24, bike: 28, truck: 24 }), YAW_RATE = Object.freeze({ car: 11, bike: 11, truck: 7 }), STEER_IN = 7.5, STEER_OUT = 10;
+  const stepSteer = (steer, input, dt) => steer + (input - steer) * Math.min(1, (input ? STEER_IN : STEER_OUT) * clamp(dt, 0, MAX_DT));
+  function turnRate(steer, speed, v, handbrake){
+    const sp = Math.abs(speed), hb = handbrake ? 1.5 : 1;
+    const ask = steer * Math.min(1, sp / 6) * (2.5 * v.handling / (1 + sp * 0.035)) * hb;
+    const most = (GRIP[v.key] || GRIP.car) * v.handling * hb / Math.max(sp, 1);
+    return clamp(ask, -most, most);
+  }
+  const stepYaw = (yaw, turn, dt, v) => yaw + (turn - yaw) * Math.min(1, clamp(dt, 0, MAX_DT) * (YAW_RATE[v.key] || YAW_RATE.car));
 
   // ---------- Shoving traffic ----------
   // ### A hit vehicle is pushed away. Momentum is shared by weight (MASS for the traffic, PLAYER_MASS for the hitter): the hit
@@ -912,9 +940,9 @@
 
   return Object.freeze({
     MODES, VEH, REV_SPEED, REPAIR_AMOUNT, MAX_DT, STORY_ACTS, KEY_MAP, BAIXA, streetAt, TRAM_LOOP, tramNext, RAIL, trackOffset, railCrossings, railShake, routeTo, routeMarks,
-    EVIDENCE, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
+    EVIDENCE, WITNESS, WITNESS_RULE, witnessGetsIn, witnessGivesUp, witnessSpotOk, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
     parsePick, parseBest, applyPick, actionAllowed,
-    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
+    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
     crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
     driveTime, runStars, isNewBest,
