@@ -41,10 +41,10 @@
       goal: 'Score 1,500 points with three balls.',
       steps: ['The ball shoots by itself, or press Space to shoot it.', 'The pop bumpers, the slingshots, the two lifebuoy targets and the R-M-S lanes at the top all score.', 'Keep the ball from falling between the flippers.'],
       keys: '← and → (A and D) for the flippers, Space for both.', touch: 'Press the left or right half of the table.' },
-    hacking: { title: 'Hack the <em>engine</em>', name: 'Hacking', how: 'Break into an old control machine in the Titanic’s engine room: four layers before the firewall in its furnace locks you out. Match the engine’s wave on the indicator card, then pick the key plate that matches the master peg for peg. Every wrong guess stokes the firewall.',
-      goal: 'Open all four layers of the engine-room machine before the firewall burns up.',
-      steps: ['Wave layers: change the frequency and the amplitude of your red ink line on the indicator card until it lies exactly on the dashed blue master line, then lock it.', 'Key plate layers: find the one of the four brass plates whose pegs match the master key plate peg for peg, and set it.', 'The firewall burns up by itself in 28 seconds, and every wrong lock or wrong plate adds 15 %. Full means you are locked out.'],
-      keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For key plates, ← → and Space, or click one.', touch: 'Tap the brass buttons under the wave, or tap a key plate.' }
+    hacking: { title: 'Hack the <em>engine</em>', name: 'Hacking', how: 'Break into an old control machine in the Titanic’s engine room in two parts before the firewall in its furnace locks you out. First match the engine’s wave on the indicator card, then pick the key plate that matches the master peg for peg. Every wrong guess stokes the firewall.',
+      goal: 'Finish both parts of the engine-room machine before the firewall burns up.',
+      steps: ['Part 1, the wave: change the frequency and the amplitude of your red ink line on the indicator card until it lies exactly on the dashed blue master line, then lock it.', 'Part 2, the key plate: find the one of the four brass plates whose pegs match the master key plate peg for peg, and set it.', 'The firewall burns up by itself in 16 seconds, and every wrong lock or wrong plate adds 15 %. Full means you are locked out.'],
+      keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For the key plate, ← → and Space, or click one.', touch: 'Tap the brass buttons under the wave, or tap a key plate.' }
   };
   const GAMES = Object.keys(INFO);
 
@@ -1585,12 +1585,12 @@
   }
 
   // ### 8. Hacking: break into an old control machine in the Titanic's engine room before the firewall in its furnace locks
-  // ### you out. Four layers, one after the other: match the engine's beat on the indicator card (its frequency and its
-  // ### amplitude), then pick the key plate whose brass pegs match the master plate, then a second, faster wave and a finer
-  // ### plate. The firewall burns up by itself and every wrong lock or wrong plate stokes it. hackNew(), hackAct() and hackStep() hold all the rules and are tested
-  // ### in Node; BUILD.hacking only draws them and turns keys, clicks and taps into actions.
-  const HACK = { W: 640, H: 360, LAYERS: ['wave', 'fragment', 'wave', 'fragment'], FREQS: 7, AMPS: 5, FILL: 1 / 28, WRONG: .15,
-    GRID: [5, 6], FLIPS: [2, 1], OPTIONS: 4 };
+  // ### you out. Two parts, each played once: match the engine's beat on the indicator card (its frequency and its
+  // ### amplitude), then pick the key plate whose brass pegs match the master plate. The firewall burns up by itself and
+  // ### every wrong lock or wrong plate stokes it. hackNew(), hackAct() and hackStep() hold all the rules and are tested in
+  // ### Node; BUILD.hacking only draws them and turns keys, clicks and taps into actions.
+  const HACK = { W: 640, H: 360, LAYERS: ['wave', 'fragment'], FREQS: 7, AMPS: 5, FILL: 1 / 16, WRONG: .15,
+    GRID: 6, FLIPS: 2, SPEED: 2.2, OPTIONS: 4 };
   // ### A key fragment: an n x n grid of bits, about half of them set, never fewer than a third.
   function hackPattern(n, rand){
     for (;;){
@@ -1610,20 +1610,19 @@
     for (let i = opts.length - 1; i > 0; i--){ const j = Math.floor(rand() * (i + 1)); [opts[i], opts[j]] = [opts[j], opts[i]]; }
     return { options: opts, answer: opts.findIndex(o => key(o) === key(target)) };
   }
-  // ### A new break-in. Each wave layer starts with your frequency and amplitude both off the target; each fragment layer
-  // ### starts with the first fragment selected.
+  // ### A new break-in. The wave starts with your frequency and amplitude both off the target; the key plate part starts
+  // ### with the first plate selected.
   function hackNew(rand){
-    let waves = 0, frags = 0;
     const layers = HACK.LAYERS.map(kind => {
       if (kind === 'wave'){
-        const k = waves++, tf = 2 + Math.floor(rand() * (HACK.FREQS - 1)), ta = 1 + Math.floor(rand() * HACK.AMPS);
+        const tf = 2 + Math.floor(rand() * (HACK.FREQS - 1)), ta = 1 + Math.floor(rand() * HACK.AMPS);
         let f, a;
         do f = 1 + Math.floor(rand() * HACK.FREQS); while (f === tf);
         do a = 1 + Math.floor(rand() * HACK.AMPS); while (a === ta);
-        return { kind, tf, ta, f, a, speed: 1.6 + k * 1.4 };
+        return { kind, tf, ta, f, a, speed: HACK.SPEED };
       }
-      const k = frags++, n = HACK.GRID[k], target = hackPattern(n, rand);
-      return { kind, n, target, sel: 0, ...hackOptions(target, HACK.FLIPS[k], rand) };
+      const n = HACK.GRID, target = hackPattern(n, rand);
+      return { kind, n, target, sel: 0, ...hackOptions(target, HACK.FLIPS, rand) };
     });
     return { layers, layer: 0, fire: 0, won: false, lost: false, events: [] };
   }
@@ -1658,7 +1657,7 @@
     }
     return true;
   }
-  // ### The firewall grows on its own: from empty to full in 28 seconds, a little sooner than the 30 s of the clock.
+  // ### The firewall grows on its own: from empty to full in 16 seconds, well within the 30 s of the clock.
   function hackStep(s, dt){
     if (s.won || s.lost) return;
     s.fire = Math.min(1, s.fire + HACK.FILL * dt);
@@ -1667,7 +1666,7 @@
 
   const HACK_FONT = '"Big Shoulders Display", "Arial Narrow", sans-serif';
   // ### The engine-room machine, painted once: a riveted steel panel gone dark with oil and soot, a brass trim, the brass
-  // ### nameplate, the frame of the furnace that holds the firewall, and the bezels of the four layer lamps.
+  // ### nameplate, the frame of the furnace that holds the firewall, and the bezels of the two lamps, one for each part.
   const BRASS = ['#f1d88f', '#c9a14f', '#8a6424'];
   function brassPlate(g, x, y, w, h){
     const b = g.createLinearGradient(0, y, 0, y + h); b.addColorStop(0, BRASS[0]); b.addColorStop(.5, BRASS[1]); b.addColorStop(1, BRASS[2]);
@@ -1697,8 +1696,8 @@
     brassPlate(g, 22, 18, 262, 22);
     g.fillStyle = '#3a2808'; g.font = `700 14px ${HACK_FONT}`; g.textBaseline = 'middle'; g.textAlign = 'center';
     g.fillText('R.M.S. TITANIC · ENGINE ROOM CONTROL', 153, 30); g.textAlign = 'left';
-    // the bezels of the four layer lamps
-    for (let i = 0; i < 4; i++){ const x = 36 + i * 30; g.fillStyle = BRASS[2]; g.beginPath(); g.arc(x, 56, 12, 0, 7); g.fill(); g.strokeStyle = BRASS[0]; g.lineWidth = 1.5; g.beginPath(); g.arc(x, 56, 11, Math.PI * .9, Math.PI * 1.7); g.stroke(); }
+    // the bezels of the two part lamps
+    for (let i = 0; i < HACK.LAYERS.length; i++){ const x = 36 + i * 30; g.fillStyle = BRASS[2]; g.beginPath(); g.arc(x, 56, 12, 0, 7); g.fill(); g.strokeStyle = BRASS[0]; g.lineWidth = 1.5; g.beginPath(); g.arc(x, 56, 11, Math.PI * .9, Math.PI * 1.7); g.stroke(); }
     // the furnace: an iron firebox with a brass label plate
     brassPlate(g, 476, 18, 142, 22);
     g.fillStyle = '#0d0b09'; g.fillRect(160, 46, 458, 22);
@@ -1719,12 +1718,12 @@
     const fragBox = (L, i) => { const cell = L.n === 5 ? 18 : 15, size = cell * L.n; return { x: 204 + i * (size + 18), y: 132, cell, size }; };
     const inBox = (x, y, b, w, h) => x >= b.x && x <= b.x + w && y >= b.y && y <= b.y + h;
     const layerName = L => L.kind === 'wave' ? 'match the engine’s indicator wave' : 'pick the matching key plate';
-    const status = () => api.status(`Layer ${s.layer + 1} of ${s.layers.length}: ${layerName(s.layers[s.layer])}`);
+    const status = () => api.status(`Part ${s.layer + 1} of ${s.layers.length}: ${layerName(s.layers[s.layer])}`);
     function play(){
       for (const e of s.events) api.sound(e);
       s.events.length = 0;
       if (s.layer !== lastLayer){ lastLayer = s.layer; flash = .6; status(); }
-      if (s.won) return api.win('All four layers are open. The engine is yours.');
+      if (s.won) return api.win('Both parts are done. The engine is yours.');
       if (s.lost) return api.lose('The firewall locked you out.');
     }
     function act(a){ const before = s.fire; if (hackAct(s, a) && s.fire > before) shake = .35; play(); }
@@ -1781,7 +1780,7 @@
         g.fillStyle = '#141210'; g.fillRect(-20, 0, W + 40, H);
         g.drawImage(panel, 0, 0, W, H);
         g.textBaseline = 'middle';
-        // the four layer lamps: dark glass, amber and blinking for the layer you are on, green once it is open
+        // the two part lamps: dark glass, amber and blinking for the part you are on, green once it is done
         for (let i = 0; i < s.layers.length; i++){
           const open = i < s.layer || s.won, cur = i === s.layer && !s.won, x = 36 + i * 30, lit = open || (cur && Math.floor(t * 3) % 2 === 0);
           const k = g.createRadialGradient(x - 3, 53, 1, x, 56, 9);
@@ -1855,7 +1854,7 @@
           g.fillStyle = `rgba(255,214,120,${s.won ? .12 : flash * .2})`; g.fillRect(0, 76, W, H - 76);
           brassPlate(g, W / 2 - 160, 168, 320, 60);
           g.fillStyle = '#2c1e06'; g.font = `800 32px ${FONT}`; g.textAlign = 'center';
-          g.fillText(s.won ? 'FULL AHEAD' : `LAYER ${s.layer} OPEN`, W / 2, 199); g.textAlign = 'left';
+          g.fillText(s.won ? 'FULL AHEAD' : `PART ${s.layer} DONE`, W / 2, 199); g.textAlign = 'left';
         }
         if (s.lost){
           g.fillStyle = 'rgba(200,40,10,.25)'; g.fillRect(0, 0, W, H);
