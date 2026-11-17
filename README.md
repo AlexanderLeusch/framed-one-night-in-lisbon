@@ -154,7 +154,7 @@ shard-heist/
 
 ## Testing
 
-`npm test` runs 198 tests in Node (46 of them for the escape room), and `npm run test:browser` runs 22 more in headless Chrome (8 of them in the escape room, 1 on the start page). CI runs all of them, plus the SRI check and the 36 pytest checks of `original-solo-project/`, on every push to `main` and on every pull request. They cover:
+`npm test` runs 199 tests in Node (46 of them for the escape room), and `npm run test:browser` runs 22 more in headless Chrome (8 of them in the escape room, 1 on the start page). CI runs all of them, plus the SRI check and the 36 pytest checks of `original-solo-project/`, on every push to `main` and on every pull request. They cover:
 
 - **Escape room:** both endings and the jammed-door grace minute; refused actions (walking where there is no exit, taking an item twice, the car key before the tile is off, the door without the mop, lock wheels that do not exist, anything before the briefing or after an ending) return the unchanged state; wrong codes cost 30 s but never take the clock below zero; warnings sound once; tampered saved games are rejected; in the browser: briefing, refused action, save and continue after a reload, a wrong code and then Ending A (down the ladder, the door refused from the foot of it, the walk to it and the door opened).
 - **Accepted actions:** each menu action in the states whose cards show it; valid map and vehicle picks; restoring a valid saved selection; finishing every story act; both story endings.
@@ -226,5 +226,7 @@ Escape-room recordings (CC0, kept in `room-1-escape/sounds/` with their sources 
 The fire extinguisher by the door is Poly Haven's model *Korean Fire Extinguisher 01* (Um Joorin, CC0), fetched through its public API: the body and gauge glass are in `room-1-escape/models/fire-extinguisher.glb` (the paper tag left off), its painted-steel scans in `room-1-escape/textures/fire-extinguisher-*.jpg`, with the Korean word on its stand repainted in English; see `LICENSE-fire-extinguisher.txt`.
 
 The escape room's hands are the *generic-hand* models of the [WebXR Input Profiles](https://github.com/immersive-web/webxr-input-profiles) (© 2019 Amazon, MIT licence; copied unchanged into `room-1-escape/models/` with the licence in `LICENSE-hands.txt`). They are files, not an npm package: nothing is installed.
+
+Officer Hale in the briefing scene is a real human body, made from the [MakeHuman](http://www.makehumancommunity.org) base mesh with its body targets, skeleton and eyes (CC0 since 2020): `room-1-escape/models/hale.glb` (1.2 MB), a man in his fifties with 66 bones, his uniform, belt, cap and boots fitted to the body. His skin is painted by us (`room-1-escape/textures/hale-skin.jpg` and its bump map: stubble, cropped grey hair, eyebrows, the lines of his face); the uniform uses the same wool, poplin and leather scans as before. He turns his head to you and reaches for the door as it swings shut. Until the file has loaded, or if it cannot be, the figure built in code stands in. See `LICENSE-hale.txt`.
 
 Built with three.js r128 (MIT licence). Fonts: Big Shoulders Display and JetBrains Mono (SIL Open Font License 1.1; the font files and their licences are in `room-1-escape/fonts/` and `room-2-chase/fonts/`). Code written with the help of Claude (Anthropic).
