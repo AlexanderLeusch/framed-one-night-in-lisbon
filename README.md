@@ -225,6 +225,8 @@ Escape-room recordings (CC0, kept in `room-1-escape/sounds/` with their sources 
 
 The fire extinguisher by the door is Poly Haven's model *Korean Fire Extinguisher 01* (Um Joorin, CC0), fetched through its public API: the body and gauge glass are in `room-1-escape/models/fire-extinguisher.glb` (the paper tag left off), its painted-steel scans in `room-1-escape/textures/fire-extinguisher-*.jpg`, with the Korean word on its stand repainted in English; see `LICENSE-fire-extinguisher.txt`.
 
+The two fluorescent lamps hang in Poly Haven's scanned batten *Mounted Fluorescent Lights* (Ulan Cabanilla, CC0, `room-1-escape/models/fluorescent-fitting.glb` and `textures/fluorescent-fitting-*.jpg`, see `LICENSE-fluorescent-fitting.txt`). The tube in it is built in `room.js`: clear, physically based glass (three.js `MeshPhysicalMaterial` with transmission) with the glowing gas inside and, at each end, the glass stem, the lead-in wires and the coiled filament, aluminium caps with brass pins, and a guard of the scanned steel wire round it.
+
 The escape room's hands are the *generic-hand* models of the [WebXR Input Profiles](https://github.com/immersive-web/webxr-input-profiles) (© 2019 Amazon, MIT licence; copied unchanged into `room-1-escape/models/` with the licence in `LICENSE-hands.txt`). They are files, not an npm package: nothing is installed.
 
 Built with three.js r128 (MIT licence). Fonts: Big Shoulders Display and JetBrains Mono (SIL Open Font License 1.1; the font files and their licences are in `room-1-escape/fonts/` and `room-2-chase/fonts/`). Code written with the help of Claude (Anthropic).

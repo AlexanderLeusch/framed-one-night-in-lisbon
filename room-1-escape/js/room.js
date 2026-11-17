@@ -587,7 +587,6 @@ const M = {
   dark: new THREE.MeshStandardMaterial({ color: 0x0c0d0e, roughness: 1 }),
   pipe: new THREE.MeshStandardMaterial({ color: 0x59605c, metalness: .6, roughness: .45 }),
   paper: new THREE.MeshStandardMaterial({ color: 0xe9dfc4, roughness: .9, side: THREE.DoubleSide }),
-  tube: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe9d2, emissiveIntensity: 2.4 }),
   corridor: new THREE.MeshBasicMaterial({ map: corridorTex }),
   guard: new THREE.MeshBasicMaterial({ map: guardTex, transparent: true, opacity: 0, depthWrite: false }),
   graffiti: new THREE.MeshStandardMaterial({ map: graffitiMaps.map, normalMap: graffitiMaps.normal, roughnessMap: graffitiMaps.sheen, metalnessMap: graffitiMaps.sheen, roughness: 1, metalness: 1, transparent: true, depthWrite: false }),
@@ -1138,10 +1137,107 @@ stallLight.castShadow = true; stallLight.shadow.mapSize.set(COARSE ? 512 : 1024,
 room.add(stallLight, stallLight.target);
 const windowLight = new THREE.SpotLight(0x9cc4ff, .9, 8, .5, .8, 1.5);
 windowLight.position.set(0, 1.7, 3.3); windowLight.target.position.set(0, .6, 0); room.add(windowLight, windowLight.target);
-const tube = box(1.3, .06, .14, M.tube, -.6, 2.93, .3); tube.castShadow = false;
-for (let i = 0; i < 5; i++){ const c = box(.012, .1, .2, M.dullSteel, -1.2 + i * .3, 2.93, .3); c.castShadow = false; }
-const stallTube = box(.6, .05, .1, M.tube.clone(), 2.75, 2.94, -1.8); stallTube.castShadow = false;
-stallTube.material.emissive.set(0xffd6a6); stallTube.material.emissiveIntensity = 1.8;
+// ### The two fluorescent lamps are built like real ones. The fitting is Poly Haven's scanned "Mounted Fluorescent
+// ### Lights" batten (painted sheet steel with its lampholders, models/fluorescent-fitting.glb, CC0); a plain box stands
+// ### in until it loads, or if it never does. In it sits an old T12 tube of clear glass: physically based glass (three.js's
+// ### MeshPhysicalMaterial with transmission) that lets you see through to everything inside while the room still glints
+// ### on its surface. Inside, the glowing gas column stops a few centimetres short of each end, so the electrodes show
+// ### there: a glass stem and its pinch, two lead-in wires and a coiled tungsten filament that glows orange. The ends
+// ### are aluminium caps with two brass pins, and a guard of bent steel wire (the scanned steel) hangs round the tube.
+// ### The gas, the halo and the filaments follow the flickering of each lamp (see "The mood of the lights").
+const FLUO = (() => {
+  const SX = .885, SYZ = 2.5, R = .00714 * SYZ, AXIS_Y = -.02685 * SYZ;   // the model's tube: .885 m between its holders, centred 26.85 mm down
+  const glass = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: .05, transmission: .96, transparent: true,
+    depthWrite: false, side: THREE.DoubleSide, envMapIntensity: 1.7, reflectivity: .6, clearcoat: .4, clearcoatRoughness: .05 });
+  const aluminium = steelMat(0xd6d9da, .85, { envMapIntensity: 1.1 });
+  const nickel = new THREE.MeshStandardMaterial({ color: 0x9a9c9c, metalness: 1, roughness: .35, envMapIntensity: 1.2 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xc9a65a, metalness: 1, roughness: .3, envMapIntensity: 1.1 });
+  const wire = steelMat(0xb4bcc0, 1.5, { envMapIntensity: 1.1 });
+  const housingStandIn = new THREE.MeshStandardMaterial({ color: 0xd8d8d2, roughness: .5, metalness: .2 });
+  // the gas glows brightest where you look through the middle of the column and fades at its edges and its ends
+  const glow = (color, power, fade) => new THREE.ShaderMaterial({
+    uniforms: { level: { value: 1 }, tint: { value: new THREE.Color(color) } },
+    vertexShader: 'varying vec3 vN; varying vec3 vV; varying float vY; void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); vY = uv.y; gl_Position = projectionMatrix * mv; }',
+    fragmentShader: `uniform float level; uniform vec3 tint; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ float a = pow(abs(dot(normalize(vN), normalize(vV))), ${power.toFixed(2)}) * smoothstep(0.0, ${fade.toFixed(3)}, min(vY, 1.0 - vY)) * level; gl_FragColor = vec4(tint * a, 1.0); }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  const along = (r0, r1, len, seg, mat, x, open = false) => {   // a cylinder along the tube's axis (x)
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, len, seg, 1, open), mat); m.rotation.z = -Math.PI / 2; m.position.x = x; return m;
+  };
+  // the coiled filament: a fine helix from one lead-in wire to the other, across the tube
+  class Coil extends THREE.Curve {
+    constructor(w, r, turns){ super(); this.w = w; this.r = r; this.turns = turns; }
+    getPoint(t, out = new THREE.Vector3()){ const a = t * this.turns * Math.PI * 2; return out.set(Math.cos(a) * this.r, Math.sin(a) * this.r, (t - .5) * this.w); }
+  }
+  const coilGeo = new THREE.TubeGeometry(new Coil(.0105, .0018, 11), 160, .0004, 5, false);
+  const lamps = [];
+  function build(x, y, z, len, color){
+    const g = new THREE.Group(); g.position.set(x, y, z); room.add(g);
+    const sx = len / SX, half = len / 2;
+    const housing = new THREE.Group(); housing.scale.set(sx, SYZ, SYZ); g.add(housing);
+    const standIn = new THREE.Mesh(new THREE.BoxGeometry(.912, .022, .045), housingStandIn); standIn.position.y = -.011; housing.add(standIn);
+    const tube = new THREE.Group(); tube.position.y = AXIS_Y; g.add(tube);
+    const gas = glow(color, 1.1, .08), halo = glow(color, 3, .2), hot = new THREE.MeshStandardMaterial({ color: 0x2a2420, roughness: .5, metalness: .6, emissive: 0xff8436, emissiveIntensity: 1.1 });
+    const glassLen = len - .05;
+    tube.add(along(R, R, glassLen, 40, glass, 0, true));
+    const col = along(R * .8, R * .8, glassLen - .19, 24, gas, 0, true); col.renderOrder = 2; tube.add(col);   // the dark space round each electrode
+    const hal = along(R * 2.6, R * 2.6, glassLen - .1, 24, halo, 0, true); hal.renderOrder = 3; tube.add(hal);
+    for (const s of [-1, 1]){
+      const e = new THREE.Group(); e.position.x = s * half; e.scale.x = -s; tube.add(e);   // each end looks inwards along +x
+      e.add(along(R * 1.04, R * 1.04, .025, 32, aluminium, .0125));                     // the aluminium cap over the glass
+      const face = new THREE.Mesh(new THREE.CircleGeometry(R * 1.04, 32), aluminium); face.rotation.y = -Math.PI / 2; e.add(face);
+      for (const pz of [-.00635, .00635]){ const p = along(.0012, .0012, .012, 8, brass, -.004); p.position.z = pz; e.add(p); }   // the two pins (12.7 mm apart)
+      e.add(along(R * .62, R * .3, .02, 20, glass, .028));                              // the flared glass stem
+      const pinch = new THREE.Mesh(new THREE.BoxGeometry(.008, .004, .014), glass); pinch.position.x = .042; e.add(pinch);
+      for (const wz of [-.0052, .0052]){                                               // the two lead-in wires
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(.0007, .0007, .026, 6), nickel); w.rotation.z = -Math.PI / 2; w.position.set(.057, 0, wz); e.add(w);
+      }
+      const coil = new THREE.Mesh(coilGeo, hot); coil.position.x = .07; e.add(coil);
+    }
+    // the wire guard: bows of steel wire round the tube, tied together by three wires along it
+    const guard = new THREE.Group(); guard.position.y = AXIS_Y; g.add(guard);
+    const bowR = R + .026, bows = Math.max(3, Math.round(len / .3) + 1);
+    const bow = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(Array.from({ length: 17 }, (_, i) => { const a = Math.PI * i / 16; return new THREE.Vector3(0, -Math.sin(a) * bowR, Math.cos(a) * bowR); })), 32, .0022, 6, false);
+    const at = i => -half + .06 + i * (len - .12) / (bows - 1);
+    for (let i = 0; i < bows; i++){
+      const b = new THREE.Mesh(bow, wire); b.position.x = at(i); guard.add(b);
+      for (const sz of [-1, 1]){ const st = new THREE.Mesh(new THREE.CylinderGeometry(.0022, .0022, -AXIS_Y, 6), wire); st.position.set(at(i), -AXIS_Y / 2, sz * bowR); guard.add(st); }   // up into the batten
+    }
+    for (const a of [0, Math.PI * .3, Math.PI * .7, Math.PI]){
+      const r = along(.0022, .0022, len - .1, 6, wire, 0); r.position.set(0, -Math.sin(a) * bowR, Math.cos(a) * bowR); guard.add(r);
+    }
+    g.traverse(o => { if (o.isMesh){ o.castShadow = false; o.receiveShadow = o.material !== gas && o.material !== halo; } });
+    const lamp = { g, housing, gas, halo, hot, hotI: hot.emissiveIntensity, set(level){ gas.uniforms.level.value = level; halo.uniforms.level.value = level * .22; hot.emissiveIntensity = this.hotI * (.25 + .75 * level); } };
+    lamps.push(lamp);
+    return lamp;
+  }
+  // ### Loads the scanned batten and puts it in place of the stand-in boxes; if it fails, the boxes stay.
+  function load(){
+    fetch('models/fluorescent-fitting.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(buf => {
+      const { json, acc } = glbParts(buf), prim = json.meshes[0].primitives[0], A = prim.attributes;
+      const color = SCAN('fluorescent-fitting-color.jpg', true, 1, 1, 4), normal = SCAN('fluorescent-fitting-normal.jpg', false, 1, 1, 4), arm = SCAN('fluorescent-fitting-arm.jpg', false, 1, 1, 4);
+      for (const t of [color, normal, arm]) t.flipY = false;   // glTF pictures are not flipped
+      // paint over sheet steel: the scan's colour, its gloss (green), the bare metal of the holders' contacts (blue) and dust in the folds (red)
+      const mat = new THREE.MeshStandardMaterial({ map: color, normalMap: normal, roughnessMap: arm, metalnessMap: arm, aoMap: arm, roughness: 1, metalness: 1, envMapIntensity: 1.1, side: THREE.DoubleSide });
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(acc(A.POSITION), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(acc(A.NORMAL), 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(acc(A.TEXCOORD_0), 2));
+      geo.setAttribute('uv2', geo.attributes.uv);
+      geo.setIndex(new THREE.BufferAttribute(acc(prim.indices), 1));
+      for (const l of lamps){
+        while (l.housing.children.length) l.housing.remove(l.housing.children[0]);
+        const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; l.housing.add(m);
+      }
+      shadowsMoved();
+    }).catch(() => {});
+  }
+  return { build, load, lamps };
+})();
+// the caged tube in the middle, an old warm-white T12 (1.2 m), and a shorter one (0.6 m) over the stall
+const tube = FLUO.build(-.6, H, .3, 1.2, 0xffe9d2);
+const stallTube = FLUO.build(2.75, H, -1.8, .6, 0xffd6a6);
+FLUO.load();
 plane(1.5, .56, M.sign, -1.9, 2.2, -D / 2 + .012);
 // ### Red emergency lamps, as in the photo: caged red domes over the door, over the mirror by the sinks and high in the
 // ### stall over the toilet. Each has a soft glow round the glass (the puddles mirror it too). Every light costs time at
@@ -1187,7 +1283,7 @@ redLamp(2.2, 2.45, -D / 2 + .002, 0, 4, 5, [3.1, .4, -2.6]);          // in the 
 // ### light with dust drifting through it. When time runs short the red emergency lamps begin to throb: slowly from two
 // ### minutes left, faster in the last minute.
 const LIGHTS = { t: 0, tube: 1, stall: 1, red: 0, phase: 0, main: mainLight.intensity, stallI: stallLight.intensity, hemi: hemi.intensity,
-  tubeGlow: M.tube.emissiveIntensity, stallGlow: stallTube.material.emissiveIntensity, glass: redGlass.emissiveIntensity, handKey: null, handI: 0,
+  glass: redGlass.emissiveIntensity, handKey: null, handI: 0,
   tubeEp: null, tubeNext: 8 + Math.random() * 8, stallEp: null, stallNext: 30 + Math.random() * 25 };
 // ### One bout of flickering: two to five dips, the last one sometimes a longer drop-out before the tube catches again.
 function flickerBout(){
@@ -1240,8 +1336,8 @@ function updateLights(dt){
   if (L.stallEp){ fs = boutLevel(L.stallEp, 'flickerFar'); if (L.t - L.stallEp.t0 > L.stallEp.end){ L.stallEp = null; L.stallNext = L.t + 35 + Math.random() * 40; } }
   // a tube snaps on and off within a few hundredths of a second
   L.tube += (f - L.tube) * Math.min(1, dt * 45); L.stall += (fs - L.stall) * Math.min(1, dt * 45);
-  mainLight.intensity = L.main * L.tube; M.tube.emissiveIntensity = L.tubeGlow * (.12 + .88 * L.tube);
-  stallLight.intensity = L.stallI * L.stall; stallTube.material.emissiveIntensity = L.stallGlow * (.12 + .88 * L.stall);
+  mainLight.intensity = L.main * L.tube; tube.set(L.tube);
+  stallLight.intensity = L.stallI * L.stall; stallTube.set(L.stall);
   hemi.intensity = L.hemi * (.5 + .5 * L.tube);   // the room's soft fill comes from the tube too
   if (!L.handKey){ L.handKey = handScene.children.find(o => o.isDirectionalLight); L.handI = L.handKey.intensity; }
   L.handKey.intensity = L.handI * (.25 + .75 * L.tube);
@@ -3130,9 +3226,6 @@ function buildDispenser(wx, cy, cz, T){
     for (const x of [-.1, -.035, .035, .1]){ const k = new THREE.Mesh(new THREE.CylinderGeometry(.0085, .0085, .055, 14), plastic); k.rotation.z = Math.PI / 2; k.position.set(x, HY, 0); k.castShadow = k.receiveShadow = true; g.add(k); }
     flat(.5, .5, M.blob, 2.7, 1.35);
   }
-  // housings over both lamps and a cage over the stall lamp
-  box(1.42, .035, .2, M.dullSteel, -.6, H - .02, .3); box(.7, .035, .16, M.dullSteel, 2.75, H - .02, -1.8);
-  for (let i = 0; i < 3; i++) box(.012, .07, .15, M.dullSteel, 2.5 + i * .25, 2.94, -1.8);
 }
 
 // ### Prison cloth: broad black and sand stripes of a coarse cotton twill. The stripes' edges wander a little where the dye
@@ -3403,7 +3496,7 @@ function loadExtinguisher(){
 // ### of several hundred (and each shadow-casting light draws every caster once more). Objects that move or can be clicked
 // ### stay separate. Runs once, after the room is built.
 function mergeStatic(){
-  const keep = new Set([mop, carKey, doorPivot, lidPivot, TDOOR.pivot, hale.g, hall, haleShadow, extinguisher]), groups = new Map();
+  const keep = new Set([mop, carKey, doorPivot, lidPivot, TDOOR.pivot, hale.g, hall, haleShadow, extinguisher, ...FLUO.lamps.map(l => l.housing)]), groups = new Map();
   room.updateMatrixWorld(true);
   (function walk(o){
     for (const c of o.children){

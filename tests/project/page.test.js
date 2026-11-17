@@ -407,6 +407,23 @@ test('escape room: the fire extinguisher is the Poly Haven model, shipped with i
   for (const f of ['color', 'normal', 'arm']) assert.ok(room.includes(`'fire-extinguisher-${f}.jpg'`), f);
 });
 
+test('escape room: the fluorescent lamps are the Poly Haven fitting with a clear glass tube, shipped with its licence', () => {
+  const dir = path.join(ROOT, 'room-1-escape', 'models');
+  const buf = fs.readFileSync(path.join(dir, 'fluorescent-fitting.glb'));
+  assert.equal(buf.readUInt32LE(0), 0x46546C67, 'fluorescent-fitting.glb is a binary glTF file');
+  const json = JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString());
+  assert.equal(json.meshes[0].primitives.length, 1, 'only the housing: room.js builds the tube');
+  for (const k of ['POSITION', 'NORMAL', 'TEXCOORD_0']) assert.ok(json.meshes[0].primitives[0].attributes[k] !== undefined, k);
+  assert.match(fs.readFileSync(path.join(dir, 'LICENSE-fluorescent-fitting.txt'), 'utf8'), /CC0/);
+  const room = fs.readFileSync(path.join(ROOT, 'room-1-escape', 'js', 'room.js'), 'utf8');
+  assert.match(room, /fetch\('models\/fluorescent-fitting\.glb'\)/);
+  for (const f of ['color', 'normal', 'arm']){
+    assert.ok(room.includes(`'fluorescent-fitting-${f}.jpg'`), f);
+    assert.ok(fs.existsSync(path.join(ROOT, 'room-1-escape', 'textures', `fluorescent-fitting-${f}.jpg`)), f);
+  }
+  assert.match(room, /MeshPhysicalMaterial\(\{[^}]*transmission/, 'the tube is physically based glass');
+});
+
 test('escape room: the real hand models are shipped with their licence and are what room.js loads', () => {
   const dir = path.join(ROOT, 'room-1-escape', 'models');
   for (const side of ['right', 'left']){

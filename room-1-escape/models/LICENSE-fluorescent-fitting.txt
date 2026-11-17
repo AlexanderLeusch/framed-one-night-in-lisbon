@@ -1,0 +1,8 @@
+fluorescent-fitting.glb and ../textures/fluorescent-fitting-color.jpg, -normal.jpg and -arm.jpg are the model
+"Mounted Fluorescent Lights" by Ulan Cabanilla from Poly Haven (https://polyhaven.com/a/mounted_fluorescent_lights),
+fetched through the Poly Haven API (api.polyhaven.com). Only the housing of the single-tube batten ("a") is kept,
+packed into one binary glTF file; its tube is left out, because room.js builds a clear glass tube with its electrodes
+in its place. The ARM picture was saved again as a JPEG at quality 88.
+
+License: CC0 1.0 Universal (public domain dedication), https://creativecommons.org/publicdomain/zero/1.0/
+No credit is required; we give it anyway.
