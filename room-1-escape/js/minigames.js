@@ -1,4 +1,4 @@
-// Room 1: the eight mini games (seven on the Titanic, one hacking game) behind the three clue spots (the crooked tile, the mirror and the scratches).
+// Room 1: the eight Titanic mini games behind the three clue spots (the crooked tile, the mirror and the scratches).
 // ### Each game lasts at most 30 seconds and is drawn on its own (DOM buttons or a 2D canvas), with no image files.
 // ### The top of the file holds the pure helpers (dealing the games, the bots, the fleets, the differences), which the Node
 // ### tests load with require(). open() below them builds a game inside the card and reports the result through onEnd.
@@ -41,10 +41,10 @@
       goal: 'Score 1,500 points with three balls.',
       steps: ['The ball shoots by itself, or press Space to shoot it.', 'The pop bumpers, the slingshots, the two lifebuoy targets and the R-M-S lanes at the top all score.', 'Keep the ball from falling between the flippers.'],
       keys: '← and → (A and D) for the flippers, Space for both.', touch: 'Press the left or right half of the table.' },
-    hacking: { title: 'Crack the <em>firewall</em>', name: 'Hacking', how: 'Break into the security node of Cell Block D: four layers before the firewall locks you out. Match the carrier wave, then pick the key fragment that matches exactly. Every wrong guess feeds the firewall.',
-      goal: 'Open all four layers of the security node before the firewall fills up.',
-      steps: ['Wave layers: change the frequency and the amplitude of your orange wave until it lies exactly on the blue target, then lock it.', 'Fragment layers: find the one of the four fragments that matches the key fragment cell for cell, and inject it.', 'The firewall fills by itself in 28 seconds, and every wrong lock or wrong fragment adds 15 %. Full means you are locked out.'],
-      keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For fragments, ← → and Space, or click one.', touch: 'Tap the buttons under the wave, or tap a fragment.' }
+    hacking: { title: 'Hack the <em>engine</em>', name: 'Hacking', how: 'Break into an old control machine in the Titanic’s engine room: four layers before the firewall in its furnace locks you out. Match the engine’s wave on the indicator card, then pick the key plate that matches the master peg for peg. Every wrong guess stokes the firewall.',
+      goal: 'Open all four layers of the engine-room machine before the firewall burns up.',
+      steps: ['Wave layers: change the frequency and the amplitude of your red ink line on the indicator card until it lies exactly on the dashed blue master line, then lock it.', 'Key plate layers: find the one of the four brass plates whose pegs match the master key plate peg for peg, and set it.', 'The firewall burns up by itself in 28 seconds, and every wrong lock or wrong plate adds 15 %. Full means you are locked out.'],
+      keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For key plates, ← → and Space, or click one.', touch: 'Tap the brass buttons under the wave, or tap a key plate.' }
   };
   const GAMES = Object.keys(INFO);
 
@@ -1584,10 +1584,10 @@
     return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
   }
 
-  // ### 8. Hacking: break into the security node of Cell Block D before its firewall locks you out. Four layers, one after
-  // ### the other: tune your signal to the guards' carrier wave (its frequency and its amplitude), then pick the key
-  // ### fragment that matches exactly, then a second, faster wave and a finer fragment. The firewall grows by itself and
-  // ### every wrong lock or wrong fragment feeds it. hackNew(), hackAct() and hackStep() hold all the rules and are tested
+  // ### 8. Hacking: break into an old control machine in the Titanic's engine room before the firewall in its furnace locks
+  // ### you out. Four layers, one after the other: match the engine's beat on the indicator card (its frequency and its
+  // ### amplitude), then pick the key plate whose brass pegs match the master plate, then a second, faster wave and a finer
+  // ### plate. The firewall burns up by itself and every wrong lock or wrong plate stokes it. hackNew(), hackAct() and hackStep() hold all the rules and are tested
   // ### in Node; BUILD.hacking only draws them and turns keys, clicks and taps into actions.
   const HACK = { W: 640, H: 360, LAYERS: ['wave', 'fragment', 'wave', 'fragment'], FREQS: 7, AMPS: 5, FILL: 1 / 28, WRONG: .15,
     GRID: [5, 6], FLIPS: [2, 1], OPTIONS: 4 };
@@ -1665,35 +1665,94 @@
     if (s.fire >= 1) s.lost = true;
   }
 
+  const HACK_FONT = '"Big Shoulders Display", "Arial Narrow", sans-serif';
+  // ### The engine-room machine, painted once: a riveted steel panel gone dark with oil and soot, a brass trim, the brass
+  // ### nameplate, the frame of the furnace that holds the firewall, and the bezels of the four layer lamps.
+  const BRASS = ['#f1d88f', '#c9a14f', '#8a6424'];
+  function brassPlate(g, x, y, w, h){
+    const b = g.createLinearGradient(0, y, 0, y + h); b.addColorStop(0, BRASS[0]); b.addColorStop(.5, BRASS[1]); b.addColorStop(1, BRASS[2]);
+    g.fillStyle = b; g.fillRect(x, y, w, h);
+    g.strokeStyle = '#4a3410'; g.lineWidth = 1.5; g.strokeRect(x + .75, y + .75, w - 1.5, h - 1.5);
+    g.strokeStyle = 'rgba(255,245,210,.55)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x + 2, y + 2.5); g.lineTo(x + w - 2, y + 2.5); g.stroke();
+  }
+  function rivet(g, x, y, r){
+    const k = g.createRadialGradient(x - r * .4, y - r * .4, r * .1, x, y, r);
+    k.addColorStop(0, '#9a8f80'); k.addColorStop(.6, '#4d463d'); k.addColorStop(1, '#1d1a16');
+    g.fillStyle = k; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  function paintEngine(g){
+    const { W, H } = HACK, r = seq(46);
+    const st = g.createLinearGradient(0, 0, 0, H); st.addColorStop(0, '#2c2924'); st.addColorStop(1, '#141210');
+    g.fillStyle = st; g.fillRect(0, 0, W, H);
+    // brushed steel, oil stains and soot
+    for (let i = 0; i < 160; i++){ g.strokeStyle = `rgba(255,255,255,${.012 + r() * .025})`; g.lineWidth = 1; const x = r() * W, y = r() * H; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 30 + r() * 90, y); g.stroke(); }
+    for (let i = 0; i < 9; i++){ const x = r() * W, y = r() * H, rr = 20 + r() * 50, k = g.createRadialGradient(x, y, 0, x, y, rr); k.addColorStop(0, 'rgba(0,0,0,.28)'); k.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = k; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+    // brass trim and the rivets along it
+    const tb = g.createLinearGradient(0, 0, W, H); tb.addColorStop(0, BRASS[0]); tb.addColorStop(.5, BRASS[2]); tb.addColorStop(1, BRASS[1]);
+    g.strokeStyle = tb; g.lineWidth = 5; g.strokeRect(2.5, 2.5, W - 5, H - 5);
+    g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 1; g.strokeRect(6, 6, W - 12, H - 12);
+    for (let x = 16; x < W - 8; x += 32){ rivet(g, x, 12, 2.6); rivet(g, x, H - 12, 2.6); }
+    for (let y = 44; y < H - 20; y += 32){ rivet(g, 12, y, 2.6); rivet(g, W - 12, y, 2.6); }
+    // the nameplate, engraved
+    brassPlate(g, 22, 18, 262, 22);
+    g.fillStyle = '#3a2808'; g.font = `700 14px ${HACK_FONT}`; g.textBaseline = 'middle'; g.textAlign = 'center';
+    g.fillText('R.M.S. TITANIC · ENGINE ROOM CONTROL', 153, 30); g.textAlign = 'left';
+    // the bezels of the four layer lamps
+    for (let i = 0; i < 4; i++){ const x = 36 + i * 30; g.fillStyle = BRASS[2]; g.beginPath(); g.arc(x, 56, 12, 0, 7); g.fill(); g.strokeStyle = BRASS[0]; g.lineWidth = 1.5; g.beginPath(); g.arc(x, 56, 11, Math.PI * .9, Math.PI * 1.7); g.stroke(); }
+    // the furnace: an iron firebox with a brass label plate
+    brassPlate(g, 476, 18, 142, 22);
+    g.fillStyle = '#0d0b09'; g.fillRect(160, 46, 458, 22);
+    g.strokeStyle = '#5b5248'; g.lineWidth = 2; g.strokeRect(159, 45, 460, 24);
+  }
+
   BUILD.hacking = api => {
-    const { W, H } = HACK, MONO = '"JetBrains Mono", monospace';
+    const { W, H } = HACK, MONO = '"JetBrains Mono", monospace', FONT = HACK_FONT;
     const c = api.canvas(W, H), g = c.getContext('2d');
     const s = hackNew(api.rand);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const panel = document.createElement('canvas'); panel.width = W * dpr; panel.height = H * dpr;
+    const pg = panel.getContext('2d'); pg.scale(dpr, dpr); paintEngine(pg);
     let t = 0, flash = 0, shake = 0, lastLayer = 0;
-    // the five buttons under the wave, also clickable with the mouse; the four fragments to the right of the target
+    // the five brass buttons under the indicator card, also clickable with the mouse; the four key plates beside the master
     const BTN = [['freq-', '◀ FREQ'], ['freq+', 'FREQ ▶'], ['amp-', '▼ AMP'], ['amp+', 'AMP ▲'], ['lock', 'LOCK']]
       .map(([act, label], i) => ({ act, label, x: 36 + i * 116, y: 300, w: 104, h: 42 }));
     const fragBox = (L, i) => { const cell = L.n === 5 ? 18 : 15, size = cell * L.n; return { x: 204 + i * (size + 18), y: 132, cell, size }; };
     const inBox = (x, y, b, w, h) => x >= b.x && x <= b.x + w && y >= b.y && y <= b.y + h;
-    const layerName = L => L.kind === 'wave' ? 'match the carrier wave' : 'pick the matching key fragment';
+    const layerName = L => L.kind === 'wave' ? 'match the engine’s indicator wave' : 'pick the matching key plate';
     const status = () => api.status(`Layer ${s.layer + 1} of ${s.layers.length}: ${layerName(s.layers[s.layer])}`);
     function play(){
       for (const e of s.events) api.sound(e);
       s.events.length = 0;
       if (s.layer !== lastLayer){ lastLayer = s.layer; flash = .6; status(); }
-      if (s.won) return api.win('All four layers are down. You are in.');
+      if (s.won) return api.win('All four layers are open. The engine is yours.');
       if (s.lost) return api.lose('The firewall locked you out.');
     }
     function act(a){ const before = s.fire; if (hackAct(s, a) && s.fire > before) shake = .35; play(); }
+    // ### A line of ink on the indicator card, as the pen of a steam-engine indicator draws it on its paper drum.
     function wave(L, f, a, color, dashed, width){
-      g.save(); g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dashed ? [7, 6] : []);
-      g.shadowColor = color; g.shadowBlur = dashed ? 0 : 8;
+      g.save(); g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dashed ? [7, 6] : []); g.lineCap = 'round';
       g.beginPath();
       for (let x = 0; x <= 560; x += 3){ const y = 190 - a * 14 * Math.sin(Math.PI * 2 * f * x / 560 + t * L.speed); x ? g.lineTo(40 + x, y) : g.moveTo(40 + x, y); }
       g.stroke(); g.restore();
     }
-    function grid(bits, n, x, y, cell, on, off){
-      for (let i = 0; i < n * n; i++){ g.fillStyle = bits[i] ? on : off; g.fillRect(x + (i % n) * cell + 1, y + Math.floor(i / n) * cell + 1, cell - 2, cell - 2); }
+    // ### A key plate: a steel plate with brass pegs where the pattern is set and dark holes where it is not.
+    function plate(bits, n, x, y, cell, sel){
+      g.fillStyle = '#3a3631'; g.fillRect(x - 3, y - 3, cell * n + 6, cell * n + 6);
+      for (let i = 0; i < n * n; i++){
+        const cx = x + (i % n + .5) * cell, cy = y + (Math.floor(i / n) + .5) * cell, r = cell * .36;
+        if (bits[i]){
+          const k = g.createRadialGradient(cx - r * .35, cy - r * .35, r * .1, cx, cy, r);
+          k.addColorStop(0, sel ? '#fff1c4' : '#f6dc93'); k.addColorStop(.55, sel ? '#e7b35a' : BRASS[1]); k.addColorStop(1, '#5a3f12');
+          g.fillStyle = k; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+        } else { g.fillStyle = '#121010'; g.beginPath(); g.arc(cx, cy, r * .5, 0, 7); g.fill(); }
+      }
+    }
+    // a frame of brass around something on the panel
+    const frame = (x, y, w, h, color) => { g.strokeStyle = color || BRASS[1]; g.lineWidth = 3; g.strokeRect(x, y, w, h); g.strokeStyle = 'rgba(0,0,0,.5)'; g.lineWidth = 1; g.strokeRect(x + 2.5, y + 2.5, w - 5, h - 5); };
+    function engraved(text, x, y, size, align, color){
+      g.font = `700 ${size}px ${FONT}`; g.textAlign = align || 'left';
+      g.fillStyle = 'rgba(0,0,0,.6)'; g.fillText(text, x + 1, y + 1);
+      g.fillStyle = color || BRASS[0]; g.fillText(text, x, y); g.textAlign = 'left';
     }
     return {
       key(code, down){
@@ -1719,71 +1778,90 @@
         const L = s.layers[s.layer];
         g.save();
         if (shake > 0) g.translate((Math.random() - .5) * shake * 18, 0);
-        // the screen of an old security terminal: near-black glass with faint scanlines
-        g.fillStyle = '#04090a'; g.fillRect(-20, 0, W + 40, H);
-        g.fillStyle = 'rgba(80,255,190,.035)'; for (let y = 0; y < H; y += 3) g.fillRect(0, y, W, 1);
-        g.font = `700 11px ${MONO}`; g.textBaseline = 'middle';
-        g.fillStyle = '#5fe0b4'; g.fillText('CELL BLOCK D · SECURITY NODE', 20, 18);
-        // the four layers: open ones in green, the current one blinking
+        g.fillStyle = '#141210'; g.fillRect(-20, 0, W + 40, H);
+        g.drawImage(panel, 0, 0, W, H);
+        g.textBaseline = 'middle';
+        // the four layer lamps: dark glass, amber and blinking for the layer you are on, green once it is open
         for (let i = 0; i < s.layers.length; i++){
-          const open = i < s.layer || s.won, cur = i === s.layer && !s.won;
-          g.strokeStyle = open ? '#5fe0b4' : cur ? '#ff7a1a' : '#2c3d3a'; g.lineWidth = 2;
-          g.strokeRect(20 + i * 30, 34, 22, 22);
-          if (open){ g.fillStyle = '#5fe0b4'; g.fillRect(25 + i * 30, 39, 12, 12); }
-          else if (cur && Math.floor(t * 3) % 2 === 0){ g.fillStyle = '#ff7a1a'; g.fillRect(27 + i * 30, 41, 8, 8); }
+          const open = i < s.layer || s.won, cur = i === s.layer && !s.won, x = 36 + i * 30, lit = open || (cur && Math.floor(t * 3) % 2 === 0);
+          const k = g.createRadialGradient(x - 3, 53, 1, x, 56, 9);
+          k.addColorStop(0, open ? '#d9ffd0' : lit ? '#ffe7a8' : '#4a3a2a'); k.addColorStop(1, open ? '#2f8a3c' : lit ? '#d0781c' : '#1a1410');
+          g.fillStyle = k; g.beginPath(); g.arc(x, 56, 9, 0, 7); g.fill();
+          if (lit){ g.fillStyle = open ? 'rgba(90,220,110,.18)' : 'rgba(255,170,60,.2)'; g.beginPath(); g.arc(x, 56, 15, 0, 7); g.fill(); }
         }
-        // the firewall: a red wall of blocks that fills from the left; at full it locks you out
-        const fx = 160, fw = 460, n = 23;
-        g.fillStyle = '#ff4d4d'; g.textAlign = 'right'; g.fillText(`FIREWALL ${Math.round(s.fire * 100)}%`, fx + fw, 18); g.textAlign = 'left';
+        // the firewall: the fire in the furnace, burning up from the left; at full it locks you out
+        g.textBaseline = 'middle';
+        g.font = `700 14px ${FONT}`; g.fillStyle = '#5a0e08'; g.textAlign = 'center'; g.fillText(`FIREWALL ${Math.round(s.fire * 100)} %`, 547, 30); g.textAlign = 'left';
+        const fx = 162, fw = 454, n = 23, hot = s.fire > .75;
         for (let i = 0; i < n; i++){
-          const on = (i + 1) / n <= s.fire + 1e-9, part = !on && i / n < s.fire;
-          g.fillStyle = on ? (s.fire > .75 && Math.floor(t * 6) % 2 ? '#ff8a6a' : '#e0322a') : part ? 'rgba(224,50,42,.45)' : '#1a1414';
-          g.fillRect(fx + i * (fw / n), 34, fw / n - 3, 22);
+          const x = fx + i * (fw / n), w = fw / n - 3, on = (i + 1) / n <= s.fire + 1e-9, part = !on && i / n < s.fire;
+          if (!on && !part){ g.fillStyle = '#1f1a16'; g.fillRect(x, 48, w, 18); continue; }
+          const flick = .75 + .25 * Math.sin(t * 13 + i * 2.1) * Math.sin(t * 7.3 + i);
+          const k = g.createLinearGradient(0, 66, 0, 48);
+          k.addColorStop(0, '#ffdf6a'); k.addColorStop(.45, hot ? '#ff5a1e' : '#f06a1a'); k.addColorStop(1, '#7a1408');
+          g.globalAlpha = part ? .45 : flick; g.fillStyle = k; g.fillRect(x, 48, w, 18); g.globalAlpha = 1;
         }
+        if (hot){ g.fillStyle = `rgba(255,90,30,${.06 + .05 * Math.sin(t * 9)})`; g.fillRect(0, 0, W, H); }
         if (L.kind === 'wave'){
           const sync = hackSync(L);
-          g.strokeStyle = '#123029'; g.lineWidth = 1;
+          // the indicator card on its brass drum: cream paper with a sepia grid
+          frame(32, 102, 576, 176);
+          g.fillStyle = '#efe3c2'; g.fillRect(36, 106, 568, 168);
+          g.strokeStyle = 'rgba(150,110,50,.35)'; g.lineWidth = 1;
           for (let x = 40; x <= 600; x += 40){ g.beginPath(); g.moveTo(x, 110); g.lineTo(x, 270); g.stroke(); }
           for (let y = 110; y <= 270; y += 20){ g.beginPath(); g.moveTo(40, y); g.lineTo(600, y); g.stroke(); }
-          wave(L, L.tf, L.ta, '#36c6ff', true, 2);
-          wave(L, L.f, L.a, sync === 1 ? '#5fe0b4' : '#ff7a1a', false, 2.6);
-          g.fillStyle = '#36c6ff'; g.fillText('- - TARGET', 40, 88);
-          g.fillStyle = '#ff7a1a'; g.fillText(`── YOU  F${L.f} A${L.a}`, 150, 88);
-          g.fillStyle = sync === 1 ? '#5fe0b4' : '#9ab'; g.textAlign = 'right'; g.fillText(`SYNC ${Math.round(sync * 100)}%${sync === 1 ? ' · LOCK IT' : ''}`, 600, 88); g.textAlign = 'left';
+          g.strokeStyle = 'rgba(150,110,50,.6)'; g.beginPath(); g.moveTo(40, 190); g.lineTo(600, 190); g.stroke();
+          wave(L, L.tf, L.ta, '#23407a', true, 2.2);
+          wave(L, L.f, L.a, sync === 1 ? '#22703a' : '#b3261e', false, 2.6);
+          engraved('- - MASTER LINE', 36, 86, 15, 'left', '#9fb8e6');
+          engraved(`── YOUR ENGINE  F${L.f} A${L.a}`, 170, 86, 15, 'left', '#ef8a7a');
+          engraved(`SYNC ${Math.round(sync * 100)} %${sync === 1 ? ' · LOCK IT' : ''}`, 604, 86, 15, 'right', sync === 1 ? '#8fe39a' : BRASS[0]);
           for (const b of BTN){
             const lock = b.act === 'lock';
-            g.fillStyle = lock ? (sync === 1 ? '#1d4a3a' : '#2a1a10') : '#0e1c1a'; g.fillRect(b.x, b.y, b.w, b.h);
-            g.strokeStyle = lock ? (sync === 1 ? '#5fe0b4' : '#ff7a1a') : '#2f5a50'; g.lineWidth = 1.5; g.strokeRect(b.x + .5, b.y + .5, b.w - 1, b.h - 1);
-            g.fillStyle = lock ? '#fff' : '#bfe'; g.textAlign = 'center'; g.font = `700 13px ${MONO}`; g.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1); g.textAlign = 'left'; g.font = `700 11px ${MONO}`;
+            if (lock){
+              // the lock lever has a red enamel plate, green once the lines match
+              g.fillStyle = sync === 1 ? '#2a6a36' : '#7e1a14'; g.fillRect(b.x, b.y, b.w, b.h);
+              g.strokeStyle = BRASS[1]; g.lineWidth = 3; g.strokeRect(b.x + 1.5, b.y + 1.5, b.w - 3, b.h - 3);
+              engraved(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1, 19, 'center', '#f6dc93');
+            } else {
+              brassPlate(g, b.x, b.y, b.w, b.h);
+              g.font = `700 18px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#3a2808'; g.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1); g.textAlign = 'left';
+            }
+            for (const [rx, ry] of [[6, 6], [b.w - 6, 6], [6, b.h - 6], [b.w - 6, b.h - 6]]) rivet(g, b.x + rx, b.y + ry, 1.8);
           }
         } else {
           const big = L.n === 5 ? 24 : 20, tx = 40, ty = 120;
-          g.fillStyle = '#36c6ff'; g.fillText('KEY FRAGMENT', tx, 96);
-          g.strokeStyle = '#36c6ff'; g.lineWidth = 1.5; g.strokeRect(tx - 4, ty - 4, big * L.n + 8, big * L.n + 8);
-          grid(L.target, L.n, tx, ty, big, '#36c6ff', '#0b1a22');
-          g.fillStyle = '#9ab'; g.fillText('WHICH ONE MATCHES EXACTLY?', 204, 96);
+          engraved('MASTER KEY PLATE', tx - 4, 98, 15, 'left', '#9fb8e6');
+          frame(tx - 8, ty - 8, big * L.n + 16, big * L.n + 16, '#7d97c8');
+          plate(L.target, L.n, tx, ty, big, false);
+          engraved('WHICH PLATE MATCHES PEG FOR PEG?', 200, 98, 15);
           for (let i = 0; i < HACK.OPTIONS; i++){
             const b = fragBox(L, i), sel = i === L.sel;
-            g.strokeStyle = sel ? '#ff7a1a' : '#2f5a50'; g.lineWidth = sel ? 2.5 : 1.2;
-            g.strokeRect(b.x - 5, b.y - 5, b.size + 10, b.size + 10);
-            grid(L.options[i], L.n, b.x, b.y, b.cell, sel ? '#ffb27a' : '#7fd8c0', '#0d1a18');
-            g.fillStyle = sel ? '#ff7a1a' : '#5a7a72'; g.textAlign = 'center'; g.fillText(String.fromCharCode(65 + i), b.x + b.size / 2, b.y + b.size + 16); g.textAlign = 'left';
+            if (sel){ g.fillStyle = 'rgba(255,170,60,.18)'; g.fillRect(b.x - 10, b.y - 10, b.size + 20, b.size + 20); }
+            frame(b.x - 7, b.y - 7, b.size + 14, b.size + 14, sel ? '#ffb347' : BRASS[2]);
+            plate(L.options[i], L.n, b.x, b.y, b.cell, sel);
+            brassPlate(g, b.x + b.size / 2 - 11, b.y + b.size + 10, 22, 16);
+            g.font = `700 13px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#3a2808'; g.fillText(String.fromCharCode(65 + i), b.x + b.size / 2, b.y + b.size + 18.5); g.textAlign = 'left';
           }
-          g.fillStyle = '#5a7a72'; g.fillText('← → TO CHOOSE · SPACE OR CLICK TO INJECT', 204, 300);
+          engraved('← → TO CHOOSE · SPACE OR CLICK TO SET THE PLATE', 200, 300, 15, 'left', BRASS[1]);
         }
-        // a layer just opened, or the whole node
+        // steam leaking from the old machine, rising slowly from the bottom
+        for (let k = 0; k < 7; k++){
+          const p = (t * .18 + k / 7) % 1, x = 30 + k * 96 + Math.sin(t * .7 + k) * 14, y = H - 10 - p * 150, r = 10 + p * 34;
+          g.fillStyle = `rgba(235,235,230,${.07 * (1 - p)})`; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+        }
+        // a layer just opened, or the whole machine
         if (flash > 0 || s.won){
-          g.fillStyle = `rgba(95,224,180,${s.won ? .18 : flash * .25})`; g.fillRect(0, 70, W, H - 70);
-          g.fillStyle = 'rgba(4,9,10,.88)'; g.fillRect(W / 2 - 170, 172, 340, 56);
-          g.strokeStyle = '#5fe0b4'; g.lineWidth = 2; g.strokeRect(W / 2 - 170, 172, 340, 56);
-          g.fillStyle = '#5fe0b4'; g.font = `700 28px ${MONO}`; g.textAlign = 'center';
-          g.fillText(s.won ? 'ACCESS GRANTED' : `LAYER ${s.layer} OPEN`, W / 2, 200); g.textAlign = 'left';
+          g.fillStyle = `rgba(255,214,120,${s.won ? .12 : flash * .2})`; g.fillRect(0, 76, W, H - 76);
+          brassPlate(g, W / 2 - 160, 168, 320, 60);
+          g.fillStyle = '#2c1e06'; g.font = `800 32px ${FONT}`; g.textAlign = 'center';
+          g.fillText(s.won ? 'FULL AHEAD' : `LAYER ${s.layer} OPEN`, W / 2, 199); g.textAlign = 'left';
         }
         if (s.lost){
-          g.fillStyle = 'rgba(224,50,42,.25)'; g.fillRect(0, 0, W, H);
-          g.fillStyle = 'rgba(4,9,10,.88)'; g.fillRect(W / 2 - 170, 172, 340, 56);
-          g.strokeStyle = '#ff4d4d'; g.lineWidth = 2; g.strokeRect(W / 2 - 170, 172, 340, 56);
-          g.fillStyle = '#ff4d4d'; g.font = `700 28px ${MONO}`; g.textAlign = 'center'; g.fillText('LOCKED OUT', W / 2, 200); g.textAlign = 'left';
+          g.fillStyle = 'rgba(200,40,10,.25)'; g.fillRect(0, 0, W, H);
+          g.fillStyle = '#2a0c08'; g.fillRect(W / 2 - 160, 168, 320, 60);
+          g.strokeStyle = '#ff5a1e'; g.lineWidth = 3; g.strokeRect(W / 2 - 158.5, 169.5, 317, 57);
+          g.fillStyle = '#ff7a3a'; g.font = `800 32px ${FONT}`; g.textAlign = 'center'; g.fillText('LOCKED OUT', W / 2, 199); g.textAlign = 'left';
         }
         g.restore();
       }

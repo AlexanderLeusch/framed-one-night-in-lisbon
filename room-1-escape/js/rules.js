@@ -20,7 +20,7 @@
     mirror: { title: 'Writing in the steam', text: 'The steam clears around figures someone traced on the mirror: “UNSINKABLE? 19 _ _”. The first two digits of the code: 1 and 9.' },
     scratches: { title: 'Scratched into the wall by the door', text: '“The ‘unsinkable’ went down on her first voyage.” Below it, gouged deep into a tile: “_ _ 1 2”. The last two digits of the code: 1 and 2.' }
   };
-  // ### The eight mini games: seven on the Titanic and a hacking game (drawn and played by minigames.js). Each new game deals three different ones to the
+  // ### The eight Titanic mini games (drawn and played by minigames.js). Each new game deals three different ones to the
   // ### three spots; which three is chosen by room.js, because the rules have no randomness of their own.
   const GAMES = ['battleship', 'spotdiff', 'tictactoe', 'deckrun', 'deckclimb', 'seagull', 'pinball', 'hacking'];
   const SPOTS = { tile: 'stall', mirror: 'sinks', scratches: 'door' };

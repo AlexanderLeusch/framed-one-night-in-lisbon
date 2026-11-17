@@ -1,4 +1,4 @@
-// ### Unit tests for the eight mini games (room-1-escape/js/minigames.js): dealing, the bots, the fleets and the
+// ### Unit tests for the eight Titanic mini games (room-1-escape/js/minigames.js): dealing, the bots, the fleets and the
 // ### spot-the-difference circles. The drawing and the controls are played in the browser tests.
 const test = require('node:test');
 const assert = require('node:assert/strict');
