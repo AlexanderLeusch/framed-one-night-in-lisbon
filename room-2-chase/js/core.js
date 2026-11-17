@@ -285,9 +285,14 @@
   // ### A run in Lisbon begins in a lock-up garage under the Baixa: the three vehicles stand in their bays, the player picks one,
   // ### gets in and drives up the ramp to the street. Nothing counts down here and no police come. All in metres: the hall is
   // ### 2 * x wide and runs from z0 to z1 at height y, h high; the ramp leaves through an opening 2 * door wide in the wall at z1,
-  // ### climbs rise over a length of ramp and ends on a level stretch of top metres. Each bay is [x, z, heading], nose to the ramp.
+  // ### climbs rise over a length of ramp and ends on a level stretch of top metres with a roller door at its end. Each bay is
+  // ### [x, z, heading], nose to the ramp. On foot the player walks at walk and runs at run (m/s, with Shift). Over the top of
+  // ### the ramp the vehicle drives itself at out m/s. street is where the middle of that roller door is in the city ([x, z]: in
+  // ### the south wall of the house north-east of the start, facing the cross street), and way the left turn from the door into
+  // ### the eastbound lane, as the four points of a curve in metres from the door (x east, z south).
   const GARAGE = Object.freeze({
-    y: -30, x: 17, z0: -16, z1: 12, h: 5.2, door: 4.6, tunnel: 4.7, ramp: 34, rise: 4.8, top: 10, speed: 9, pillar: 0.4,
+    y: -30, x: 17, z0: -16, z1: 12, h: 5.2, door: 4.6, tunnel: 4.7, ramp: 34, rise: 4.8, top: 22, speed: 9, pillar: 0.4, walk: 3.4, run: 5.6, out: 6,
+    street: Object.freeze([30, -10]), way: Object.freeze([[0, 1.5], [0, 8], [1.5, 12.5], [7, 12.5]].map(q => Object.freeze(q))),
     order: Object.freeze(['car', 'bike', 'truck']),
     bays: Object.freeze({ car: Object.freeze([-8, -8.5, 0.34]), bike: Object.freeze([0, -9, 0]), truck: Object.freeze([8.5, -8, -0.36]) }),
     pillars: Object.freeze([[-12.5, -2], [12.5, -2], [-12.5, 6], [12.5, 6]].map(q => Object.freeze(q)))
@@ -307,6 +312,26 @@
       b(-G.door - 1, -G.door, G.z1, e), b(G.door, G.door + 1, G.z1, e), b(-G.door - 1, G.door + 1, e, e + 1),
       ...G.pillars.map(([x, z]) => b(x - G.pillar, x + G.pillar, z - G.pillar, z + G.pillar))
     ];
+  }
+  // ### The way out of the garage as points [x, z] in metres from the middle of the roller door (x east, z south, out to the
+  // ### street): straight along the level stretch from the top of the ramp, through the door, then the curve of GARAGE.way and 5 m straight on.
+  function garageWay(){
+    const G = GARAGE, [a, b, cc, d] = G.way, pts = [];
+    for (let z = -G.top; z < a[1]; z += 1) pts.push([0, z]);
+    for (let i = 0; i <= 16; i++){
+      const t = i / 16, u = 1 - t, k = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+      pts.push([k[0] * a[0] + k[1] * b[0] + k[2] * cc[0] + k[3] * d[0], k[0] * a[1] + k[1] * b[1] + k[2] * cc[1] + k[3] * d[1]]);
+    }
+    // a few metres straight on, so the vehicle has finished the turn when the way ends
+    for (let s = 1; s <= 5; s++) pts.push([d[0] + s, d[1]]);
+    return pts;
+  }
+  // ### Following a way of points from (x, z): skips on from point i to the first one at least ahead metres away, which is the
+  // ### one to steer for. Returns [i, its x, its z, done]; done is true once the last point is closer than that.
+  function wayAim(pts, i, x, z, ahead){
+    const far = k => Math.hypot(pts[k][0] - x, pts[k][1] - z) >= ahead;
+    while (i < pts.length - 1 && !far(i)) i++;
+    return [i, pts[i][0], pts[i][1], i === pts.length - 1 && !far(i)];
   }
 
   // ---------- Vehicle stats for the menu ----------
@@ -1044,7 +1069,7 @@
   return Object.freeze({
     MODES, VEH, REV_SPEED, REPAIR_AMOUNT, MAX_DT, STORY_ACTS, KEY_MAP, BAIXA, streetAt, TRAM_LOOP, tramNext, RAIL, trackOffset, railCrossings, railShake, routeTo, routeMarks,
     EVIDENCE, WITNESS, WITNESS_RULE, witnessGetsIn, witnessGivesUp, witnessSpotOk, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
-    parsePick, parseBest, applyPick, actionAllowed, GARAGE, garageFloor, garageGrade, garageOut, garageWalls,
+    parsePick, parseBest, applyPick, actionAllowed, GARAGE, garageFloor, garageGrade, garageOut, garageWalls, garageWay, wayAim,
     vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, SCRAPE, scrapeLevel, sparkCount, LOOK, lookingBack, lookBackView, NITRO, newNitro, nitroPickup, nitroFire, nitroOn, nitroStep, nitroTop, nitroPush, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
     crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, KIT_GUIDE_AT, kitToGuide, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,

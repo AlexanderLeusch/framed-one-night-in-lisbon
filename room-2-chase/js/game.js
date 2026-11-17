@@ -1083,11 +1083,14 @@ const shardSpots = [], roadSpots = [], intersections = [];
 
 // ### The lock-up garage under Lisbon where a run begins (built and run further down, "The garage"). While it is on, the ground
 // ### is the garage floor and its ramp. phase: 'pick' (on foot among the three vehicles), 'board' (walking to the door and
-// ### getting in), 'drive' and 'exit' (the last metres up the ramp while the picture fades). live: the player is at the wheel.
-const garage = { on: false, live: false, phase: '', t: 0, sit: -1, path: [], from: new THREE.Vector3(), turn: new THREE.Quaternion(), look: new THREE.Vector3() };
+// ### getting in), 'drive' and 'exit' (over the top of the ramp the vehicle drives itself out through the roller door to the street). live: the player is at the wheel.
+// ### shift is null down in the garage and, once the vehicle has been moved up into the city, the step it was moved by (see
+// ### garageSwap); open is how far the roller door is rolled up; run is true while Shift is held.
+const garage = { on: false, live: false, phase: '', t: 0, sit: -1, path: [], shift: null, open: 0, run: false, way: [], wi: 0,
+  from: new THREE.Vector3(), seat: new THREE.Vector3(), look: new THREE.Vector3(), turn: new THREE.Quaternion(), spin: new THREE.Quaternion() };
 const hill = (x, z) => Core.hillMesh(mode, x, z);
 function groundH(x, z){
-  if (garage.on) return Core.garageFloor(x, z);
+  if (garage.on) return garageGround(x, z);
   if (mode === 'country') return terrainH(x, z) + hill(x, z);
   if (mode !== 'city' || Math.abs(x) > 192 || Math.abs(z) > 192) return hill(x, z);
   const lx = x - Math.floor(x / PITCH) * PITCH - PITCH / 2, lz = z - Math.floor(z / PITCH) * PITCH - PITCH / 2;
@@ -3085,15 +3088,17 @@ const reverseLights = { mat: new THREE.MeshBasicMaterial({ color: 0x4a4e55 }), g
   // ### the paint, the window, the handle and the dark door card on the inside. Hidden while shut, so the body looks as before; while
   // ### it is open, a dark panel on the body (hole) shows the opening behind it.
   const cabin = new THREE.MeshStandardMaterial({ color: 0x141518, roughness: 0.85 });
+  // ### With o.x on the left (+x) it builds the same door mirrored: the driver's door, which the player opens in the garage.
   const passengerDoor = (group, o, pm) => {
+    const m = o.x < 0 ? 1 : -1;
     const pivot = new THREE.Group(); pivot.position.set(o.x, 0, o.z); pivot.visible = false; group.add(pivot);
     const L = o.len, panel = o.y1 - o.y0;
-    mk(boxG(0.05, panel, L, -0.012, o.y0 + panel / 2, -L / 2), pm, pivot);
-    mk(boxG(0.02, panel * 0.86, L * 0.9, 0.024, o.y0 + panel / 2, -L / 2), cabin, pivot);
-    mk(boxG(0.025, o.w1 - o.y1, L * 0.86, -0.004, (o.y1 + o.w1) / 2, -L * 0.5), SHARED.glass, pivot);
-    mk(boxG(0.035, 0.045, 0.17, -0.045, o.y1 - 0.12, -L + 0.2), alu, pivot);
-    const hole = mk(boxG(0.02, panel - 0.06, L - 0.06, o.x + 0.012, o.y0 + panel / 2, o.z - L / 2), cabin, group); hole.visible = false;
-    return { pivot, hole, max: o.max };
+    mk(boxG(0.05, panel, L, -0.012 * m, o.y0 + panel / 2, -L / 2), pm, pivot);
+    mk(boxG(0.02, panel * 0.86, L * 0.9, 0.024 * m, o.y0 + panel / 2, -L / 2), cabin, pivot);
+    mk(boxG(0.025, o.w1 - o.y1, L * 0.86, -0.004 * m, (o.y1 + o.w1) / 2, -L * 0.5), SHARED.glass, pivot);
+    mk(boxG(0.035, 0.045, 0.17, -0.045 * m, o.y1 - 0.12, -L + 0.2), alu, pivot);
+    const hole = mk(boxG(0.02, panel - 0.06, L - 0.06, o.x + 0.012 * m, o.y0 + panel / 2, o.z - L / 2), cabin, group); hole.visible = false;
+    return { pivot, hole, max: o.max * m };
   };
   const brakeGlow = (group, lamps, size) => lamps.forEach(p => {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: 0xff2030, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -3213,7 +3218,8 @@ const reverseLights = { mat: new THREE.MeshBasicMaterial({ color: 0x4a4e55 }), g
     hinged(damageParts, 3, boxG(0.28, 0.11, 0.04, -0.72, 0.702, 2.6), SHARED.trim, g);
     hinged(damageParts, 3, boxG(0.05, 0.5, 1.15, 0, 0, -0.57), pm, g, [-1.05, 0.66, 0.42], [0, -0.3, 0]);
     const door = passengerDoor(g, { x: -1.035, z: 0.45, len: 1.16, y0: 0.36, y1: 1.0, w1: 1.26, max: 1.15 }, pm);
-    MODELS.car = { skid: { x: [-0.88, 0.88], z: -1.35, w: 0.28 }, g, paint: pm, base: C(base), wheels, pivots, r: 0.38, damageParts, dent: 1, smoke: [1.5, 1.1], stage: 0, door };
+    const drive = passengerDoor(g, { x: 1.035, z: 0.45, len: 1.16, y0: 0.36, y1: 1.0, w1: 1.26, max: 1.15 }, pm);
+    MODELS.car = { skid: { x: [-0.88, 0.88], z: -1.35, w: 0.28 }, g, paint: pm, base: C(base), wheels, pivots, r: 0.38, damageParts, dent: 1, smoke: [1.5, 1.1], stage: 0, door, drive };
   }
 
   // Motorcycle: superbike with an inline four, twin-spar frame, upside-down fork and a tucked rider in leathers.
@@ -3456,7 +3462,8 @@ const reverseLights = { mat: new THREE.MeshBasicMaterial({ color: 0x4a4e55 }), g
     hinged(damageParts, 3, boxG(1.3, 0.3, 0.1, -0.65, 0, 0), plastic, g, [0.12, 0.72, 3.3], [0, 0, 0.2]);
     hinged(damageParts, 3, mergeGeos([[-0.5, 2.72, 0.5, 2.84], [-0.5, 2.72, -0.2, 2.42], [-0.5, 2.72, -1.0, 2.98], [-0.5, 2.72, -0.72, 2.46], [-0.5, 2.72, 0.05, 3.06]].map(([x0, y0, x1, y1]) => limb([x0, y0, 3.09 - (y0 - 2.42) * 0.17], [x1, y1, 3.09 - (y1 - 2.42) * 0.17], 0.006, 0.006, 4))), new THREE.MeshBasicMaterial({ color: 0xc8d0da }), g);
     const door = passengerDoor(g, { x: -1.262, z: 2.9, len: 1.18, y0: 1.22, y1: 2.28, w1: 3.04, max: 1.2 }, pm);
-    MODELS.truck = { skid: { x: [-0.91, 0.91], z: -1.7, w: 0.56 }, g, paint: pm, base: C(base), wheels, pivots, r: 0.52, damageParts, dent: 1.4, smoke: [0.7, 3.95], stage: 0, door };
+    const drive = passengerDoor(g, { x: 1.262, z: 2.9, len: 1.18, y0: 1.22, y1: 2.28, w1: 3.04, max: 1.2 }, pm);
+    MODELS.truck = { skid: { x: [-0.91, 0.91], z: -1.7, w: 0.56 }, g, paint: pm, base: C(base), wheels, pivots, r: 0.52, damageParts, dent: 1.4, smoke: [0.7, 3.95], stage: 0, door, drive };
   }
 
   Object.values(MODELS).forEach(m => { m.g.visible = false; carTilt.add(m.g); });
@@ -4859,7 +4866,8 @@ addEventListener('keydown', e => {
   if (Object.hasOwn(keyMap, e.code)){ held.add(e.code); keys[keyMap[e.code]] = true; e.preventDefault(); }
   if (e.code === Core.LOOK.key){ keys.look = true; e.preventDefault(); }
   if (e.code === Core.NITRO.key){ keys.nitro = true; e.preventDefault(); }
-  if (e.code === 'KeyP' || e.code === 'Escape'){ if (state === 'play') pause(); else if (state === 'pause') resume(); else if (garage.live) garagePick(); }
+  if (e.code === 'KeyP' || e.code === 'Escape'){ if (state === 'play') pause(); else if (state === 'pause') resume(); else if (garage.live && garage.phase === 'drive') garagePick(true); }
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') garage.run = true;
   if (e.code === 'KeyM'){ if (state === 'play') showMap(); else if (state === 'pause' && mapOpen) resume(); }
   if (e.code === 'KeyN') toggleSound();
   if (e.code === 'KeyR'){ initAudio(); setStation(Core.radioNext(radio.key, e.shiftKey ? -1 : 1), true); }
@@ -4869,8 +4877,9 @@ addEventListener('keyup', e => {
   if (Object.hasOwn(keyMap, e.code)){ held.delete(e.code); keys[keyMap[e.code]] = Core.actionHeld(held, keyMap[e.code]); }
   if (e.code === Core.LOOK.key) keys.look = false;
   if (e.code === Core.NITRO.key) keys.nitro = false;
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') garage.run = false;
 });
-addEventListener('blur', () => { held.clear(); Object.keys(keys).forEach(k => keys[k] = false); if (state === 'play') pause(); });
+addEventListener('blur', () => { garage.run = false; held.clear(); Object.keys(keys).forEach(k => keys[k] = false); if (state === 'play') pause(); });
 // The engine must never keep running when the tab is hidden: suspend all audio, resume when visible again
 // The error screen pauses the run and silences the engine
 addEventListener('shardheist:fatal', () => { if (state === 'play') pause(); if (audio) audio.ctx.suspend(); $('fatalReload').focus(); });
@@ -6599,7 +6608,7 @@ function settleCar(dt){
   car.roll += (Math.atan2(hL - hR, 2.2) - car.roll) * Math.min(1, 10 * dt);
   const ty = Math.max((hF + hB + hL + hR) / 4, groundH(car.x, car.z));
   // the land is followed exactly, otherwise the vehicle would sink into every climb; only a kerb's step is smoothed
-  const land = garage.on ? Core.garageFloor(car.x, car.z) : hill(car.x, car.z) + (mode === 'country' ? terrainH(car.x, car.z) : 0);
+  const land = garage.on ? garageGround(car.x, car.z) : hill(car.x, car.z) + (mode === 'country' ? terrainH(car.x, car.z) : 0);
   car.lift += (ty - land - car.lift) * Math.min(1, 18 * dt);
   car.y = land + car.lift;
   const accel = (car.speed - car.prevSpeed) / Math.max(dt, 1e-4);
@@ -6787,8 +6796,9 @@ function updateShowroom(){
   // down in the garage the same two lights do the work of its lamps, and the ring marks the vehicle that is chosen
   const gar = garage.on, on = state === 'menu' || gar;
   turntable.visible = state === 'menu' || (gar && garage.phase === 'pick');
-  showKey.intensity = gar ? 5 : on ? 3.2 : 0;
-  showRim.intensity = gar ? 0.7 : on ? 2.4 : 0;
+  // on the way out they fade as the roller door rolls up, so the street takes over the light without a jump
+  showKey.intensity = gar ? 5 * (1 - 0.8 * garage.open) : on ? 3.2 : 0;
+  showRim.intensity = gar ? 0.7 * (1 - 0.8 * garage.open) : on ? 2.4 : 0;
   if (!on) return;
   const s = V.key === 'truck' ? 1.65 : V.key === 'bike' ? 0.62 : 1;
   // the ring lies on the street like the vehicle does; kept level on a slope it would cut through the tyres on the low side
@@ -6799,17 +6809,18 @@ function updateShowroom(){
   showRim.position.set(car.x - Math.sin(orbitAngle) * 4 * s, car.y + 2.2 * s, car.z - Math.cos(orbitAngle) * 4 * s);
   if (gar){
     const G = Core.GARAGE, pick = garage.phase !== 'drive' && garage.phase !== 'exit';
-    showKey.position.set(pick ? 0 : car.x * 0.4, car.y + 13, pick ? 2 : car.z + 5); showKey.target.position.set(pick ? 0 : car.x, car.y, pick ? G.bays.bike[1] : car.z);
+    const ox = garage.shift ? garage.shift.x : 0;
+    showKey.position.set(pick ? 0 : ox + (car.x - ox) * 0.4, car.y + 13, pick ? 2 : car.z + 5); showKey.target.position.set(pick ? 0 : car.x, car.y, pick ? G.bays.bike[1] : car.z);
     showRim.position.set(car.x + Math.sin(car.heading) * 3.5, car.y + 2.4, car.z + Math.cos(car.heading) * 3.5);
   }
 }
 
 // ---------- The player on foot ----------
 // ### The player on foot, seen through their own eyes: the same body as in room 1 (the escape room), so the two rooms feel
-// ### like one person. The walk (speed, the way it builds up and fades, the dip of the head at every footfall, the sway from
+// ### like one person. The walk (the way it builds up and fades, the dip of the head at every footfall, the sway from
 // ### foot to foot), the look (dragging turns the head), the glide to a spot, the two hands in the sleeves of the striped
 // ### prison uniform with their swing, springs, idle gestures and reach, and the echo of the footsteps are the code of
-// ### room-1-escape/js/room.js, copied word for word; only what ties them to the washroom (its walls, its puddles, the ladder)
+// ### room-1-escape/js/room.js, copied word for word (the pace is the caller's: o.pace, faster in the garage, with a run); only what ties them to the washroom (its walls, its puddles, the ladder)
 // ### is left out. The hand models and the linen scans are loaded from room 1's folder, so there is one copy of each. If they
 // ### cannot be loaded, the drawn hands stand in, as in room 1. The steps are synthesised (see "Footsteps").
 // ### ShardWalker.create(o) returns one walker. o: THREE, renderer, camera, canvas, reduced, base (the path to room 1),
@@ -6877,7 +6888,7 @@ function goTo(pos, look, dur){
 function walk(dt, f, s, canWalk){
   if (!canWalk){ cam.vel.set(0, 0, 0); cam.bob *= .9; return; }
   const len = Math.hypot(f, s);
-  const fx = Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), sp = len ? WALK_SPEED / len : 0;
+  const fx = Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), sp = len ? (o.pace ? o.pace() : WALK_SPEED) / len : 0;
   const k = 1 - Math.exp(-dt * (len ? 10 : 14));
   cam.vel.x += ((fx * f - fz * s) * sp - cam.vel.x) * k;
   cam.vel.z += ((fz * f + fx * s) * sp - cam.vel.z) * k;
@@ -7223,13 +7234,28 @@ function loadRealHands(){
 // one hand's state: where it is and how fast it moves (springs), its swing size this stride, and its idle gesture
 const handState = () => ({ p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Vector3(), w: new THREE.Vector3(), wr: new THREE.Vector2(), wv: new THREE.Vector2(),
   amp: 1, ampT: 1, step: 0, curl: [0, 0, 0, 0, 0], gesture: null, gestureT: 0, nextGesture: 3 + Math.random() * 6, seed: Math.random() * 100, init: false });
-const HANDS = { r: Object.assign(buildHand(1), handState()), l: Object.assign(buildHand(-1), handState()), reach: 0, down: 1, show: false };
+const HANDS = { r: Object.assign(buildHand(1), handState()), l: Object.assign(buildHand(-1), handState()), reach: 0, down: 1, show: false, grip: 0, gripK: 0, wide: 0 };
 loadRealHands();
+// ### What the hands hold once the player sits in a vehicle: a steering wheel (rim, hub and three spokes), or the bars of the
+// ### motorcycle. It belongs to the view from the seat, like the hands, and rises into the picture with them (see grip).
+const WHEEL = new THREE.Group(), BARS = new THREE.Group();
+{
+  const dark = new THREE.MeshStandardMaterial({ color: 0x17181b, roughness: .55, metalness: .2 });
+  WHEEL.add(new THREE.Mesh(new THREE.TorusGeometry(.19, .016, 10, 32), dark), new THREE.Mesh(new THREE.CylinderGeometry(.045, .05, .03, 16).rotateX(Math.PI / 2), dark));
+  for (const a of [0, Math.PI, -Math.PI / 2]) WHEEL.add(new THREE.Mesh(new THREE.BoxGeometry(.19, .026, .012).translate(.095, 0, 0).rotateZ(a), dark));
+  WHEEL.rotation.x = -.42;
+  BARS.add(new THREE.Mesh(new THREE.CylinderGeometry(.015, .015, .74, 10).rotateZ(Math.PI / 2), dark));
+  for (const sd of [-1, 1]) BARS.add(new THREE.Mesh(new THREE.CylinderGeometry(.02, .02, .13, 10).rotateZ(Math.PI / 2).translate(sd * .3, 0, 0), dark));
+  WHEEL.visible = BARS.visible = false;
+  handScene.add(WHEEL, BARS);
+}
 // ### Where each hand is (x, y, z from the eye) and how it is turned (pitch, yaw, roll). At rest the arms hang relaxed:
 // ### the hands low at the edge of the picture, thumbs up and palms turned towards each other, the forearms rising from
 // ### below. To use something the right hand turns palm down and reaches forward into the middle of the picture.
 const HAND_REST = { r: [.2, -.215, -.37, -.06, .1, -.9], l: [-.2, -.221, -.38, -.06, -.08, .92] };
 const HAND_REACH = [.12, -.165, -.5, .3, .35, -.35];
+// both hands on a steering wheel in front of the chest, palms down and closed round the rim; wide: on the bars of a motorcycle
+const HAND_WHEEL = { r: [.17, -.2, -.43, .34, .22, -.5], l: [-.17, -.2, -.43, .34, -.22, .5] }, WHEEL_WIDE = .1;
 // how much each finger is bent at rest (index to little finger, then the thumb): a relaxed hand curls more towards the little finger
 const CURL_REST = [.3, .4, .48, .56, .2];
 // ### Little things a hand does while you stand still, now and then: make a loose fist, tap with the index finger,
@@ -7260,6 +7286,10 @@ function updateHands(dt){
   HANDS.down += ((show ? 0 : 1) - HANDS.down) * (1 - Math.exp(-dt * 5));
   const still = REDUCED ? 0 : 1, t = clock;
   HANDS.reach = Math.max(0, HANDS.reach - dt / .55);
+  HANDS.gripK += (HANDS.grip - HANDS.gripK) * (1 - Math.exp(-dt * 7));
+  const held = HANDS.wide ? BARS : WHEEL;
+  WHEEL.visible = BARS.visible = false; held.visible = HANDS.gripK > .02 && HANDS.down < .98;
+  held.position.set(0, -.2 - (1 - HANDS.gripK) * .3 - HANDS.down * .35, HANDS.wide ? -.41 : -.45);
   const sp = Math.min(1, Math.hypot(cam.vel.x, cam.vel.z) / WALK_SPEED) * still, steps = cam.stride / .8, ph = steps * Math.PI;
   const reach = Math.sin(HANDS.reach * Math.PI) ** .7, lerp = (a, b, k) => a + (b - a) * k;
   for (const key of ['r', 'l']){
@@ -7277,6 +7307,12 @@ function updateHands(dt){
     const tr = [lerp(rx + swing * .2 + wobble(sd + 4, t * .8) * .03 * idle, R[3], out),
       lerp(ry + swing * side * .1 + wobble(sd + 5, t * .8) * .03 * idle, R[4], out),
       lerp(rz + swing * side * .12 + wobble(sd + 6, t * .7) * .05 * idle, R[5], out)];
+    // at the wheel: both hands go to the rim and stay there
+    if (HANDS.gripK > .001){
+      const Wp = HAND_WHEEL[key], gk = HANDS.gripK;
+      tp[0] = lerp(tp[0], Wp[0] + side * HANDS.wide * WHEEL_WIDE, gk); tp[1] = lerp(tp[1], Wp[1], gk); tp[2] = lerp(tp[2], Wp[2], gk);
+      for (let i = 0; i < 3; i++) tr[i] = lerp(tr[i], Wp[3 + i], gk);
+    }
     if (!h.init){ h.p.fromArray(tp); h.r.fromArray(tr); h.init = true; }
     // springs: a quick, slightly loose follow; the head turning is felt as the arm trailing behind by itself
     const P = h.p.toArray(), Vp = h.v.toArray(), Rr = h.r.toArray(), W = h.w.toArray();
@@ -7305,7 +7341,7 @@ function updateHands(dt){
     const gc = g ? g.curl(gk) : [0, 0, 0, 0, 0], spread = (g && g.spread ? g.spread(gk) : 0) + out * .14;
     for (let f = 0; f < 5; f++){
       // the fingers close a little as the hand swings back and open as it swings forward; each drifts on its own
-      const target = (CURL_REST[f] - swing * .12 + wobble(sd + 10 + f, t * 1.1) * .07 * still + gc[f]) * (1 - out * .8);
+      const target = lerp((CURL_REST[f] - swing * .12 + wobble(sd + 10 + f, t * 1.1) * .07 * still + gc[f]) * (1 - out * .8), f < 4 ? .9 : .55, HANDS.gripK);
       h.curl[f] += (target - h.curl[f]) * (1 - Math.exp(-dt * (g ? 10 : 6)));
     }
     poseFingers(h, side, spread);
@@ -7381,7 +7417,11 @@ function noise(dur, vol, type, freq, delay){
 
 // ### Shows or hides the body: while it is off, dragging does not turn the head and the hands sink out of the picture.
 function setActive(on){ active = !!on; HANDS.show = active; if (!active){ drag = null; HANDS.down = 1; HANDS.r.arm.visible = HANDS.l.arm.visible = false; } else initSteps(); }
-return { cam, EYE, BODY, WALK_SPEED, place, goTo, update, drawHands, reach: reachHand, setActive, gliding: () => cam.t < 1, hands: HANDS, lowerHands: () => { HANDS.show = false; } };
+// ### hold moves the hands alone, for when the caller moves the camera itself (getting into a vehicle); grip puts both hands
+// ### on a steering wheel (k = 1; wide: on the bars of a motorcycle) or lets go again (k = 0).
+function hold(dt){ clock += dt; cam.vel.set(0, 0, 0); updateHands(dt); }
+function grip(k, wide){ HANDS.grip = REDUCED ? 0 : k; HANDS.wide = wide ? 1 : 0; if (!k && !active) HANDS.gripK = 0; }
+return { cam, EYE, BODY, WALK_SPEED, place, goTo, update, hold, grip, drawHands, reach: reachHand, setActive, gliding: () => cam.t < 1, hands: HANDS, lowerHands: () => { HANDS.show = false; } };
 }
 return { create };
 })();
@@ -7391,12 +7431,13 @@ return { create };
 // ### vehicles stand in their bays. The player is on foot, with the same body as in the escape room (walker.js): walks among the
 // ### vehicles with the arrow keys or W A S D, looks round by dragging, and sees their own hands in the striped sleeves. The
 // ### vehicle they walk up to (or tap on the card, which walks them there) is the chosen one. "Get in" walks to its driver's
-// ### door, the hand reaches out, and the view slides onto the seat. Then they drive up the ramp. At the top the picture fades and the vehicle rolls out onto the street in the Baixa,
-// ### where the map of the evidence opens and the run begins. No clock runs down here and no police come.
+// ### door, the hand opens it, they get in and take the wheel. Then they drive up the ramp. At the top a roller door rolls up
+// ### and the vehicle drives straight out onto the street in the Baixa (no cut: see garageSwap), where the map of the
+// ### evidence opens and the run begins. No clock runs down here and no police come.
 // ### The sizes, the floor, the walls and the order of the vehicles are rules in Core (GARAGE, garageFloor, garageWalls, ...).
 // ### The garage lies 30 m under the city and has no lights of its own: its concrete glows a little, as under strip lights,
 // ### and the two showroom lights follow the vehicle.
-const GAR = { group: new THREE.Group(), colliders: Core.garageWalls(), slots: {} };
+const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.garageWalls(), slots: {}, end: Core.GARAGE.z1 + Core.GARAGE.ramp + Core.GARAGE.top, walk: 3, kerb: 0.6, sill: 0, clear: 3, shutter: null };
 (function buildGarage(){
   const G = Core.GARAGE, Y = G.y, end = G.z1 + G.ramp + G.top, grp = GAR.group, rnd = mulberry32(4471);
   const tex = (w, h, draw, rx, ry) => {
@@ -7429,30 +7470,16 @@ const GAR = { group: new THREE.Group(), colliders: Core.garageWalls(), slots: {}
   // the hall: floor, ceiling and the walls (the same boxes the vehicle collides with), the opening to the ramp with its lintel
   add(box(-G.x, G.x, Y - 0.4, Y, G.z0, G.z1), floorMat);
   add(box(-G.x - 1, G.x + 1, Y + G.h, Y + G.h + 0.4, G.z0 - 1, G.z1 + 1), roofMat, true);
-  const W = GAR.colliders, hall = W.slice(0, 5), sides = W.slice(5, 8);
+  const W = GAR.colliders, hall = W.slice(0, 5), sides = W.slice(5, 7), head = G.z1 + G.ramp;
   add(mergeGeos(hall.map(c => box(c.x0, c.x1, Y, Y + G.h, c.z0, c.z1))), wallMat);
   add(box(-G.door, G.door, Y + G.tunnel, Y + G.h, G.z1, G.z1 + 1), plainMat);
-  add(mergeGeos(sides.map(c => box(c.x0, c.x1, Y, Y + G.rise + G.tunnel + 0.4, c.z0, c.z1))), plainMat);
-  // the ramp and the level stretch at its top, each with its ceiling
+  add(mergeGeos(sides.map(c => box(c.x0, c.x1, Y, Y + G.rise + G.tunnel + 0.4, c.z0, head))), plainMat);
+  // the ramp with its ceiling
   const a = Math.atan2(G.rise, G.ramp), len = Math.hypot(G.ramp, G.rise), slab = up => {
     const g = new THREE.BoxGeometry(G.door * 2, 0.4, len + 0.4); g.translate(0, up, 0); g.rotateX(-a); g.translate(0, Y + G.rise / 2, G.z1 + G.ramp / 2); return g;
   };
   add(slab(-0.2), rampMat);
-  add(box(-G.door, G.door, Y + G.rise - 0.4, Y + G.rise, G.z1 + G.ramp, end), rampMat);
-  add(mergeGeos([slab(G.tunnel * Math.cos(a) + 0.2), box(-G.door - 1, G.door + 1, Y + G.rise + G.tunnel, Y + G.rise + G.tunnel + 0.4, G.z1 + G.ramp, end + 1)]), roofMat, true);
-  // the way out at the top: the open roller door, and through it the street at night
-  const street = tex(512, 256, (g, w, h) => {
-    const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#080b22'); sky.addColorStop(0.55, '#2a2348'); sky.addColorStop(0.8, '#5a3a58'); sky.addColorStop(1, '#16161f');
-    g.fillStyle = sky; g.fillRect(0, 0, w, h);
-    for (let i = 0, x = 0; x < w; i++){ const bw = 50 + rnd() * 50, bh = 90 + rnd() * 90; g.fillStyle = i % 2 ? '#191a30' : '#20213a'; g.fillRect(x, h * 0.82 - bh, bw, bh);
-      g.fillStyle = '#ffdf9c'; for (let wy = h * 0.82 - bh + 12; wy < h * 0.78; wy += 20) for (let wx = x + 8; wx < x + bw - 10; wx += 16) if (rnd() < 0.3) g.fillRect(wx, wy, 6, 10);
-      x += bw + 3; }
-    g.fillStyle = '#12131c'; g.fillRect(0, h * 0.82, w, h * 0.18);
-    for (const x of [w * 0.22, w * 0.72]){ const gr = g.createRadialGradient(x, h * 0.5, 0, x, h * 0.5, 120); gr.addColorStop(0, 'rgba(255,196,120,.75)'); gr.addColorStop(1, 'rgba(255,196,120,0)'); g.fillStyle = gr; g.fillRect(x - 120, h * 0.5 - 120, 240, 240); }
-  });
-  const out = new THREE.Mesh(new THREE.PlaneGeometry(G.door * 2, G.tunnel).rotateY(Math.PI).translate(0, Y + G.rise + G.tunnel / 2, end - 0.05), new THREE.MeshBasicMaterial({ map: street, fog: false }));
-  grp.add(out);
-  add(box(-G.door, G.door, Y + G.rise + G.tunnel - 0.5, Y + G.rise + G.tunnel, end - 0.6, end - 0.1), paint(0x3a3d44));
+  add(slab(G.tunnel * Math.cos(a) + 0.2), roofMat, true);
   // pillars with a yellow and black band at bumper height
   const hazard = new THREE.MeshStandardMaterial({ map: tex(64, 64, (g, w, h) => { g.fillStyle = '#e8b21c'; g.fillRect(0, 0, w, h); g.fillStyle = '#15161a'; for (let i = -64; i < 128; i += 32){ g.beginPath(); g.moveTo(i, h); g.lineTo(i + 16, h); g.lineTo(i + 16 + h, 0); g.lineTo(i + h, 0); g.fill(); } }), roughness: 0.7, emissive: C(0x3a3020) });
   add(mergeGeos(G.pillars.map(([x, z]) => box(x - G.pillar, x + G.pillar, Y, Y + G.h, z - G.pillar, z + G.pillar))), plainMat, true);
@@ -7473,7 +7500,7 @@ const GAR = { group: new THREE.Group(), colliders: Core.garageWalls(), slots: {}
     tubes.push(boxG(2.6, 0.07, 0.2, x, Y + G.h - 0.05, z));
     pools.push(new THREE.PlaneGeometry(13, 13).rotateX(-Math.PI / 2).translate(x, Y + 0.02, z));
   }
-  for (let z = G.z1 + 4; z < end - 2; z += 7) for (const sd of [-1, 1]){
+  for (let z = G.z1 + 4; z < head; z += 7) for (const sd of [-1, 1]){
     amber.push(boxG(0.08, 0.16, 0.7, sd * (G.door - 0.05), Core.garageFloor(0, z) + 2.7, z));
     const gl = glowSprite(C(0xffb866), 2.4, 0.5); gl.position.set(sd * (G.door - 0.3), Core.garageFloor(0, z) + 2.7, z); grp.add(gl);
   }
@@ -7487,13 +7514,56 @@ const GAR = { group: new THREE.Group(), colliders: Core.garageWalls(), slots: {}
   add(mergeGeos([-14.6, -14.1].map(z => new THREE.CylinderGeometry(0.09, 0.09, G.x * 2, 10).rotateZ(Math.PI / 2).translate(0, Y + G.h - 0.4, z))), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.5, metalness: 0.6, emissive: C(0x1a1410) }));
   add(mergeGeos([box(-14.1, -12.9, Y, Y + 2.15, G.z0, G.z0 + 0.08), box(-14.22, -12.78, Y, Y + 2.27, G.z0, G.z0 + 0.05)]), new THREE.MeshStandardMaterial({ color: 0x3f4a44, roughness: 0.5, metalness: 0.6, emissive: C(0x121614) }));
   grp.add(new THREE.Mesh(boxG(0.5, 0.16, 0.06, -13.5, Y + 2.5, G.z0 + 0.05), new THREE.MeshBasicMaterial({ color: 0x4dff9a })));
+  // ### The level stretch at the top of the ramp and the roller door at its end are one piece of their own (GAR.top), built
+  // ### around the middle of the door's sill: z runs from -top at the head of the ramp to 0 at the door. Down in the garage it
+  // ### closes the ramp. In the city the very same piece stands in the house at GARAGE.street, its last half metre out of the
+  // ### wall as the frame of the door; its floor lies a little above the highest ground under it (GAR.sill), and a driveway
+  // ### leads from the sill across the pavement and down the kerb to the street. See garageSwap for why it is one piece.
+  {
+    const top = GAR.top, T = G.top, [sx, sz] = G.street, H = (x, z) => Core.hillMesh('city', x, z), zs = sz + GAR.walk, zr = zs + GAR.kerb;
+    const put = (geo, m, cast) => { const o = new THREE.Mesh(geo, m); o.receiveShadow = true; o.castShadow = !!cast; top.add(o); return o; };
+    let high = -Infinity, low = Infinity;
+    for (let x = sx - G.door - 1; x <= sx + G.door + 1; x += 0.8) for (let z = sz - T - 0.5; z <= zs; z += 0.5){ const h = H(x, z); high = Math.max(high, h); low = Math.min(low, h); }
+    GAR.sill = high + 0.3;
+    // the house has a floor over its ground floor, which follows the hill; the camera stays under its lowest corner
+    GAR.clear = Math.min(G.tunnel - 0.45, low + 0.18 + GROUND + 0.3 - GAR.sill - 0.3);
+    put(box(-G.door, G.door, -0.5, 0, -T, 0), rampMat);
+    put(mergeGeos([-1, 1].map(sd => box(sd > 0 ? G.door : -G.door - 1, sd > 0 ? G.door + 1 : -G.door, -0.5, G.tunnel + 0.4, -T, 0))), plainMat);
+    put(box(-G.door - 1, G.door + 1, G.tunnel, G.tunnel + 0.4, -T, 0), roofMat, true);
+    put(box(-G.door, G.door, G.tunnel - 0.3, G.tunnel, -0.6, -0.1), paint(0x3a3d44));
+    const lamps = [];
+    for (let z = -T + 3; z < -2; z += 7) for (const sd of [-1, 1]){
+      lamps.push(boxG(0.08, 0.16, 0.7, sd * (G.door - 0.05), 2.7, z));
+      const gl = glowSprite(C(0xffb866), 2.4, 0.5); gl.position.set(sd * (G.door - 0.3), 2.7, z); top.add(gl);
+    }
+    top.add(new THREE.Mesh(mergeGeos(lamps), new THREE.MeshBasicMaterial({ color: 0xffc27a })));
+    // the roller door: ribbed steel, hung from its top edge, so rolling it up is a matter of making it shorter
+    const ribs = tex(64, 256, (g, w, h) => { g.fillStyle = '#8b9199'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 16){ g.fillStyle = 'rgba(0,0,0,.38)'; g.fillRect(0, y, w, 3); g.fillStyle = 'rgba(255,255,255,.2)'; g.fillRect(0, y + 3, w, 2); } });
+    const shutter = new THREE.Mesh(new THREE.PlaneGeometry(G.door * 2, G.tunnel).translate(0, -G.tunnel / 2, 0), new THREE.MeshStandardMaterial({ map: ribs, roughness: 0.6, metalness: 0.5, side: THREE.DoubleSide, emissive: C(0x202328) }));
+    shutter.position.set(0, G.tunnel, -0.25); top.add(shutter); GAR.shutter = shutter;
+    // the driveway: from the sill down to the edge of the pavement, and down the kerb to the street, bent like the ground under it
+    const N = 8, pos = [], idx = [], row = (z, y) => { for (let i = 0; i <= N; i++){ const x = -G.door + i * G.door * 2 / N; pos.push(x, y(sx + x) - GAR.sill, z - sz); } };
+    row(sz, () => GAR.sill); row(zs, x => H(x, zs) + 0.24); row(zr, x => H(x, zr) + 0.02);
+    for (let r = 0; r < 2; r++) for (let i = 0; i < N; i++){ const a = r * (N + 1) + i, b = a + N + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+    // its two cheeks, down to the pavement
+    for (const i of [0, N]) for (let r = 0; r < 2; r++){
+      const a = r * (N + 1) + i, b = a + N + 1, n = pos.length / 3;
+      pos.push(pos[a * 3], pos[a * 3 + 1] - 0.9, pos[a * 3 + 2], pos[b * 3], pos[b * 3 + 1] - 0.9, pos[b * 3 + 2]);
+      idx.push(a, n, b, b, n, n + 1);
+    }
+    const drive = new THREE.BufferGeometry(); drive.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); drive.setIndex(idx); drive.computeVertexNormals();
+    const dm = new THREE.MeshStandardMaterial({ color: 0x84868a, roughness: 0.8, side: THREE.DoubleSide, emissive: C(0x1c1c1e) }); dm.userData.env = 0.25;
+    put(drive, dm);
+  }
   grp.visible = false;
   scene.add(grp);
+  scene.add(GAR.top);
+  garageTop(true);
 })();
 
 // ### The player on foot: the body of the escape room (walker.js), with the garage's walls and floor and this game's sound.
 GAR.mouth = { t: 'b', x0: -Core.GARAGE.door, x1: Core.GARAGE.door, z0: Core.GARAGE.z1, z1: Core.GARAGE.z1 + 1 };
-const walker = ShardWalker.create({ THREE, renderer, camera, canvas, reduced: REDUCED, base: '../room-1-escape/', collide: garageCollide, floorAt: Core.garageFloor,
+const walker = ShardWalker.create({ THREE, renderer, camera, canvas, reduced: REDUCED, base: '../room-1-escape/', collide: garageCollide, floorAt: Core.garageFloor, pace: () => garage.run ? Core.GARAGE.run : Core.GARAGE.walk,
   sound: () => audio ? { ctx: audio.ctx, out: audio.gameVol } : null, muted: () => muted });
 // ### Puts the three vehicles where they belong in the garage: the chosen one is the player's vehicle and stands in its bay, the
 // ### other two are parked in theirs. Nobody sits on the motorcycle until the player has got on.
@@ -7527,6 +7597,7 @@ function garageParked(all){
 function enterGarage(){
   garage.on = true; state = 'garage';
   CITY.group.visible = false; GAR.group.visible = true;
+  garage.shift = null; garageTop(false);
   hud.classList.add('off');
   camera.near = 0.05; camera.updateProjectionMatrix();
   garagePick(false);
@@ -7538,6 +7609,7 @@ function garagePick(fromWheel){
   const G = Core.GARAGE;
   Object.assign(garage, { phase: 'pick', t: 0, live: false, sit: -1, path: [] });
   fader.material.opacity = 0;
+  garageShutter(0); garageSwing(0); walker.grip(0);
   held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
   garagePlace();
   const d = garageDoor(V.key);
@@ -7554,16 +7626,18 @@ function garagePick(fromWheel){
       <button class="btn ghost" data-action="street">Skip the garage</button>
       <button class="btn ghost" data-action="menu">Main menu</button>
     </div>
-    <p class="note"><span class="desk-only">Arrow keys or W A S D to walk · drag to look around · walk up to a vehicle or click it</span><span class="touch-only">Drag to look around · tap a vehicle to walk to it</span></p>`, 'garage');
+    <p class="note"><span class="desk-only">Arrow keys or W A S D to walk · hold Shift to run · drag to look around · walk up to a vehicle or click it</span><span class="touch-only">Drag to look around · tap a vehicle to walk to it</span></p>`, 'garage');
   garageChosen(false);
 }
 
 // ### Where the player stands to get into a vehicle, at eye height beside the driver's door (the driver sits on the left: the
-// ### passenger's side of BOARD, mirrored), and the seat they look at from there.
+// ### passenger's side of BOARD, mirrored), the seat they look at from there, and the point in the open door they pass
+// ### through on the way to it (mid: over the sill, head down under the roof).
 function garageDoor(k){
   const G = Core.GARAGE, [x, z, h] = G.bays[k], B = BOARD[k], ch = Math.cos(h), sh = Math.sin(h), at = (lx, lz) => [x + lx * ch + lz * sh, z - lx * sh + lz * ch];
-  const st = at(-B.stand[0] + 0.6, B.stand[1]), seat = at(-B.seat[0], B.seat[2]);
-  return { pos: [st[0], G.y + walker.EYE, st[1]], look: [seat[0], G.y + B.seat[1] + 0.3, seat[1]], seat: new THREE.Vector3(seat[0], G.y + B.seat[1] + 0.62, seat[1]) };
+  const st = at(-B.stand[0] + 0.6, B.stand[1]), seat = at(-B.seat[0], B.seat[2]), sill = at(-B.sill[0] + 0.25, B.sill[1]);
+  return { pos: [st[0], G.y + walker.EYE, st[1]], look: [seat[0], G.y + B.seat[1] + 0.3, seat[1]], seat: new THREE.Vector3(seat[0], G.y + B.seat[1] + 0.62, seat[1]),
+    mid: new THREE.Vector3(sill[0], G.y + B.seat[1] + 0.9, sill[1]) };
 }
 // ### Walks the player to the driver's door of the chosen vehicle, as the "Walk to" buttons do in the escape room. From one
 // ### bay to another the way leads out in front of the vehicles first, never through one.
@@ -7574,10 +7648,10 @@ function garageWalkTo(){
   garage.path = legs;
   garageLeg();
 }
-// ### Starts the next leg of that walk; its time follows from its length, at an easy walking pace.
+// ### Starts the next leg of that walk; its time follows from its length, at a run.
 function garageLeg(){
   const leg = garage.path.shift(), c = walker.cam.pos;
-  walker.goTo(leg.pos, leg.look, clamp(Math.hypot(leg.pos[0] - c.x, leg.pos[2] - c.z) / 2.3, 0.45, 4));
+  walker.goTo(leg.pos, leg.look, clamp(Math.hypot(leg.pos[0] - c.x, leg.pos[2] - c.z) / Core.GARAGE.run, 0.3, 3));
 }
 // ### After a choice: the vehicles change places if needed, the card says what the chosen one is like, and (after a tap on
 // ### the card) the player walks over to it.
@@ -7601,36 +7675,84 @@ function garageBoard(){
   garageWalkTo();
 }
 
-// how long getting in takes, in seconds: the hand reaching for the door, sliding onto the seat, the fade at the end of it; and the fade at the top of the ramp
-const GARAGE_T = { reach: 0.5, sit: 0.8, fade: 0.4, out: 0.5 };
-// ### Leaves the garage for the street: the vehicle stands at the start in the Baixa (rolling, when it came up the ramp) and the
-// ### map of the evidence opens. From "Start driving" on it is a run like any other.
+// how long each part of getting in takes, in seconds: the hand to the handle, the door swinging open, the way onto the seat,
+// pulling the door shut, a moment at the wheel while the engine starts, and the view drawing back behind the vehicle; and how
+// long the roller door at the top takes to roll up
+const GARAGE_T = { reach: 0.3, open: 0.45, sit: 0.9, shut: 0.35, wheel: 0.5, back: 0.8, door: 0.9 };
+// ### The driver's door of the chosen vehicle (the motorcycle has none): 0 shut, 1 wide open. Every other one is shut.
+function garageSwing(k){
+  for (const md of Object.values(MODELS)){
+    if (!md.drive) continue;
+    const on = md === MODELS[V.key] ? k : 0;
+    md.drive.pivot.visible = on > 0.001; md.drive.hole.visible = on > 0.04; md.drive.pivot.rotation.y = md.drive.max * on;
+  }
+}
+// ### Where the piece at the top of the ramp stands (GAR.top): at the end of the ramp down in the garage, or in the house on
+// ### the street, where its roller door is the way out of the garage that every run in Lisbon can see.
+function garageTop(inCity){
+  const G = Core.GARAGE;
+  if (inCity) GAR.top.position.set(G.street[0], GAR.sill, G.street[1]); else GAR.top.position.set(0, G.y + G.rise, GAR.end);
+}
+// ### How far the roller door is rolled up: 0 shut, 1 open.
+function garageShutter(k){ garage.open = k; GAR.shutter.scale.y = 1 - 0.97 * k; }
+// ### The ground under the vehicle while the garage is on. Down in the garage it is the floor and the ramp (Core.garageFloor).
+// ### Once the vehicle is in the city (garage.shift) it is the level floor behind the roller door, then the driveway across
+// ### the pavement and down the kerb, then the street itself.
+function garageGround(x, z){
+  if (!garage.shift) return Core.garageFloor(x, z);
+  const zd = Core.GARAGE.street[1], zs = zd + GAR.walk, zr = zs + GAR.kerb, H = (a, b) => Core.hillMesh('city', a, b);
+  if (z <= zd) return GAR.sill;
+  if (z <= zs) return GAR.sill + (H(x, zs) + 0.24 - GAR.sill) * (z - zd) / GAR.walk;
+  if (z <= zr) return H(x, zr) + 0.24 * (zr - z) / GAR.kerb;
+  return H(x, z);
+}
+// ### The seamless way out. The garage lies 30 m under the map, in a place of its own, and the city is not drawn while the
+// ### player is down there. On the level stretch at the top the view shows nothing but that stretch and its shut roller door,
+// ### and the very same piece stands in a house on the street. So here the vehicle, the camera and the piece are moved up
+// ### into the city by one and the same step (garage.shift): the picture does not change, the city is drawn again, and then
+// ### the door rolls up on the real street. No cut and no fade.
+function garageSwap(){
+  const G = Core.GARAGE, S = new THREE.Vector3(G.street[0], GAR.sill - (G.y + G.rise), G.street[1] - GAR.end);
+  garage.shift = S; garage.t = 0;
+  car.x += S.x; car.y += S.y; car.z += S.z; camera.position.add(S);
+  GAR.group.visible = false; CITY.group.visible = true;
+  garageTop(true);
+  // nothing may stand in the way out: traffic within 30 m of the door starts somewhere else (the door is still shut)
+  for (const n of npcs) if (n.on && Math.hypot(n.x - G.street[0], n.z - G.street[1] - 10) < 30){ n.on = false; spawnNpc(n, 60); }
+  updateNpcs(0);
+  sfx.door(true);
+}
+// ### Leaves the garage for the street and opens the map of the evidence at once. Driven out through the roller door, the
+// ### vehicle stays where it is, rolling on the street in front of the garage; with "Skip the garage" it stands at the usual
+// ### start. From "Start driving" on it is a run like any other.
 function garageToStreet(rolling){
+  const out = rolling && !!garage.shift;
   garageLeave();
-  resetCar();
-  if (rolling) car.speed = car.prevSpeed = 8;
+  if (out){ car.prevSpeed = car.speed; car.steer = 0; } else resetCar();
   hud.classList.remove('off');
   state = 'play';
   showOverview();
 }
-// ### Puts everything back as it is outside the garage: the city visible, the three models with the player's vehicle again.
+// ### Puts everything back as it is outside the garage: the city visible, the three models with the player's vehicle again,
+// ### the roller door shut in its house on the street.
 function garageLeave(){
   if (!garage.on) return;
-  Object.assign(garage, { on: false, live: false, phase: '' });
+  Object.assign(garage, { on: false, live: false, phase: '', shift: null, run: false });
   GAR.group.visible = false; CITY.group.visible = mode === 'city';
+  garageTop(true); garageShutter(0); garageSwing(0);
   Object.values(MODELS).forEach(md => carTilt.add(md.g));
   MODELS.bike.rider.visible = true;
   setVehicle(V.key);
   fader.material.opacity = 0;
-  walker.setActive(false);
+  walker.grip(0); walker.setActive(false);
   camera.near = 0.5; camera.updateProjectionMatrix();
 }
 // ### Driving in the garage: the same speed and steering rules as on the street (Core.stepSpeed, stepSteer, turnRate, stepYaw), at
 // ### walking-to-town speed. Walls, pillars and the parked vehicles push the vehicle back; a bump costs speed but no damage.
 function garageDrive(dt){
-  const G = Core.GARAGE, exit = garage.phase === 'exit';
-  car.speed = Core.stepSpeed(car.speed, exit ? { up: true } : keys, dt, Math.min(G.speed, Core.topSpeed(M, V, 0, false)), V, Core.garageGrade(car.z, car.heading));
-  car.steer = Core.stepSteer(car.steer, exit ? 0 : (keys.left ? 1 : 0) - (keys.right ? 1 : 0) || TILT.value, dt);
+  const G = Core.GARAGE;
+  car.speed = Core.stepSpeed(car.speed, keys, dt, Math.min(G.speed, Core.topSpeed(M, V, 0, false)), V, Core.garageGrade(car.z, car.heading));
+  car.steer = Core.stepSteer(car.steer, (keys.left ? 1 : 0) - (keys.right ? 1 : 0) || TILT.value, dt);
   car.yaw = Core.stepYaw(car.yaw || 0, Core.turnRate(car.steer, car.speed, V, keys.brake), dt, V);
   car.heading += car.yaw * dt * (car.speed >= 0 ? 1 : -1);
   const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
@@ -7645,25 +7767,48 @@ function garageDrive(dt){
   }
   settleCar(dt);
 }
-// ### The camera behind the vehicle in the garage: closer and lower than on the street, and kept inside the walls and under the ceiling.
+// ### Over the top of the ramp the vehicle drives itself: along the level stretch, out through the roller door and round to
+// ### the left into the lane of the street (the way of Core.garageWay, followed with Core.wayAim). Returns true at its end.
+function garageAuto(dt){
+  const S = garage.shift, ox = S ? S.x : 0, oz = (S ? S.z : 0) + GAR.end, x = car.x - ox, z = car.z - oz;
+  const [i, ax, az, done] = Core.wayAim(garage.way, garage.wi, x, z, V.key === 'truck' ? 5.5 : 4);
+  garage.wi = i;
+  const rate = clamp(wrapAngle(Math.atan2(ax - x, az - z) - car.heading) * 3, -1.1, 1.1);
+  car.speed += (Core.GARAGE.out - car.speed) * Math.min(1, dt * 2);
+  car.heading += rate * dt; car.yaw = rate; car.steer = rate / 1.1;
+  car.x += Math.sin(car.heading) * car.speed * dt; car.z += Math.cos(car.heading) * car.speed * dt;
+  settleCar(dt);
+  return done;
+}
+// ### The camera behind the vehicle in the garage: closer and lower than on the street, and kept inside the walls and under the
+// ### ceiling for as long as it is inside (also in the piece that stands in the city, which is why it is worked out in the
+// ### garage's own measures and moved by garage.shift).
 function garageCam(dt, snap){
-  const G = Core.GARAGE, truck = V.key === 'truck';
+  const G = Core.GARAGE, truck = V.key === 'truck', S = garage.shift, ox = S ? S.x : 0, oy = S ? S.y : 0, oz = S ? S.z : 0;
   car.camHeading += wrapAngle(car.heading - car.camHeading) * Math.min(1, dt * 5);
   const fx = Math.sin(car.camHeading), fz = Math.cos(car.camHeading), d = truck ? 8.5 : V.key === 'bike' ? 5 : 6.5, edge = G.door - 0.7;
-  let tx = car.x - fx * d, tz = Math.max(car.z - fz * d, G.z0 + 0.7);
-  if (tz > G.z1 - 0.7 && Math.abs(tx) > edge){ if (car.z < G.z1) tz = G.z1 - 0.7; else tx = clamp(tx, -edge, edge); }
-  tx = clamp(tx, -G.x + 0.7, G.x - 0.7);
-  const ty = Math.min(car.y + (truck ? 4.1 : V.key === 'bike' ? 2.0 : 2.5), Core.garageFloor(tx, tz) + (tz > G.z1 ? G.tunnel : G.h) - 0.45);
+  const cx = car.x - ox, cy = car.y - oy, cz = car.z - oz;
+  let tx = cx - fx * d, tz = Math.max(cz - fz * d, G.z0 + 0.7), ty = cy + (truck ? 4.1 : V.key === 'bike' ? 2.0 : 2.5);
+  if (tz < GAR.end + 0.4){
+    if (tz > G.z1 - 0.7 && Math.abs(tx) > edge){ if (cz < G.z1) tz = G.z1 - 0.7; else tx = clamp(tx, -edge, edge); }
+    tx = clamp(tx, -G.x + 0.7, G.x - 0.7);
+    ty = Math.min(ty, Core.garageFloor(tx, tz) + (tz > G.z1 ? G.tunnel : G.h) - 0.45);
+    // on the level stretch it also stays under the first floor of the house that the stretch stands in up in the city
+    if (tz > GAR.end - G.top - 2) ty = Math.min(ty, Core.garageFloor(tx, tz) + GAR.clear);
+  }
   const k = snap ? 1 : 1 - Math.exp(-dt * 5);
-  camera.position.x += (tx - camera.position.x) * k; camera.position.y += (ty - camera.position.y) * k; camera.position.z += (tz - camera.position.z) * k;
+  camera.position.x += (tx + ox - camera.position.x) * k; camera.position.y += (ty + oy - camera.position.y) * k; camera.position.z += (tz + oz - camera.position.z) * k;
   camera.lookAt(car.x + fx * 3, car.y + (truck ? 2.2 : 1.1), car.z + fz * 3);
   if (car.shake > 0.01 && !REDUCED) camera.position.y += (Math.random() - 0.5) * car.shake * 0.3;
   car.shake *= Math.exp(-dt * 6);
   if (camera.fov !== 62){ camera.fov = 62; camera.updateProjectionMatrix(); }
 }
-// ### One frame in the garage, by phase. pick: the player walks about; the vehicle they come close to is the chosen one.
-// ### board: the walk to the driver's door, the reach for it, and the slide onto the seat while the picture goes dark. drive: the player drives,
-// ### and over the top of the ramp (Core.garageOut) the picture fades and the street begins.
+// ### One frame in the garage, by phase. pick: the player walks about (Shift runs); the vehicle they come close to is the
+// ### chosen one. board: getting in, seen through the player's eyes and with their hands: the walk to the driver's door, the
+// ### right hand to the handle, the door swings open, in through it and onto the seat, both hands to the wheel (to the bars
+// ### on the motorcycle), the door is pulled shut, the engine starts and the view draws back behind the vehicle. drive: the
+// ### player drives up the ramp. exit: over the top the vehicle drives itself (garageAuto); as soon as the view has only the
+// ### level stretch in it the city takes over (garageSwap), the roller door rolls up, and on the street the map opens.
 function updateGarage(dt){
   const G = Core.GARAGE, g = garage, T = GARAGE_T;
   g.t += dt;
@@ -7679,8 +7824,8 @@ function updateGarage(dt){
     return;
   }
   if (g.phase === 'board'){
-    const d = garageDoor(V.key);
-    // 1. the walk to the door, then the right hand reaches for it
+    const d = garageDoor(V.key), door = !!MODELS[V.key].drive;
+    // the walk to the door
     if (g.sit < 0){
       walker.update(dt, 0, 0, false);
       if (walker.gliding()) return;
@@ -7688,32 +7833,55 @@ function updateGarage(dt){
       walker.reach(); g.sit = 0;
       return;
     }
-    g.sit += dt;
-    if (g.sit < T.reach){ walker.update(dt, 0, 0, false); g.from.copy(camera.position); g.turn.copy(camera.quaternion); return; }
-    // 2. the view slides onto the seat and turns to the windscreen, the hands sink out of the picture, the picture goes dark
-    const k = ease(clamp((g.sit - T.reach) / T.sit, 0, 1));
-    walker.setActive(false);
-    camera.position.copy(g.from).lerp(d.seat, k);
-    camera.lookAt(d.seat.x + Math.sin(car.heading) * 12, d.seat.y - 0.2, d.seat.z + Math.cos(car.heading) * 12);
-    camera.quaternion.slerp(g.turn, 1 - k);
-    fader.material.opacity = clamp((g.sit - (T.reach + T.sit - T.fade)) / T.fade, 0, 1);
-    if (g.sit < T.reach + T.sit) return;
-    Object.assign(g, { phase: 'drive', t: 0, live: true });
-    MODELS.bike.rider.visible = V.key === 'bike';
-    garageLamps(true);
+    const was = g.sit, s = g.sit += dt, crossed = at => was < at && s >= at;
+    const t1 = T.reach, t2 = t1 + (door ? T.open : 0), t3 = t2 + T.sit, t4 = t3 + (door ? T.shut : 0), t5 = t4 + T.wheel, t6 = t5 + T.back;
+    // 1. the right hand goes to the handle and the door swings open
+    if (s < t2){
+      walker.update(dt, 0, 0, false);
+      if (crossed(t1)){ sfx.door(true); walker.reach(); }
+      garageSwing(ease(clamp((s - t1) / T.open, 0, 1)));
+      g.from.copy(camera.position); g.turn.copy(camera.quaternion);
+      return;
+    }
+    if (s < t5){
+      // 2. in through the door, ducking under the roof, and onto the seat; the view turns to the windscreen and both hands
+      // take the wheel
+      const k = ease(clamp((s - t2) / T.sit, 0, 1)), u = 1 - k;
+      camera.position.set(u * u * g.from.x + 2 * u * k * d.mid.x + k * k * d.seat.x, u * u * g.from.y + 2 * u * k * d.mid.y + k * k * d.seat.y, u * u * g.from.z + 2 * u * k * d.mid.z + k * k * d.seat.z);
+      camera.lookAt(d.seat.x + Math.sin(car.heading) * 12, d.seat.y - 0.25, d.seat.z + Math.cos(car.heading) * 12);
+      camera.quaternion.slerp(g.turn, 1 - ease(clamp((s - t2) / (T.sit * 0.8), 0, 1)));
+      walker.grip(k > 0.45 ? 1 : 0, V.key === 'bike'); walker.hold(dt);
+      // 3. the door is pulled shut, 4. the engine starts and the lights come on
+      if (door && s >= t3) garageSwing(1 - clamp((s - t3) / T.shut, 0, 1) ** 2);
+      if (crossed(t4)){ if (door) sfx.door(false); g.live = true; garageLamps(true); }
+      return;
+    }
+    // 5. the view draws back out of the vehicle to its place behind it, and the hands sink out of the picture
+    if (crossed(t5)){ g.seat.copy(camera.position); g.turn.copy(camera.quaternion); walker.grip(0); walker.lowerHands(); MODELS.bike.rider.visible = V.key === 'bike'; }
+    const k = ease(clamp((s - t5) / T.back, 0, 1));
+    walker.hold(dt);
     garageCam(dt, true);
-    toast(COARSE ? 'Hold Gas and drive up the ramp to the street.' : 'Drive up the ramp to the street: W or ↑ is the gas.', '', 4200);
+    g.look.copy(camera.position); camera.position.lerpVectors(g.seat, g.look, k);
+    g.spin.copy(camera.quaternion); camera.quaternion.copy(g.turn).slerp(g.spin, k);
+    camera.fov = 66 + (62 - 66) * k; camera.updateProjectionMatrix();
+    if (s >= t6){
+      walker.setActive(false);
+      Object.assign(g, { phase: 'drive', t: 0 });
+      toast(COARSE ? 'Hold Gas and drive up the ramp to the street.' : 'Drive up the ramp to the street: W or ↑ is the gas.', '', 4200);
+    }
     return;
   }
-  garageDrive(dt);
-  garageCam(dt, false);
   if (g.phase === 'drive'){
-    fader.material.opacity = Math.max(0, 1 - g.t / T.out);
-    if (Core.garageOut(car.z)) Object.assign(g, { phase: 'exit', t: 0 });
-  } else {
-    fader.material.opacity = Math.min(1, g.t / T.out);
-    if (g.t >= T.out) garageToStreet(true);
+    garageDrive(dt);
+    garageCam(dt, false);
+    if (Core.garageOut(car.z)) Object.assign(g, { phase: 'exit', t: 0, wi: 0, way: Core.garageWay() });
+    return;
   }
+  const done = garageAuto(dt);
+  garageCam(dt, false);
+  if (!g.shift){ if (camera.position.z >= GAR.end - G.top + 0.6) garageSwap(); }
+  else garageShutter(ease(clamp(g.t / T.door, 0, 1)));
+  if (done) garageToStreet(true);
 }
 
 // ### Spins the shards and kits, picks them up when close, and checks the finish gate.
@@ -8208,8 +8376,9 @@ function frame(now){
   updateGuide();
   updateKitGuide();
   updateRoute();
+  GAR.top.visible = garage.on || (mode === 'city' && CITY.group.visible);
   if (composer && GFX[gfx].post) composer.render(); else renderer.render(scene, camera);
-  if (garage.on && !garage.live) walker.drawHands(scene.environment);
+  if (garage.on) walker.drawHands(scene.environment);
 }
 
 setStation(readStore('shard-heist-radio'), false);
