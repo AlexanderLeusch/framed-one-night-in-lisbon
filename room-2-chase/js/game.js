@@ -6916,7 +6916,9 @@ function updateShowroom(){
   const gar = garage.on, on = state === 'menu' || gar;
   turntable.visible = state === 'menu' || (gar && garage.phase === 'pick');
   // on the way out they fade as the roller door rolls up, so the street takes over the light without a jump
-  showKey.intensity = gar ? 5 * (1 - 0.8 * garage.open) : on ? 3.2 : 0;
+  // on the ramp the tubes light the way, so the key light that follows the vehicle steps back and does not wash out the floor
+  const upRamp = gar && car.z > Core.GARAGE.z1 + 1 ? 0.35 : 1;
+  showKey.intensity = gar ? 5 * upRamp * (1 - 0.8 * garage.open) : on ? 3.2 : 0;
   showRim.intensity = gar ? 0.7 * (1 - 0.8 * garage.open) : on ? 2.4 : 0;
   if (!on) return;
   const s = V.key === 'truck' ? 1.65 : V.key === 'bike' ? 0.62 : 1;
@@ -7574,7 +7576,22 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   };
   const mat = (map, rough, glow, env) => { const m = new THREE.MeshStandardMaterial({ map, roughness: rough, metalness: 0, emissive: C(glow), emissiveMap: map }); m.userData.env = env || 0.25; return m; };
   const floorMat = mat(tex(256, 256, concrete('#6e7176', true), 9, 9), 0.48, 0x3a3a3a, 0.7);
-  const rampMat = mat(tex(256, 256, (g, w, h) => { concrete('#74767a', false)(g, w, h); g.fillStyle = 'rgba(0,0,0,.28)'; for (let y = 0; y < h; y += 16) g.fillRect(0, y, w, 3); }, 3, 12), 0.7, 0x343434);
+  // ### The floor of the ramp: darker, rougher concrete than the hall, with fine anti-slip grooves across it, the two worn dark
+  // ### tracks the tyres have polished into it, black rubber where cars have braked, and a few oil drips. One tile spans the full
+  // ### width of the ramp, so the tracks lie where the wheels run; along it, a tile is about 4 m.
+  const rampTex = (g, w, h) => {
+    concrete('#53565a', false)(g, w, h);
+    for (let y = 0; y < h; y += 8){ g.fillStyle = 'rgba(0,0,0,.26)'; g.fillRect(0, y, w, 1.6); g.fillStyle = 'rgba(255,255,255,.045)'; g.fillRect(0, y + 1.6, w, 1); }
+    for (const cx of [0.4, 0.6]){
+      const x = cx * w, gr = g.createLinearGradient(x - 22, 0, x + 22, 0);
+      gr.addColorStop(0, 'rgba(8,8,10,0)'); gr.addColorStop(0.5, 'rgba(8,8,10,.34)'); gr.addColorStop(1, 'rgba(8,8,10,0)');
+      g.fillStyle = gr; g.fillRect(x - 22, 0, 44, h);
+      for (let i = 0; i < 6; i++){ g.fillStyle = `rgba(0,0,0,${(0.12 + rnd() * 0.18).toFixed(2)})`; g.fillRect(x - 6 + rnd() * 6, rnd() * h, 4 + rnd() * 4, 20 + rnd() * 50); }
+    }
+    for (let i = 0; i < 5; i++){ const x = w * (0.42 + rnd() * 0.16), y = rnd() * h, r = 5 + rnd() * 12, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(10,8,6,.5)'); gr.addColorStop(1, 'rgba(10,8,6,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+  };
+  const rampMat = mat(tex(256, 256, rampTex, 1, 8), 0.86, 0x1c1c1e, 0.35);
+  const topMat = mat(tex(256, 256, rampTex, 1, 4), 0.86, 0x1c1c1e, 0.35);
   const wallMat = mat(tex(256, 256, (g, w, h) => {
     concrete('#a3a5a6', false)(g, w, h);
     g.fillStyle = '#27506f'; g.fillRect(0, h * 0.74, w, h * 0.26); g.fillStyle = '#e9e9e2'; g.fillRect(0, h * 0.72, w, h * 0.03);
@@ -7583,6 +7600,8 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   const plainMat = mat(tex(256, 256, concrete('#8d8f91', false), 4, 2), 0.9, 0x383838);
   const roofMat = mat(tex(256, 256, concrete('#7c7e80', true), 7, 6), 0.9, 0x2c2c2c);
   const paint = hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.7, emissive: C(hex).multiplyScalar(0.3) });
+  // yellow and black stripes, on the pillars and the kerbs of the ramp
+  const hazard = new THREE.MeshStandardMaterial({ map: tex(64, 64, (g, w, h) => { g.fillStyle = '#e8b21c'; g.fillRect(0, 0, w, h); g.fillStyle = '#15161a'; for (let i = -64; i < 128; i += 32){ g.beginPath(); g.moveTo(i, h); g.lineTo(i + 16, h); g.lineTo(i + 16 + h, 0); g.lineTo(i + h, 0); g.fill(); } }), roughness: 0.7, emissive: C(0x3a3020) });
   const add = (geo, m, cast) => { const o = new THREE.Mesh(geo, m); o.receiveShadow = true; o.castShadow = !!cast; grp.add(o); return o; };
   const box = (x0, x1, y0, y1, z0, z1) => boxG(x1 - x0, y1 - y0, z1 - z0, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
 
@@ -7599,8 +7618,18 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   };
   add(slab(-0.2), rampMat);
   add(slab(G.tunnel * Math.cos(a) + 0.2), roofMat, true);
+  // ### On the ramp: a kerb along each wall with yellow and black paint, a yellow line inside it, and fluorescent tubes down the
+  // ### middle of the ceiling, each with its pool of light on the floor. onRamp puts a piece made flat (x across, up from the
+  // ### floor, d metres along the slope from its foot) onto the slope.
+  const onRamp = (geo, x, up, d) => geo.translate(x, up, d - len / 2).rotateX(-a).translate(0, Y + G.rise / 2, G.z1 + G.ramp / 2);
+  add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.32, 0.16, len), sd * (G.door - 0.16), 0.08, len / 2))), hazard);
+  add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.13, 0.02, len - 0.6), sd * (G.door - 0.62), 0.011, len / 2))), paint(0xe8b21c));
+  const rampTubes = [], rampPools = [];
+  for (let d = 3; d < len - 1; d += 6){
+    rampTubes.push(onRamp(new THREE.BoxGeometry(0.16, 0.07, 1.8), 0, G.tunnel * Math.cos(a) - 0.06, d), onRamp(new THREE.BoxGeometry(0.3, 0.05, 1.9), 0, G.tunnel * Math.cos(a) - 0.02, d));
+    rampPools.push(onRamp(new THREE.PlaneGeometry(G.door * 2 - 0.8, 6.4).rotateX(-Math.PI / 2), 0, 0.025, d));
+  }
   // pillars with a yellow and black band at bumper height
-  const hazard = new THREE.MeshStandardMaterial({ map: tex(64, 64, (g, w, h) => { g.fillStyle = '#e8b21c'; g.fillRect(0, 0, w, h); g.fillStyle = '#15161a'; for (let i = -64; i < 128; i += 32){ g.beginPath(); g.moveTo(i, h); g.lineTo(i + 16, h); g.lineTo(i + 16 + h, 0); g.lineTo(i + h, 0); g.fill(); } }), roughness: 0.7, emissive: C(0x3a3020) });
   add(mergeGeos(G.pillars.map(([x, z]) => box(x - G.pillar, x + G.pillar, Y, Y + G.h, z - G.pillar, z + G.pillar))), plainMat, true);
   add(mergeGeos(G.pillars.map(([x, z]) => box(x - G.pillar - 0.03, x + G.pillar + 0.03, Y + 0.15, Y + 1.25, z - G.pillar - 0.03, z + G.pillar + 0.03))), hazard);
   // paint on the floor: the lines of the three bays, and two arrows to the ramp
@@ -7620,10 +7649,12 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
     pools.push(new THREE.PlaneGeometry(13, 13).rotateX(-Math.PI / 2).translate(x, Y + 0.02, z));
   }
   for (let z = G.z1 + 4; z < head; z += 7) for (const sd of [-1, 1]){
-    amber.push(boxG(0.08, 0.16, 0.7, sd * (G.door - 0.05), Core.garageFloor(0, z) + 2.7, z));
-    const gl = glowSprite(C(0xffb866), 2.4, 0.5); gl.position.set(sd * (G.door - 0.3), Core.garageFloor(0, z) + 2.7, z); grp.add(gl);
+    amber.push(boxG(0.08, 0.12, 0.34, sd * (G.door - 0.05), Core.garageFloor(0, z) + 2.4, z));
+    const gl = glowSprite(C(0xffb866), 0.8, 0.45); gl.position.set(sd * (G.door - 0.14), Core.garageFloor(0, z) + 2.4, z); grp.add(gl);
   }
-  grp.add(new THREE.Mesh(mergeGeos(tubes), new THREE.MeshBasicMaterial({ color: 0xf1f6ff })));
+  grp.add(new THREE.Mesh(mergeGeos(tubes.concat(rampTubes)), new THREE.MeshBasicMaterial({ color: 0xf1f6ff })));
+  const rampPool = new THREE.Mesh(mergeGeos(rampPools), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0xb4c2de, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }));
+  rampPool.renderOrder = 2; grp.add(rampPool);
   grp.add(new THREE.Mesh(mergeGeos(amber), new THREE.MeshBasicMaterial({ color: 0xffc27a })));
   const pool = new THREE.Mesh(mergeGeos(pools), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0x9fb2d8, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false }));
   pool.renderOrder = 2; grp.add(pool);
@@ -7646,14 +7677,23 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
     GAR.sill = high + 0.3;
     // the house has a floor over its ground floor, which follows the hill; the camera stays under its lowest corner
     GAR.clear = Math.min(G.tunnel - 0.45, low + 0.18 + GROUND + 0.3 - GAR.sill - 0.3);
-    put(box(-G.door, G.door, -0.5, 0, -T, 0), rampMat);
+    put(box(-G.door, G.door, -0.5, 0, -T, 0), topMat);
+    put(mergeGeos([-1, 1].map(sd => box(Math.min(sd * (G.door - 0.32), sd * G.door), Math.max(sd * (G.door - 0.32), sd * G.door), 0, 0.16, -T, -0.2))), hazard);
+    put(mergeGeos([-1, 1].map(sd => box(sd * (G.door - 0.62) - 0.065, sd * (G.door - 0.62) + 0.065, 0.001, 0.021, -T, -0.6))), paint(0xe8b21c));
+    // a white stop line before the door, and the tubes and their pools as on the ramp
+    put(box(-G.door + 0.4, G.door - 0.4, 0.001, 0.021, -1.6, -1.25), paint(0xe6e6de));
+    const topTubes = [], topPools = [];
+    for (let z = -T + 2; z < -1.5; z += 6){ topTubes.push(boxG(0.16, 0.07, 1.8, 0, G.tunnel - 0.06, z), boxG(0.3, 0.05, 1.9, 0, G.tunnel - 0.02, z)); topPools.push(new THREE.PlaneGeometry(G.door * 2 - 0.8, 6.4).rotateX(-Math.PI / 2).translate(0, 0.025, z)); }
+    top.add(new THREE.Mesh(mergeGeos(topTubes), new THREE.MeshBasicMaterial({ color: 0xf1f6ff })));
+    const topPool = new THREE.Mesh(mergeGeos(topPools), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0xb4c2de, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }));
+    topPool.renderOrder = 2; top.add(topPool);
     put(mergeGeos([-1, 1].map(sd => box(sd > 0 ? G.door : -G.door - 1, sd > 0 ? G.door + 1 : -G.door, -0.5, G.tunnel + 0.4, -T, 0))), plainMat);
     put(box(-G.door - 1, G.door + 1, G.tunnel, G.tunnel + 0.4, -T, 0), roofMat, true);
     put(box(-G.door, G.door, G.tunnel - 0.3, G.tunnel, -0.6, -0.1), paint(0x3a3d44));
     const lamps = [];
     for (let z = -T + 3; z < -2; z += 7) for (const sd of [-1, 1]){
-      lamps.push(boxG(0.08, 0.16, 0.7, sd * (G.door - 0.05), 2.7, z));
-      const gl = glowSprite(C(0xffb866), 2.4, 0.5); gl.position.set(sd * (G.door - 0.3), 2.7, z); top.add(gl);
+      lamps.push(boxG(0.08, 0.12, 0.34, sd * (G.door - 0.05), 2.4, z));
+      const gl = glowSprite(C(0xffb866), 0.8, 0.45); gl.position.set(sd * (G.door - 0.14), 2.4, z); top.add(gl);
     }
     top.add(new THREE.Mesh(mergeGeos(lamps), new THREE.MeshBasicMaterial({ color: 0xffc27a })));
     // the roller door: ribbed steel, hung from its top edge, so rolling it up is a matter of making it shorter
