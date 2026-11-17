@@ -3646,7 +3646,7 @@ function use(action, target){
 // ### Sends an action to Rules, and shows the answer. Refused actions return the state unchanged, with a reason.
 function act(action, target, quiet){
   const before = S, r = R.perform(S, action, target);
-  cue(r.cue);
+  if (r.ok && r.cue === 'open' && r.state.ending === 'A') hatchCreak(); else cue(r.cue);
   if (!r.ok){ say(r.message, 'warn'); return r; }
   S = r.state;
   if (action !== 'new') save();
@@ -3964,7 +3964,8 @@ let ac = null, master = null, waterGain = null, noiseBuf = null, dripIn = 3;
 const TAP = { file: 'sounds/tap-water.mp3', loopStart: 1.08, loopEnd: 8.28, vol: .45 };
 const VENT = { file: 'sounds/air-vent.mp3', loopStart: .25, loopEnd: 9.25, vol: .12 };
 // ### The climb down the ladder: one file of short CC0 recordings (see sounds/CREDITS.md), each [start, length] in seconds:
-// ### two creaks of old wood, two knocks of a boot on a rung, a hand gripping, clothes rustling, a boot on stone.
+// ### two creaks of old wood, two knocks of a boot on a rung, a hand gripping, clothes rustling, a boot on stone. Only the
+// ### creaks are played now: the ladder under your weight and, slowed down, the hatch's hinges.
 const LADDER = { file: 'sounds/ladder.mp3', creak1: [.35, .478], creak2: [1.178, .386], rung1: [1.914, .248], rung2: [2.512, .281],
   grab: [3.143, .3], cloth: [3.793, .95], floor: [5.093, .58] };
 let ladderBuf = null, ladderBus = null;
@@ -4221,8 +4222,8 @@ function updateCine(dt){
 // ### then go down rung by rung: one hand lets go and grabs a lower rung while the other holds on, one boot steps down
 // ### to a lower rung, then your body sinks one rung, then the other hand and the other boot. Your whole body is there:
 // ### the hands close round the rungs, the forearms run to bent elbows and up to your shoulders, and when you glance
-// ### down you see your chest, your legs and your boots on the rungs. The wood creaks under your weight, hands and boots
-// ### knock on the rungs, your clothes rustle, all with the echo of the shaft (recorded sounds, sounds/ladder.mp3). Every
+// ### down you see your chest, your legs and your boots on the rungs. The only sound is the old wood creaking under your
+// ### weight, with the echo of the shaft (recorded, sounds/ladder.mp3); the hatch creaks open on its hinges. Every
 // ### grab shakes dust off the wood, and on the way you pass Hale's note. At the bottom you let go, step onto the stone
 // ### floor and turn round to face the tunnel, then the ending card. With reduced motion you are simply down there.
 // ### Ending B: the door is flung open, white corridor light floods in, then the card.
@@ -4242,6 +4243,12 @@ function endingA(){
   tunnelLight.visible = tunnelLight2.visible = dust.pts.visible = true;
   dustFall(70, HATCH.x, -.01, HATCH.z, HS * .9);
 }
+// ### The hatch swings open on its old hinges: a long, slow creak from the ladder's recordings played slowed down, with
+// ### the echo of the shaft below (a drawn creak until the recording has arrived).
+function hatchCreak(){
+  if (ladderSound('creak1', .6, .5)){ ladderSound('creak2', .5, .42, .55); ladderSound('creak1', .4, .62, 1.05); return; }
+  tone(105, .9, 'sawtooth', .04, 72); tone(140, .7, 'sawtooth', .025, 96, .6);
+}
 function endingB(){ doorFlash = 1; goView('cell', .6); setTimeout(() => { if (S.ending === 'B'){ showEnding(); } }, 1400); }
 // ### Plans the climb: at each step one hand (right, left, right ...) moves from the rung it holds to a lower one, a
 // ### little below where the eye will be after that step, and the boot on the other side steps down to a rung about
@@ -4258,7 +4265,7 @@ function startClimb(){
   climb = { t: REDUCED ? CLIMB.end : 0, moves, from: { pos: cam.pos.clone(), yaw: wrapAngle(cam.yaw), pitch: cam.pitch }, hands: !REDUCED,
     grabbed: -1, landed: -1, stepped: -1, let: -1, off: 0, bodyYaw: 0, release: 0,
     hand: { r: hand(1), l: hand(-1) }, foot: { r: footAt(1, -.6), l: footAt(-1, -.9) } };
-  ladderSound('cloth', .35); ladderSound('creak2', .3, .85, .5);
+  ladderSound('creak2', .3, .85, .5);
 }
 // ### One frame of the climb: where the eye is and where it looks, where each hand and boot is, sounds and dust.
 function updateClimb(dt){
@@ -4294,16 +4301,11 @@ function updateClimb(dt){
     pose.pitch = -.5 - .22 * clamp(1 - tt / 2, 0, 1) + .05 * sw - .6 * down + .32 * note;
     pose.yaw = -s * .03 * sw - .42 * note;
     c.bodyYaw = -s * .03 * sw;
-    if (uh > .05 && c.let !== k){ c.let = k; ladderSound('cloth', .16, 1.1 + Math.random() * .2); }
     if (uh >= 1 && c.grabbed !== k){
       c.grabbed = k; dustFall(10, mover.pos.x, mover.pos.y, mover.pos.z, .1);
-      if (!ladderSound('grab', .5, .9 + Math.random() * .2)) noise(.05, .05, 'bandpass', 1500);
-      ladderSound(k % 2 ? 'rung1' : 'rung2', .1, 1.5 + Math.random() * .2, .02);   // the palm slaps the wood
     }
     if (uf >= 1 && c.stepped !== k){
       c.stepped = k; dustFall(8, x + fs * .1, m.footTo, TUN.ladderZ, .15);
-      // the boot lands on the rung: a boot on wood from the footsteps, else a knock from the ladder's own recordings
-      if (!footstep('rung', STEP_VOL.rung * 1.3, .9) && !ladderSound(k % 2 ? 'rung1' : 'rung2', .55, .8 + Math.random() * .15)) noise(.1, .1, 'lowpass', 320);
     }
     if (ed >= .6 && c.landed !== k){
       c.landed = k;
@@ -4316,9 +4318,7 @@ function updateClimb(dt){
     pose.yaw = Math.PI * easeIO(clamp((v - .2) / .8, 0, 1)); pose.pitch = -.5 + .4 * e;
     c.bodyYaw = pose.yaw;
     c.release = smoothStep(.05, .4, v);   // the hands let go and the boots step down onto the stone
-    if (c.off === 0){ c.off = 1; ladderSound('creak1', .3, .7); if (!ladderSound('floor', .6, .9)) noise(.16, .16, 'lowpass', 220); dustFall(14, x, TUN.floor + .3, C.eyeZ - .1, .4); }
-    if (c.off === 1 && v > .3){ c.off = 2; ladderSound('floor', .45, 1.05); ladderSound('cloth', .14, 1.2); }
-    if (c.off === 2 && v > .62){ c.off = 3; ladderSound('floor', .35, .95); }
+    if (c.off === 0){ c.off = 1; ladderSound('creak1', .3, .7); dustFall(14, x, TUN.floor + .3, C.eyeZ - .1, .4); }
   }
   if (REDUCED){ const v = VIEWS.tunnel, a = anglesTo(v.pos, v.look); pose.pos.fromArray(v.pos); pose.yaw = a.yaw; pose.pitch = a.pitch; pose.roll = 0; c.hands = false; }
   return pose;
