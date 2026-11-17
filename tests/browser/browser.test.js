@@ -184,7 +184,8 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await click('[data-action="board"]');
       await waitFor("document.getElementById('overlay').hidden", 10000, 'the garage card to go away');
       await key('keydown', 'KeyW');
-      await waitFor("!!document.getElementById('ovMap')", 90000, 'the map of the evidence at the top of the ramp');
+      // about 13 s of game time (the walk, getting in, 57 m at 32 km/h); a slow CI machine draws only a few frames a second
+      await waitFor("!!document.getElementById('ovMap')", 300000, 'the map of the evidence at the top of the ramp');
       await key('keyup', 'KeyW');
       assert.match(await text('#card h2'), /Where the evidence is/);
       assert.match(await evaluate("document.getElementById('ovMap').getAttribute('aria-label')"), /Photos.*Fingerprints.*Torch.*Lockpick.*Clothes.*Balaclava/);
