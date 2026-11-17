@@ -1308,29 +1308,20 @@
       g.fillStyle = 'rgba(255,214,120,.35)'; g.fillRect(x - 1.5, y + 6, 3, 18);
       g.restore();
     }
-    // the player: a passenger in a white cork life jacket. Pose 'stand' on the stern, 'fly' with arms and legs spread,
-    // 'land' crouched, 'swim' only the head and jacket above the water.
-    function drawJumper(x, y, pose, tilt){
-      g.save(); g.translate(x, y); g.scale(1.25, 1.25);
-      if (pose === 'swim'){
-        g.fillStyle = '#efe9da'; g.fillRect(-7, -6, 14, 6);
-        g.fillStyle = '#d9b48f'; g.beginPath(); g.arc(0, -10, 4.5, 0, 7); g.fill();
-        g.restore(); return;
-      }
-      g.rotate(tilt || 0);
-      const crouch = pose === 'land' ? 5 : 0, spread = pose === 'fly';
-      g.strokeStyle = '#1c2230'; g.lineWidth = 3; g.lineCap = 'round';
-      g.beginPath();
-      g.moveTo(-2, -14 + crouch); g.lineTo(spread ? -8 : -3, 0); g.moveTo(2, -14 + crouch); g.lineTo(spread ? 8 : 3, 0);   // legs
-      g.stroke();
-      g.strokeStyle = '#2d3548'; g.lineWidth = 2.6; g.beginPath();
-      if (spread){ g.moveTo(-4, -24); g.lineTo(-13, -31); g.moveTo(4, -24); g.lineTo(13, -31); }
-      else { g.moveTo(-4, -24 + crouch); g.lineTo(-6, -14 + crouch); g.moveTo(4, -24 + crouch); g.lineTo(6, -14 + crouch); }
-      g.stroke();
-      g.fillStyle = '#efe9da'; g.fillRect(-5.5, -27 + crouch, 11, 13);                                         // the life jacket
-      g.fillStyle = '#b9b29e'; g.fillRect(-5.5, -21 + crouch, 11, 1.5);
-      g.fillStyle = '#d9b48f'; g.beginPath(); g.arc(0, -31 + crouch, 4.5, 0, 7); g.fill();                     // head
-      g.fillStyle = '#3a2618'; g.beginPath(); g.arc(0, -32.5 + crouch, 4.6, Math.PI, 0); g.fill();
+    // the player: the same sailor as on the deck run and the deck climb, feet at x, y. On the stern he crouches deeper and
+    // swings his arms back as the power rises; in the air he reaches up as he takes off, then spreads his arms and draws
+    // his knees up to land; on the boat he lands crouched; in the sea only his head, cap and waving arms are above water.
+    const POSE = {
+      stand: pw => ({ lean: .05 + .15 * pw, hipUp: 0, legs: [[.15 + .55 * pw, .3 + 1.1 * pw], [.25 + .55 * pw, .35 + 1.1 * pw]], arms: [[-.2 - 1.2 * pw, .1 - 1 * pw], [-.1 - 1.3 * pw, .2 - 1 * pw]] }),
+      land: { lean: .25, hipUp: 0, legs: [[.7, 1.4], [.9, 1.6]], arms: [[.9, 1.4], [1.1, 1.6]] },
+      swim: { lean: 0, hipUp: 0, legs: [[0, 0], [.1, .1]], arms: [[2.5, 2.9], [2.7, 3.1]] }
+    };
+    const SAILOR = .85;
+    function drawJumper(x, y, pose){
+      g.save();
+      if (pose === 'swim'){ g.beginPath(); g.rect(0, 0, W, SEA + 1); g.clip(); }
+      g.translate(x, y); g.scale(SAILOR, SAILOR);
+      drawSailorPose(g, 0, pose === 'swim' ? 36 : 0, clock, pose === 'fly' ? climbPose(s.p.vy * 3 - 200) : pose === 'stand' ? POSE.stand(s.power) : POSE[pose]);
       g.restore();
     }
     // the power meter: a brass gauge next to the stern, the needle swinging from "short" to "far"
@@ -1402,10 +1393,10 @@
         for (const r of ripples){ if (r.t > 1.4) continue; g.strokeStyle = `rgba(220,235,250,${.6 * (1 - r.t / 1.4)})`; g.lineWidth = 1.2; g.beginPath(); g.ellipse(r.x, SEA + 2, 8 + r.t * 40, 2 + r.t * 6, 0, 0, 7); g.stroke(); }
         // the player
         const p = s.p;
-        if (s.phase === 'aim'){ drawJumper(sh.sx + 6, sh.sy, 'stand', 0); drawMeter(sh.sx + 30, Math.max(8, sh.sy - 70)); }
-        else if (s.phase === 'fly') drawJumper(p.x, p.y, 'fly', Math.atan2(p.vy, Math.abs(p.vx) + 200) * .5);
-        else if (s.phase === 'landed') drawJumper(p.x, p.y + bob, 'land', 0);
-        else drawJumper(p.x, SEA + 4, 'swim', 0);
+        if (s.phase === 'aim'){ drawJumper(sh.sx + 6, sh.sy, 'stand'); drawMeter(sh.sx + 30, Math.max(8, sh.sy - 70)); }
+        else if (s.phase === 'fly') drawJumper(p.x, p.y, 'fly');
+        else if (s.phase === 'landed') drawJumper(p.x, p.y + bob, 'land');
+        else drawJumper(p.x, SEA + 4, 'swim');
         g.fillStyle = 'rgba(225,240,255,.85)'; for (const d of drops){ g.beginPath(); g.arc(d.x, d.y, 1.6, 0, 7); g.fill(); }
         // the score of the last landing, rising over the boat
         if (popup && popup.t < 1.4){
