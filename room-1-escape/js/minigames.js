@@ -45,9 +45,9 @@
       goal: 'Finish both parts of the engine-room machine before the firewall burns up.',
       steps: ['Part 1, the wave: change the frequency and the amplitude of your red ink line on the indicator card until it lies exactly on the dashed blue master line, then lock it.', 'Part 2, the key plate: find the one of the four brass plates whose pegs match the master key plate peg for peg, and set it.', 'The firewall burns up by itself in 16 seconds, and every wrong lock or wrong plate adds 15 %. Full means you are locked out.'],
       keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For the key plate, ← → and Space, or click one.', touch: 'Tap the brass buttons under the wave, or tap a key plate.' },
-    conduct: { title: 'Conduct the <em>band</em>', name: 'Conducting', how: 'The Titanic is sinking and her band plays on. You conduct: bring the baton down on every beat of the music with Space, ↑ or a click, just as the golden ring closes. 32 beats in time win; ten beats missed or off the music and the band falls apart.',
+    conduct: { title: 'Conduct the <em>band</em>', name: 'Conducting', how: 'The Titanic is sinking and her band plays on in the first-class dining saloon. You conduct: bring the baton down on every beat of the music with Space, ↑ or a click, just as the golden ring closes. 32 beats in time win; ten beats missed or off the music and the band falls apart.',
       goal: 'Keep the Titanic’s band in time for 32 beats.',
-      steps: ['The band plays Bach’s Brandenburg Concerto No. 3 on the tilting deck. The first four beats are counted in for you.', 'Bring the baton down on every beat, just as the golden ring closes on its tip. About a seventh of a second early or late still counts.', 'A beat you miss, or a beat off the music, puts the band out of time. Ten of them and it falls apart.'],
+      steps: ['The band plays Bach’s Brandenburg Concerto No. 3 in the tilting first-class dining saloon. The first four beats are counted in for you.', 'Bring the baton down on every beat, just as the golden ring closes on its tip. About a seventh of a second early or late still counts.', 'A beat you miss, or a beat off the music, puts the band out of time. Ten of them and it falls apart.'],
       keys: 'Space, ↑ or W on every beat, or click.', touch: 'Tap the screen on every beat.' }
   };
   const GAMES = Object.keys(INFO);
@@ -2019,7 +2019,8 @@
     };
   };
 
-  // ### 9. Conducting: the night the Titanic sank, her band played on deck to the end. Here you conduct it. The band plays
+  // ### 9. Conducting: the night the Titanic sank, her band played on to the end. Here you conduct it, in the first-class
+  // ### dining saloon while the ship tilts. The band plays
   // ### Bach's Brandenburg Concerto No. 3 (a CC0 recording, sounds/orchestra.mp3, at a steady 117 beats a minute) and you
   // ### bring the baton down on every beat. COND.FIRST and COND.BEAT are where the beats lie in that recording, measured
   // ### when the file was made (see sounds/CREDITS.md). The first COUNT beats are counted in; after them every beat must
@@ -2059,99 +2060,118 @@
     return 'early';
   }
 
-  // ### The boat deck at night, painted once: the white deckhouse with its lit windows and the first-class entrance, a
-  // ### funnel above it, the teak deck, and to the right the railing and an empty lifeboat davit with the sea behind. It is
-  // ### painted larger than the canvas (by M on every side), because the whole ship is drawn tilted as she goes down.
-  const COND_M = 60;
-  function paintBandDeck(g){
-    const { W, H } = COND, X0 = -COND_M, X1 = W + COND_M, DECK = 246, WALL = 430;
-    // the funnel: buff with a black top, behind the deckhouse
-    const fun = g.createLinearGradient(70, 0, 170, 0); fun.addColorStop(0, '#6e4a22'); fun.addColorStop(.45, '#b07a3a'); fun.addColorStop(1, '#5a3c1c');
-    g.fillStyle = fun; g.fillRect(70, -COND_M, 100, 160);
-    g.fillStyle = '#0c0b0a'; g.fillRect(70, -COND_M, 100, 44);
-    g.fillStyle = 'rgba(0,0,0,.35)'; for (let y = 10; y < 96; y += 22) g.fillRect(70, y, 100, 2);
-    // the deckhouse: white-painted steel in the dark, lit warm from the lamps and windows
-    const wall = g.createLinearGradient(0, 96, 0, DECK); wall.addColorStop(0, '#5d6670'); wall.addColorStop(.6, '#8d8e88'); wall.addColorStop(1, '#a29b8a');
-    g.fillStyle = wall; g.fillRect(X0, 96, WALL - X0, DECK - 96);
-    g.fillStyle = '#2b2e33'; g.fillRect(X0, 90, WALL - X0 + 6, 8);   // the roof's overhang
-    g.fillStyle = 'rgba(0,0,0,.18)'; for (let x = X0; x < WALL; x += 48) g.fillRect(x, 98, 1.5, DECK - 98);
-    for (let x = X0 + 14; x < WALL - 10; x += 48){
-      if (x > 236 && x < 330) continue;
-      g.fillStyle = '#3c3a34'; g.fillRect(x - 2, 128, 28, 44);
-      const lit = g.createLinearGradient(0, 130, 0, 170); lit.addColorStop(0, '#ffe7a6'); lit.addColorStop(1, '#e09a3c');
-      g.fillStyle = lit; g.fillRect(x, 130, 24, 40);
-      g.fillStyle = '#3c3a34'; g.fillRect(x + 11, 130, 2, 40); g.fillRect(x, 148, 24, 2);
-      const glow = g.createRadialGradient(x + 12, 150, 2, x + 12, 150, 48); glow.addColorStop(0, 'rgba(255,200,110,.22)'); glow.addColorStop(1, 'rgba(255,200,110,0)');
-      g.fillStyle = glow; g.fillRect(x - 40, 102, 104, 120);
+  // ### The first-class dining saloon on D deck, painted once: white-painted Jacobean oak panelling with pilasters, the
+  // ### moulded white ceiling, tall leaded windows glowing amber, the patterned linoleum floor, and tables laid with white
+  // ### cloths, silver and little rose-shaded lamps among green leather chairs. It is painted larger than the canvas (by
+  // ### COND_M on every side), because the whole room is drawn tilted as the ship goes down. The chandeliers are not in
+  // ### it: they hang plumb while the room tilts, so they are drawn every frame (condLamps).
+  const COND_M = 60, COND_FLOOR = 238;
+  const condLamps = [70, 250, 430, 610].map(x => ({ x, y: 22 }));
+  function paintSaloon(g){
+    const { W, H } = COND, X0 = -COND_M, X1 = W + COND_M, Y0 = -COND_M, F = COND_FLOOR;
+    // the ceiling: white plaster in deep coffers, lit from below
+    const ceil = g.createLinearGradient(0, Y0, 0, 40); ceil.addColorStop(0, '#5e5648'); ceil.addColorStop(1, '#b9ad94');
+    g.fillStyle = ceil; g.fillRect(X0, Y0, X1 - X0, 100);
+    for (let x = X0 + 10; x < X1; x += 90){
+      g.fillStyle = 'rgba(60,50,35,.35)'; g.fillRect(x, Y0 + 8, 76, 42);
+      g.strokeStyle = 'rgba(255,245,220,.35)'; g.lineWidth = 1.5; g.strokeRect(x + 6, Y0 + 14, 64, 30);
+      g.strokeStyle = 'rgba(200,160,80,.45)'; g.beginPath(); g.ellipse(x + 38, Y0 + 29, 16, 8, 0, 0, 7); g.stroke();
     }
-    // the first-class entrance: double doors with light pouring out
-    g.fillStyle = '#4a3420'; g.fillRect(246, 116, 74, DECK - 116);
-    const door = g.createLinearGradient(0, 122, 0, DECK); door.addColorStop(0, '#fff0c2'); door.addColorStop(1, '#e8a64c');
-    g.fillStyle = door; g.fillRect(252, 122, 30, DECK - 122); g.fillRect(286, 122, 28, DECK - 122);
-    g.fillStyle = 'rgba(80,50,20,.5)'; for (let y = 140; y < DECK; y += 26){ g.fillRect(252, y, 30, 2); g.fillRect(286, y, 28, 2); }
-    const spill = g.createRadialGradient(284, DECK, 4, 284, DECK, 140); spill.addColorStop(0, 'rgba(255,205,120,.35)'); spill.addColorStop(1, 'rgba(255,205,120,0)');
-    g.fillStyle = spill; g.fillRect(140, 120, 290, 200);
-    // the end of the deckhouse, then the railing with the sea behind it
-    g.fillStyle = '#4b4d4f'; g.fillRect(WALL, 96, 8, DECK - 96);
-    // the empty davit: its lifeboat is gone, the falls hang loose
-    g.strokeStyle = '#d8d6cf'; g.lineWidth = 6; g.lineCap = 'round';
-    g.beginPath(); g.moveTo(560, DECK); g.lineTo(560, 140); g.quadraticCurveTo(560, 104, 600, 108); g.stroke();
-    g.strokeStyle = 'rgba(220,210,190,.7)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(598, 110); g.quadraticCurveTo(606, 170, 596, 214); g.stroke();
-    g.strokeStyle = '#e9e6dd'; g.lineWidth = 3; g.lineCap = 'butt';
-    g.beginPath(); g.moveTo(WALL + 8, 200); g.lineTo(X1, 200); g.stroke();
-    g.lineWidth = 1.6; for (const y of [216, 231]){ g.beginPath(); g.moveTo(WALL + 8, y); g.lineTo(X1, y); g.stroke(); }
-    g.lineWidth = 2.4; for (let x = WALL + 22; x < X1; x += 26){ g.beginPath(); g.moveTo(x, 200); g.lineTo(x, DECK); g.stroke(); }
-    // the teak deck, its planks running away from you
-    const deck = g.createLinearGradient(0, DECK, 0, H + COND_M); deck.addColorStop(0, '#4a3524'); deck.addColorStop(1, '#2a1c12');
-    g.fillStyle = deck; g.fillRect(X0, DECK, X1 - X0, H + COND_M - DECK);
-    g.strokeStyle = 'rgba(15,8,4,.55)'; g.lineWidth = 1;
-    for (let k = -14; k <= 14; k++){ g.beginPath(); g.moveTo(320 + k * 34, DECK); g.lineTo(320 + k * 150, H + COND_M); g.stroke(); }
-    for (let y = DECK + 8, step = 6; y < H + COND_M; y += step, step *= 1.25){ g.fillStyle = 'rgba(15,8,4,.25)'; g.fillRect(X0, y, X1 - X0, 1); }
-    const warm = g.createRadialGradient(290, DECK + 20, 10, 290, DECK + 20, 260); warm.addColorStop(0, 'rgba(255,190,110,.18)'); warm.addColorStop(1, 'rgba(255,190,110,0)');
-    g.fillStyle = warm; g.fillRect(X0, DECK, X1 - X0, H + COND_M - DECK);
+    g.fillStyle = '#cfc4a8'; g.fillRect(X0, 34, X1 - X0, 12);   // the cornice
+    g.fillStyle = 'rgba(80,60,30,.35)'; for (let x = X0; x < X1; x += 10) g.fillRect(x, 42, 5, 4);
+    // the panelled walls, white-painted oak, warm in the lamplight
+    const wall = g.createLinearGradient(0, 46, 0, F); wall.addColorStop(0, '#d8ccb0'); wall.addColorStop(1, '#bfae8c');
+    g.fillStyle = wall; g.fillRect(X0, 46, X1 - X0, F - 46);
+    for (let x = X0; x < X1; x += 100){
+      // a pilaster, then a bay with a tall leaded window over a panelled dado
+      g.fillStyle = '#e6dcc4'; g.fillRect(x, 46, 16, F - 46);
+      g.fillStyle = 'rgba(90,70,40,.3)'; g.fillRect(x + 14, 46, 2, F - 46);
+      g.fillStyle = '#d2a952'; g.fillRect(x + 2, 52, 12, 4);
+      const wx = x + 34, ww = 48;
+      g.fillStyle = '#6a5a3e'; g.fillRect(wx - 4, 62, ww + 8, 112);
+      const glass = g.createLinearGradient(0, 64, 0, 170); glass.addColorStop(0, '#ffe9b0'); glass.addColorStop(1, '#d9953e');
+      g.fillStyle = glass; g.beginPath(); g.moveTo(wx, 170); g.lineTo(wx, 84); g.quadraticCurveTo(wx + ww / 2, 58, wx + ww, 84); g.lineTo(wx + ww, 170); g.fill();
+      g.strokeStyle = 'rgba(70,50,25,.55)'; g.lineWidth = .8;
+      for (let k = -6; k < 12; k++){ g.beginPath(); g.moveTo(wx + k * 8, 170); g.lineTo(wx + k * 8 + 60, 110); g.moveTo(wx + k * 8, 110); g.lineTo(wx + k * 8 + 60, 170); g.stroke(); }
+      g.fillStyle = '#6a5a3e'; g.fillRect(wx + ww / 2 - 1.5, 66, 3, 104); g.fillRect(wx, 118, ww, 3);
+      const glow = g.createRadialGradient(wx + ww / 2, 120, 4, wx + ww / 2, 120, 70); glow.addColorStop(0, 'rgba(255,210,130,.25)'); glow.addColorStop(1, 'rgba(255,210,130,0)');
+      g.fillStyle = glow; g.fillRect(wx - 50, 50, ww + 100, 160);
+      // the dado: three raised panels
+      for (let k = 0; k < 3; k++){ g.strokeStyle = 'rgba(90,70,40,.4)'; g.lineWidth = 1.4; g.strokeRect(x + 22 + k * 26, 186, 20, 42); g.strokeStyle = 'rgba(255,250,235,.5)'; g.lineWidth = .8; g.strokeRect(x + 24 + k * 26, 188, 16, 38); }
+    }
+    g.fillStyle = '#8a7350'; g.fillRect(X0, 178, X1 - X0, 4);     // the chair rail
+    g.fillStyle = '#5a4730'; g.fillRect(X0, F - 6, X1 - X0, 6);   // the skirting
+    // the linoleum floor: red and cream tiles with a blue key, running away from you
+    const floor = g.createLinearGradient(0, F, 0, H + COND_M); floor.addColorStop(0, '#6e3a2a'); floor.addColorStop(1, '#3a1d14');
+    g.fillStyle = floor; g.fillRect(X0, F, X1 - X0, H + COND_M - F);
+    for (let row = 0, y = F, step = 7; y < H + COND_M; row++, y += step, step *= 1.18){
+      const sx = 320 - (X1 - X0) * .5 * (1 + row * .25);
+      for (let col = 0, x = sx; x < X1 + 200; col++, x += 28 * (1 + row * .25)){
+        if ((row + col) % 2) continue;
+        g.fillStyle = (row + col) % 4 ? 'rgba(230,214,180,.22)' : 'rgba(40,60,110,.25)';
+        g.fillRect(x, y, 28 * (1 + row * .25), step);
+      }
+    }
+    const pool = g.createRadialGradient(320, F + 30, 10, 320, F + 30, 300); pool.addColorStop(0, 'rgba(255,200,120,.2)'); pool.addColorStop(1, 'rgba(255,200,120,0)');
+    g.fillStyle = pool; g.fillRect(X0, F, X1 - X0, H + COND_M - F);
+    // the tables: two along the back wall, two big ones in front at the sides
+    const table = (x, y, r, s) => {
+      const chair = cx => { g.fillStyle = '#2f4a32'; g.fillRect(cx - 6 * s, y - 26 * s, 12 * s, 22 * s); g.fillStyle = '#4a2e1a'; g.fillRect(cx - 6 * s, y - 4 * s, 2 * s, 14 * s); g.fillRect(cx + 4 * s, y - 4 * s, 2 * s, 14 * s); };
+      chair(x - r - 4 * s); chair(x + r + 4 * s);
+      g.fillStyle = '#4a2e1a'; g.fillRect(x - 2 * s, y, 4 * s, 18 * s);
+      g.fillStyle = '#f6f2e8'; g.beginPath(); g.ellipse(x, y, r, r * .3, 0, 0, 7); g.fill();
+      g.fillStyle = '#e2dccd'; g.fillRect(x - r, y, r * 2, 12 * s);
+      g.fillStyle = '#c8c8c8'; for (const dx of [-.6, -.2, .25, .6]){ g.beginPath(); g.ellipse(x + dx * r, y - 1 * s, 4 * s, 1.4 * s, 0, 0, 7); g.fill(); }
+      g.strokeStyle = 'rgba(230,240,255,.8)'; g.lineWidth = s; for (const dx of [-.4, .45]){ g.beginPath(); g.moveTo(x + dx * r, y - 2 * s); g.lineTo(x + dx * r, y - 7 * s); g.stroke(); }
+      // the little lamp with its rose silk shade
+      g.fillStyle = '#d2a952'; g.fillRect(x - .8 * s, y - 14 * s, 1.6 * s, 13 * s);
+      g.fillStyle = '#e88f86'; g.beginPath(); g.moveTo(x - 4 * s, y - 13 * s); g.lineTo(x + 4 * s, y - 13 * s); g.lineTo(x + 2.5 * s, y - 19 * s); g.lineTo(x - 2.5 * s, y - 19 * s); g.fill();
+      const lg = g.createRadialGradient(x, y - 14 * s, 1, x, y - 14 * s, 26 * s); lg.addColorStop(0, 'rgba(255,170,150,.35)'); lg.addColorStop(1, 'rgba(255,170,150,0)');
+      g.fillStyle = lg; g.fillRect(x - 26 * s, y - 40 * s, 52 * s, 52 * s);
+    };
+    table(30, 232, 24, .8); table(610, 232, 24, .8);
+    table(-10, 318, 52, 1.6); table(660, 318, 52, 1.6);
   }
-  // ### A musician of the band, facing you, feet at x, y: navy uniform with brass buttons, a peaked cap, and his
-  // ### instrument ('violin', 'viola', 'cello' or 'bass'). bow (-1 to 1) is where the bow is in its stroke; bob dips him
-  // ### on the beat.
-  function drawMusician(g, x, y, kind, bow, bob){
-    y += bob;
-    const NAVY = '#1c2740', WOOD = '#8a3d14', WOOD2 = '#c4692a', SKIN = '#e0b08a';
-    g.fillStyle = '#0f131c'; g.fillRect(x - 9, y - 40, 7, 38); g.fillRect(x + 2, y - 40, 7, 38);
-    g.fillStyle = '#050505'; g.fillRect(x - 11, y - 3, 10, 4); g.fillRect(x + 1, y - 3, 10, 4);
-    g.fillStyle = NAVY; g.beginPath(); g.moveTo(x - 13, y - 76); g.lineTo(x + 13, y - 76); g.lineTo(x + 15, y - 36); g.lineTo(x - 15, y - 36); g.fill();
-    g.fillStyle = '#efe9dc'; g.beginPath(); g.moveTo(x - 5, y - 76); g.lineTo(x + 5, y - 76); g.lineTo(x, y - 62); g.fill();
-    g.fillStyle = '#d9b354'; for (let k = 0; k < 3; k++){ g.beginPath(); g.arc(x, y - 58 + k * 7, 1.2, 0, 7); g.fill(); }
-    g.fillStyle = SKIN; g.beginPath(); g.arc(x, y - 84, 8, 0, 7); g.fill();
-    g.fillStyle = NAVY; g.fillRect(x - 9, y - 96, 18, 7);
-    g.fillStyle = '#060606'; g.fillRect(x - 10, y - 90, 20, 3);
-    g.fillStyle = '#d9b354'; g.fillRect(x - 9, y - 92, 18, 1.5);
-    const arm = (ax, ay, bx, by) => { g.strokeStyle = NAVY; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke(); g.fillStyle = SKIN; g.beginPath(); g.arc(bx, by, 3, 0, 7); g.fill(); };
-    if (kind === 'violin' || kind === 'viola'){
-      const big = kind === 'viola' ? 1.15 : 1;
-      // the fiddle under his chin on his left shoulder (your right), the scroll pointing out
-      g.save(); g.translate(x + 10, y - 72); g.rotate(-.35);
-      g.fillStyle = WOOD; g.beginPath(); g.ellipse(0, 0, 10 * big, 5.5 * big, 0, 0, 7); g.fill();
-      g.fillStyle = WOOD2; g.beginPath(); g.ellipse(-1, -1, 6 * big, 3 * big, 0, 0, 7); g.fill();
-      g.strokeStyle = '#1a0d06'; g.lineWidth = 2; g.beginPath(); g.moveTo(8 * big, 0); g.lineTo(24 * big, 0); g.stroke();
-      g.restore();
-      arm(x + 11, y - 74, x + 10 + 22 * big * Math.cos(-.35), y - 72 + 22 * big * Math.sin(-.35) + 1);
-      // the bow crosses the strings by the bridge and slides along its own length
-      const bx = x + 6 - bow * 9, by = y - 68 + bow * 4;
-      arm(x - 11, y - 74, bx - 6, by + 2);
-      g.strokeStyle = '#efe6d2'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(bx - 8, by + 3); g.lineTo(bx + 26, by - 10); g.stroke();
-    } else {
-      const big = kind === 'bass' ? 1.45 : 1, cy = y - 30 * big;
-      // the instrument stands on its spike in front of him
-      g.strokeStyle = '#1a0d06'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(x, cy - 16 * big); g.lineTo(x, cy - 44 * big); g.stroke();
-      g.beginPath(); g.moveTo(x, cy + 18 * big); g.lineTo(x, y + 1); g.stroke();
-      g.fillStyle = WOOD; g.beginPath(); g.ellipse(x, cy, 12 * big, 19 * big, 0, 0, 7); g.fill();
-      g.fillStyle = WOOD2; g.beginPath(); g.ellipse(x - 1, cy - 2, 8 * big, 14 * big, 0, 0, 7); g.fill();
-      g.fillStyle = '#1a0d06'; g.fillRect(x - 4, cy - 3, 8, 1.5);
-      arm(x + 11, y - 74, x + 4, cy - 36 * big);
-      const bx = x + bow * 12 * big, by = cy + 6;
-      arm(x - 11, y - 74, bx - 18, by);
-      g.strokeStyle = '#efe6d2'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(bx - 22, by); g.lineTo(bx + 22, by - 2); g.stroke();
+  // ### A musician of the band in the style of the sailor of the deck run and the deck climb, standing side-on, feet at x, y,
+  // ### facing right (dir 1) or left (-1), drawn sc times the sailor's size. His instrument ('violin', 'viola', 'cello' or
+  // ### 'bass') is drawn with him; bow (-1 to 1) is where the bow is in its stroke, bob dips him on the beat.
+  function drawBandsman(g, x, y, dir, sc, kind, bow, bob, t){
+    const WOOD = '#8a3d14', WOOD2 = '#c4692a', DARK = '#1a0d06', HAIR = '#efe6d2';
+    const fiddle = kind === 'violin' || kind === 'viola', big = kind === 'viola' ? 1.15 : kind === 'bass' ? 1.5 : 1;
+    // the same arm angles drawSailorPose uses: 0 down, positive forward; the far arm holds the neck, the near one bows
+    const arms = fiddle ? [[1.85, 1.75], [.55 + bow * .3, 1.75 + bow * .35]] : [[1.9 + (big - 1) * .9, 2.7], [.55 + bow * .3, 1.35 + bow * .2]];
+    const pose = { lean: fiddle ? -.05 : .1, hipUp: 0, legs: [[-.06, 0], [.1, .04]], arms };
+    g.save(); g.translate(x, y + bob); g.scale(dir * sc, sc);
+    // the hand positions, worked out as drawSailorPose does (standing, the hip is 30 above the feet)
+    const sh = [Math.sin(pose.lean) * 19, -30 - Math.cos(pose.lean) * 19];
+    const hand = (i, sx) => { const s = [sh[0] + sx, sh[1] + 2], e = at(s, 10, arms[i][0]); return at(e, 9.5, arms[i][1]); };
+    const far = hand(0, -1), near = hand(1, 1);
+    if (!fiddle){
+      // the cello or bass stands on its spike in front of him; its neck runs up to his far hand
+      const cx = 12 * big, cy = -14 * big - 2;
+      g.strokeStyle = DARK; g.lineWidth = 1.6; g.beginPath(); g.moveTo(cx, cy + 10 * big); g.lineTo(cx - 2, 0); g.stroke();
+      g.lineWidth = 2.2; g.beginPath(); g.moveTo(cx, cy - 6 * big); g.lineTo(far[0] + 1, far[1] - 6 * big); g.stroke();
+      g.fillStyle = WOOD; g.beginPath(); g.ellipse(cx, cy, 6.5 * big, 11 * big, -.12, 0, 7); g.fill();
+      g.fillStyle = WOOD2; g.beginPath(); g.ellipse(cx + 1, cy - 1, 4 * big, 8 * big, -.12, 0, 7); g.fill();
+      g.fillStyle = DARK; g.fillRect(cx - 3, cy + 1, 6, 1);
     }
+    const out = drawSailorPose(g, 0, 0, t, pose);
+    if (fiddle){
+      // the fiddle tucked under his chin, its scroll in his far hand, the bow across the strings by the bridge
+      const ch = [out.head[0] + 1, out.head[1] + 6], ang = Math.atan2(far[1] - ch[1], far[0] - ch[0]);
+      g.save(); g.translate(ch[0], ch[1]); g.rotate(ang);
+      g.fillStyle = WOOD; g.beginPath(); g.ellipse(3 * big, 0, 6 * big, 3.4 * big, 0, 0, 7); g.fill();
+      g.fillStyle = WOOD2; g.beginPath(); g.ellipse(2.5 * big, -.6, 3.6 * big, 1.8 * big, 0, 0, 7); g.fill();
+      g.strokeStyle = DARK; g.lineWidth = 1.3; g.beginPath(); g.moveTo(8 * big, 0); g.lineTo(Math.hypot(far[0] - ch[0], far[1] - ch[1]) + 2, 0); g.stroke();
+      g.restore();
+      const br = [ch[0] + Math.cos(ang) * 5 * big, ch[1] + Math.sin(ang) * 5 * big], bl = Math.hypot(br[0] - near[0], br[1] - near[1]) || 1;
+      g.strokeStyle = HAIR; g.lineWidth = .9; g.beginPath(); g.moveTo(near[0], near[1]); g.lineTo(br[0] + (br[0] - near[0]) / bl * 7, br[1] + (br[1] - near[1]) / bl * 7); g.stroke();
+    } else {
+      g.strokeStyle = HAIR; g.lineWidth = 1; g.beginPath(); g.moveTo(near[0] - 3, near[1] + 1); g.lineTo(near[0] + 18 * big, near[1] - 1); g.stroke();
+    }
+    // the near hand over the bow
+    g.fillStyle = '#e0ad86'; g.beginPath(); g.arc(near[0], near[1], 2.1, 0, 7); g.fill();
+    g.restore();
   }
   // ### A note rising from the band: gold when you are in time, red and crooked when you are not.
   function drawNote(g, x, y, color, tilt){
@@ -2165,11 +2185,12 @@
   BUILD.conduct = api => {
     const { W, H } = COND, FONT = HACK_FONT, ICTUS = { x: 350, y: 236 };
     const c = api.canvas(W, H), g = c.getContext('2d');
-    const s = condNew(), night = paintNight(W, H, 214, 1515);
+    const s = condNew();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const ship = document.createElement('canvas'); ship.width = (W + 2 * COND_M) * dpr; ship.height = (H + 2 * COND_M) * dpr;
-    const sg = ship.getContext('2d'); sg.scale(dpr, dpr); sg.translate(COND_M, COND_M); paintBandDeck(sg);
-    const BAND = [['violin', 168], ['violin', 232], ['viola', 300], ['cello', 400], ['bass', 478]].map(([kind, x], i) => ({ kind, x, y: 262 - (i % 2) * 6, lag: 0 }));
+    const sg = ship.getContext('2d'); sg.scale(dpr, dpr); sg.translate(COND_M, COND_M); paintSaloon(sg);
+    // the band in a half circle round the conductor: the strings on the left face right, cello and bass on the right face left
+    const BAND = [['violin', 150, 1], ['violin', 216, 1], ['viola', 282, 1], ['cello', 438, -1], ['bass', 512, -1]].map(([kind, x, dir], i) => ({ kind, x, dir, y: 262 - (i % 2) * 6 }));
     const notes = [];
     let clock = 0, stroke = -9, shown = null, discord = 0, ended = false;
     // ### The music: the recording through the room's sound (its volume and mute), or if it has not arrived, a plain beat
@@ -2214,7 +2235,7 @@
     const status = () => api.status(`In time: ${s.hits} of ${COND.GOAL} · Out of time: ${s.misses} of ${COND.MISSES}`);
     function spawn(kind){
       const m = BAND[Math.floor(api.rand() * BAND.length)], bad = kind === 'early' || kind === 'missed';
-      notes.push({ x: m.x + (api.rand() - .5) * 20, y: m.y - 100, vx: (api.rand() - .5) * 20, life: 1.4, bad, tilt: bad ? (api.rand() - .5) * 1.4 : 0 });
+      notes.push({ x: m.x + (api.rand() - .5) * 20, y: m.y - 96, vx: (api.rand() - .5) * 20, life: 1.4, bad, tilt: bad ? (api.rand() - .5) * 1.4 : 0 });
     }
     function play(){
       for (const e of s.events) api.sound(e);
@@ -2253,17 +2274,27 @@
       },
       draw(){
         const t = songTime(), p = (t - COND.FIRST) / COND.BEAT;
-        g.drawImage(night, 0, 0, W, H);
-        // the ship goes down by the bow: the deck tilts more and more while the sea and the sky stay level
+        g.fillStyle = '#1c140c'; g.fillRect(0, 0, W, H);
+        // the ship goes down by the bow: the saloon tilts more and more, while its chandeliers still hang plumb
         const tilt = (1.5 + Math.min(30, clock) * .1) * Math.PI / 180;
         g.save(); g.translate(W / 2, H); g.rotate(tilt); g.translate(-W / 2, -H);
         g.drawImage(ship, -COND_M, -COND_M, W + 2 * COND_M, H + 2 * COND_M);
+        condLamps.forEach((L, i) => {
+          g.save(); g.translate(L.x, L.y); g.rotate(-tilt + Math.sin(clock * 1.3 + i) * .015);
+          g.strokeStyle = '#8a6a2a'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, 30); g.stroke();
+          const glow = g.createRadialGradient(0, 40, 2, 0, 40, 46); glow.addColorStop(0, 'rgba(255,225,160,.45)'); glow.addColorStop(1, 'rgba(255,225,160,0)');
+          g.fillStyle = glow; g.fillRect(-46, -6, 92, 92);
+          g.fillStyle = '#c99a3e'; g.beginPath(); g.ellipse(0, 36, 16, 4, 0, 0, 7); g.fill();
+          for (let k = -2; k <= 2; k++){ g.fillStyle = '#fff3cf'; g.beginPath(); g.arc(k * 7, 41 - Math.abs(k) * 2, 2.6, 0, 7); g.fill(); }
+          g.fillStyle = 'rgba(255,255,255,.7)'; for (let k = -3; k <= 3; k++){ g.fillRect(k * 4.5 - .5, 44, 1, 6 - Math.abs(k)); }
+          g.restore();
+        });
         // the band: the bows go down and up with the beat; out of time they scatter
         BAND.forEach((m, i) => {
           const off = discord * (i % 2 ? .45 : -.35) * (1 + i * .2);
           const bow = Math.cos(Math.PI * (p + off)) + discord * .3 * Math.sin(t * 17 + i * 3);
           const pulse = Math.max(0, 1 - Math.abs(p + off - Math.round(p + off)) * 4);
-          drawMusician(g, m.x, m.y, m.kind, Math.max(-1, Math.min(1, bow)), t > 0 ? pulse * 1.6 : 0);
+          drawBandsman(g, m.x, m.y, m.dir, 1.9, m.kind, Math.max(-1, Math.min(1, bow)), t > 0 ? pulse * 1.6 : 0, t);
         });
         for (const n of notes){ g.globalAlpha = Math.min(1, n.life); drawNote(g, n.x, n.y, n.bad ? '#e2483a' : '#ffd36a', n.tilt); }
         g.globalAlpha = 1;
