@@ -361,7 +361,7 @@ function tileMat(w, h = TILE_H){
 const partitionTex = canvasTex(512, 512, (g, w, h) => {
   g.fillStyle = '#6f7c75'; g.fillRect(0, 0, w, h);
   for (let i = 0; i < 5000; i++){ const v = rnd() < .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${rnd() * .05})`; g.fillRect(rnd() * w, rnd() * h, 2, 2); }
-  grime(g, w, h, 30, 'rgba(50,44,30,.22)', w * .12, true);
+  grime(g, w, h, 14, 'rgba(50,44,30,.12)', w * .12, true);
   g.strokeStyle = 'rgba(205,210,200,.35)'; g.lineWidth = 1;
   for (let i = 0; i < 26; i++){ const x = rnd() * w, y = rnd() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - .5) * 70, y + (rnd() - .5) * 18); g.stroke(); }
   g.fillStyle = 'rgba(30,30,28,.3)'; for (let i = 0; i < 12; i++){ g.beginPath(); g.arc(rnd() * w, rnd() * h, 1 + rnd() * 3, 0, 7); g.fill(); }
@@ -409,8 +409,10 @@ function panelMaterial(wm, hm, foot, grips = []){
   e.fillStyle = '#808080'; e.fillRect(0, 0, w, h);
   r.fillStyle = 'rgb(0,118,80)'; r.fillRect(0, 0, w, h);
   // the paint's own shifts of colour, and the orange peel of the powder coat
-  for (let i = 0; i < area * 30; i++) blob(g, R() * w, R() * h, D * (.05 + R() * .2), R() < .5 ? 'rgba(150,165,155,.06)' : 'rgba(40,48,44,.07)');
+  for (let i = 0; i < area * 30; i++) blob(g, R() * w, R() * h, D * (.05 + R() * .2), R() < .5 ? 'rgba(150,165,155,.035)' : 'rgba(40,48,44,.04)');
   for (let i = 0; i < w * h / 26; i++){ const v = 128 + (R() - .5) * 34 | 0; e.fillStyle = `rgb(${v},${v},${v})`; e.beginPath(); e.arc(R() * w, R() * h, .8 + R() * 1.6, 0, 7); e.fill(); }
+  // the sheet steel is never quite flat: broad, gentle waves that show in the gloss (oil-canning)
+  for (let i = 0; i < area * 3; i++) blob(e, R() * w, R() * h, D * (.25 + R() * .35), R() < .5 ? 'rgba(150,150,150,.12)' : 'rgba(105,105,105,.12)');
   // chips along the edges: bare steel inside a rim of red primer, a little lower than the paint
   for (let i = 0; i < (wm + hm) * 2 * 12; i++){
     const side = R() * 4 | 0, t = R(), d = Math.pow(R(), 2) * D * .018, x = side < 2 ? t * w : side === 2 ? d : w - d, y = side === 0 ? d : side === 1 ? h - d : t * h;
@@ -2032,52 +2034,112 @@ const SX0 = 1.5, SZ1 = -.7;
   side.position.set(SX0, .15, SZ1); side.rotation.y = Math.PI / 2;   // its own x runs to -z, its front faces into the stall
   for (const [x, grips] of [[SX0, [[1, 1.12]]], [3.7, [[0, 1.3]]]]) add(new THREE.Mesh(panelGeo(.3, 2.03, .04), panelMaterial(.3, 2.03, .02, grips))).position.set(x, .02, SZ1);
 }
-box(2.54, .06, .06, M.dullSteel, 2.75, 2.06, SZ1);
-for (const z of [-2.9, SZ1 + .05]) box(.06, .14, .06, M.dullSteel, SX0, .07, z);
-// steel edge caps on the partitions and wall brackets that hold them
+// ### The stall's hardware, all brushed stainless: an anti-grip headrail (a rounded profile with a flat underside) with end
+// ### caps and a wall bracket, a U-channel that holds the partition to the wall along its whole height, two round
+// ### adjustable feet under the partition, and shoes round the foot of each pilaster.
+{
+  const hr = new THREE.Shape(); hr.moveTo(-.025, 0); hr.lineTo(.025, 0); hr.lineTo(.025, .022); hr.absarc(0, .022, .025, 0, Math.PI, false); hr.closePath();
+  const rail = add(new THREE.Mesh(new THREE.ExtrudeGeometry(hr, { depth: 2.52, bevelEnabled: false, curveSegments: 12 }), M.steel));
+  rail.rotation.y = Math.PI / 2; rail.position.set(SX0 - .02, 2.033, SZ1);
+  for (const x of [SX0 - .022, 4.0 - .005]){ const cap = add(new THREE.Mesh(new THREE.ExtrudeGeometry(hr, { depth: .004, bevelEnabled: false, curveSegments: 12 }), M.dullSteel)); cap.rotation.y = Math.PI / 2; cap.position.set(x, 2.033, SZ1); cap.scale.set(1.08, 1.08, 1); }
+  box(.008, .09, .07, M.dullSteel, 3.996, 2.05, SZ1);   // the bracket that holds the rail to the east wall
+  // the U-channel along the wall joint, with its screws
+  for (const dx of [-.024, .024]) box(.003, 1.86, .03, M.steel, SX0 + dx, 1.08, -2.985);
+  box(.051, 1.86, .003, M.steel, SX0, 1.08, -2.9985);
+  for (const y of [.35, .8, 1.25, 1.7]) for (const dx of [-.026, .026]){ const sc = cyl(.004, .004, .003, M.chrome, SX0 + dx, y, -2.975, 6); sc.rotation.z = Math.PI / 2; }
+  // the partition's feet: a round base on the floor, a threaded post and a clamp round the panel's lower edge
+  for (const z of [-2.75, SZ1 - .12]){
+    cyl(.034, .038, .012, M.steel, SX0, .006, z, 20); cyl(.011, .011, .14, M.chrome, SX0, .08, z, 12); cyl(.016, .016, .02, M.dullSteel, SX0, .045, z, 6);
+    box(.052, .045, .05, M.steel, SX0, .16, z);
+  }
+}
+// steel edge caps on the partitions
 box(.055, 1.9, .012, M.dullSteel, SX0, 1.1, SZ1 - .01); box(.012, 1.9, .05, M.dullSteel, SX0 + .3, 1.1, SZ1); box(.012, 1.9, .05, M.dullSteel, 3.7, 1.1, SZ1);
-for (const y of [.4, 1.1, 1.8]) box(.09, .05, .03, M.dullSteel, SX0, y, -2.985);
-for (const x of [SX0 + .15, 3.85]) box(.32, .12, .07, M.steel, x, .06, SZ1);   // pilaster shoes
+// shoes round the foot of each pilaster: a rounded stainless sleeve
+for (const x of [SX0 + .15, 3.85]){
+  const sh = new THREE.Shape(); roundedRect(sh, -.162, -.03, .162, .03, .012);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: .09, bevelEnabled: true, bevelThickness: .006, bevelSize: .004, bevelSegments: 2, curveSegments: 6 });
+  g.rotateX(-Math.PI / 2); g.translate(x, .006, SZ1); add(new THREE.Mesh(g, M.steel));
+}
 // the stall door stands open against the east wall: hinges, a slide latch and a coat hook
 {
   const pivot = new THREE.Group(); pivot.position.set(3.7, 0, SZ1 + .025); pivot.rotation.y = 1.72; room.add(pivot);
   const put = m => { m.castShadow = m.receiveShadow = true; pivot.add(m); return m; };
   const bx = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return put(m); };
   put(new THREE.Mesh(panelGeo(.86, 1.62, .03), panelMaterial(.86, 1.62, .23, [[.08, 1.12], [.5, 1.5]]))).position.set(-.88, .23, 0);
-  for (const y of [.42, 1.04, 1.66]){ const h = new THREE.Mesh(new THREE.CylinderGeometry(.011, .011, .12, 10), M.steel); h.position.set(-.005, y, .02); put(h); }
+  for (const y of [.42, 1.04, 1.66]){
+    const h = new THREE.Mesh(new THREE.CylinderGeometry(.011, .011, .12, 12), M.steel); h.position.set(-.005, y, .02); put(h);
+    for (const z of [-.017, .017]) bx(.07, .11, .003, M.steel, -.045, y, z);   // the hinge's leaves wrap round the door's edge
+    for (const y2 of [-.035, .035]) for (const z of [-.019, .019]){ const sc = new THREE.Mesh(new THREE.CylinderGeometry(.004, .004, .002, 6), M.chrome); sc.rotation.x = Math.PI / 2; sc.position.set(-.06, y + y2, z); put(sc); }
+  }
+  // the occupancy indicator on the outside of the door: a steel rosette with a little window showing green, free
+  { const ind = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .006, 24), M.steel); ind.rotation.x = Math.PI / 2; ind.position.set(-.8, 1.12, -.018); put(ind);
+    const freeTex = canvasTex(64, 32, (g, w, h) => { g.fillStyle = '#2f8a3a'; g.fillRect(0, 0, w, h); g.fillStyle = '#e9f2e6'; g.font = 'bold 16px Arial, sans-serif'; g.textAlign = 'center'; g.fillText('FREE', w / 2, 22); });
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(.034, .016), new THREE.MeshStandardMaterial({ map: freeTex, roughness: .4 })); win.rotation.y = Math.PI; win.position.set(-.8, 1.128, -.0215); pivot.add(win); }
   bx(.1, .035, .02, M.steel, -.8, 1.12, .028); bx(.025, .02, .03, M.steel, -.77, 1.12, .045);
   bx(.03, .06, .015, M.steel, -.45, 1.62, -.024); const hook = new THREE.Mesh(new THREE.TorusGeometry(.022, .006, 6, 12, Math.PI), M.steel); hook.position.set(-.45, 1.58, -.045); hook.rotation.set(0, Math.PI / 2, Math.PI); put(hook);
 }
 box(.035, .06, .02, M.steel, SX0 + .3, 1.12, SZ1 + .03);   // the latch keeper on the other pilaster
 
-// ### The toilet: a one-piece stainless-steel prison unit bolted to the back wall. A rounded cabinet with a small wash basin,
-// ### a drinking spout and push buttons on top; a deep bowl with a rolled rim and water in it, no seat, security screws.
+// ### The toilet: a stainless-steel prison pan with its cistern on the wall above it. The pan is one turned piece (foot,
+// ### waist, flaring sides, a rolled rim, no seat) with a rounded back that runs to the wall; the cistern is a brushed
+// ### steel box with a lid that sits a little proud, a dual flush button on top, security screws, a stamped plate, and
+// ### limescale and rust running down its front from the lid seam. A chrome flush pipe with collar nuts runs down into the
+// ### back of the pan, and the cold water comes from a stop valve on the wall into the side of the cistern.
 const TOILET = { x: 3.25, z: -2.82, top: .958 }, BOWL_Z = -2.418, BOWL_SZ = 1.22;
 {
   const T = TOILET;
-  const rounded = (s, x0, y0, x1, y1, r) => { s.moveTo(x0 + r, y0); s.lineTo(x1 - r, y0); s.quadraticCurveTo(x1, y0, x1, y0 + r); s.lineTo(x1, y1 - r); s.quadraticCurveTo(x1, y1, x1 - r, y1); s.lineTo(x0 + r, y1); s.quadraticCurveTo(x0, y1, x0, y1 - r); s.lineTo(x0, y0 + r); s.quadraticCurveTo(x0, y0, x0 + r, y0); };
   const mesh = (geo, mat) => add(new THREE.Mesh(geo, mat));
-  // the cabinet, extruded upwards from its rounded footprint, with an oval opening for the basin (shape y becomes -z)
-  const cs = new THREE.Shape(); rounded(cs, -.3, -.16, .3, .16, .05);
-  const hole = new THREE.Path(); hole.absellipse(0, .01, .155, .112, 0, Math.PI * 2, true); cs.holes.push(hole);
-  const cg = new THREE.ExtrudeGeometry(cs, { depth: .93, bevelEnabled: true, bevelThickness: .014, bevelSize: .014, bevelSegments: 3, curveSegments: 18 });
-  cg.rotateX(-Math.PI / 2); cg.translate(T.x, .014, T.z); mesh(cg, M.steel);
-  // the basin set into the top, its drain and the drinking spout behind it
+  // a rounded footprint (x across, z from the wall out) raised from y0 to y1, with soft bevelled edges
+  const block = (x0, x1, z0, z1, y0, y1, r, bev, mat) => {
+    const s = new THREE.Shape(); roundedRect(s, x0 + bev, -z1 + bev, x1 - bev, -z0 - bev, Math.max(.001, r - bev));
+    const g = new THREE.ExtrudeGeometry(s, { depth: y1 - y0 - 2 * bev, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 3, curveSegments: 10 });
+    g.rotateX(-Math.PI / 2); g.translate(T.x, y0 + bev, 0); return mesh(g, mat);
+  };
   const lathe = (pts, seg, sx, sz, x, z) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg); g.scale(sx, 1, sz); g.translate(x, 0, z); return mesh(g, M.bowl); };
-  lathe([[.0, .9], [.055, .905], [.08, .93], [.092, .955], [.1, .966], [.11, .964], [.112, .958]], 32, 1.42, 1, T.x, T.z - .01);
-  cyl(.018, .018, .003, M.dark, T.x, .902, T.z - .01, 16);
-  cyl(.014, .016, .035, M.chrome, T.x, T.top + .017, T.z - .135, 14);
-  const spout = cyl(.008, .008, .05, M.chrome, T.x, T.top + .038, T.z - .115, 10); spout.rotation.x = Math.PI / 2 - .5;
-  // push buttons: basin and spout on the top, flush on the front
-  for (const dx of [-.22, .22]){ cyl(.024, .024, .008, M.dullSteel, T.x + dx, T.top + .004, T.z + .12, 18); cyl(.016, .016, .012, M.chrome, T.x + dx, T.top + .012, T.z + .12, 18); }
-  const fz = T.z + .174; for (const [r, d, mat] of [[.034, .008, M.dullSteel], [.024, .02, M.chrome]]){ const b = cyl(r, r, d, mat, T.x + .19, .82, fz + d / 2, 20); b.rotation.x = Math.PI / 2; }
-  // the seams of the access panel on the front and its security screws
-  for (const [w, h, x, y] of [[.44, .006, 0, .9], [.44, .006, 0, .47], [.006, .43, -.22, .685], [.006, .43, .22, .685]]) box(w, h, .003, M.dark, T.x + x, y, fz + .001);
-  for (const x of [-.25, .25]) for (const y of [.08, .9]){ const s = cyl(.009, .009, .006, M.chrome, T.x + x, y, fz + .003, 6); s.rotation.x = Math.PI / 2; }
+  // the pan's rounded back, from the wall to the bowl (it stops short of the bowl's inside, which curves in low down)
+  block(-.19, .19, -2.985, -2.675, 0, .405, .06, .012, M.steel); block(-.11, .11, -2.7, -2.6, 0, .24, .04, .01, M.steel);
+  // the cistern: body, a dark seam under the lid, and the lid
+  const CY0 = .66, CY1 = 1.016, CZ1 = -2.8;
+  block(-.235, .235, -2.985, CZ1, CY0, CY1, .03, .01, M.steel);
+  block(-.228, .228, -2.98, CZ1 - .006, CY1 - .01, CY1 + .006, .025, .002, M.dark);
+  block(-.243, .243, -2.988, CZ1 + .007, CY1 + .004, CY1 + .03, .032, .007, M.steel);
+  // the dual flush button on the lid: a chrome ring and two half buttons, the small flush and the full one
+  const BX = T.x + .11, BZ = -2.89, LT = CY1 + .03;
+  cyl(.034, .035, .005, M.chrome, BX, LT + .0025, BZ, 28);
+  for (const [a, h] of [[0, .006], [Math.PI, .008]]){ const b = mesh(new THREE.CylinderGeometry(.027, .027, h, 20, 1, false, a + .06, Math.PI - .12), M.chrome); b.position.set(BX, LT + .005 + h / 2, BZ); }
+  // security screws in the lid and on the front, and a small stamped plate
+  for (const dx of [-.19, .19]) for (const z of [-2.955, CZ1 - .035]) cyl(.006, .006, .002, M.chrome, T.x + dx, LT - .0005, z, 6);
+  for (const dx of [-.2, .2]) for (const y of [CY0 + .04, CY1 - .05]){ const s = cyl(.0065, .0065, .004, M.chrome, T.x + dx, y, CZ1 + .002, 6); s.rotation.x = Math.PI / 2; }
+  const plateTex = canvasTex(128, 48, (g, w, h) => {
+    g.fillStyle = '#9da4a6'; g.fillRect(0, 0, w, h); g.strokeStyle = '#6c7375'; g.lineWidth = 3; g.strokeRect(2, 2, w - 4, h - 4);
+    g.fillStyle = '#4a5052'; g.font = 'bold 15px Arial, sans-serif'; g.textAlign = 'center'; g.fillText('BLOCK D  WC 2', w / 2, 21); g.font = '11px Arial, sans-serif'; g.fillText('6 L / 3 L', w / 2, 37);
+  });
+  plane(.075, .028, new THREE.MeshStandardMaterial({ map: plateTex, metalness: .7, roughness: .45 }), T.x - .1, CY1 - .06, CZ1 + .0015);
+  // limescale and rust run down the front from the seam and gather at the bottom edge
+  const dripRnd = mulberry32(2117);
+  const dripTex = canvasTex(256, 256, (g, w, h) => {
+    for (let i = 0; i < 26; i++){
+      const x = dripRnd() * w, l = h * (.15 + dripRnd() * .75), rust = dripRnd() < .35, gr = g.createLinearGradient(0, 0, 0, l);
+      const c = rust ? '120,70,30' : '215,210,190'; gr.addColorStop(0, `rgba(${c},${.25 + dripRnd() * .3})`); gr.addColorStop(1, `rgba(${c},0)`);
+      g.fillStyle = gr; g.fillRect(x, 0, 1.5 + dripRnd() * 3, l);
+    }
+    const bot = g.createLinearGradient(0, h * .82, 0, h); bot.addColorStop(0, 'rgba(200,195,170,0)'); bot.addColorStop(1, 'rgba(200,195,170,.35)'); g.fillStyle = bot; g.fillRect(0, 0, w, h);
+  });
+  const drips = plane(.41, CY1 - CY0 - .05, new THREE.MeshStandardMaterial({ map: dripTex, transparent: true, depthWrite: false, roughness: .8, polygonOffset: true, polygonOffsetFactor: -2 }), T.x, (CY0 + CY1) / 2 - .01, CZ1 + .001);
+  drips.castShadow = false;
+  // the flush pipe, with a collar nut where it leaves the cistern and where it enters the pan
+  cyl(.021, .021, CY0 - .4, M.chrome, T.x, (CY0 + .4) / 2, -2.9, 16);
+  for (const y of [CY0 - .014, .414]) cyl(.03, .03, .026, M.dullSteel, T.x, y, -2.9, 6);
+  // the cold water: a stop valve with a red wheel on the wall, a short chrome pipe into the side of the cistern
+  const VX = T.x + .36, VY = .9;
+  cyl(.028, .028, .06, M.dullSteel, VX, VY, -2.965, 12).rotation.x = Math.PI / 2;
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(.026, .006, 6, 16), M.red); wheel.position.set(VX, VY, -2.925); add(wheel);
+  cyl(.009, .009, .025, M.chrome, VX, VY, -2.935, 8).rotation.x = Math.PI / 2;
+  cyl(.009, .009, VX - (T.x + .235), M.chrome, (VX + T.x + .235) / 2, VY, -2.95, 10).rotation.z = Math.PI / 2;
   // the bowl and its pedestal in one turned piece: foot, waist, flaring sides, rolled rim, then down into the trap
   lathe([[.175, 0], [.186, .012], [.186, .034], [.165, .06], [.158, .13], [.172, .22], [.2, .31], [.218, .37], [.228, .404], [.226, .424], [.212, .432], [.197, .426], [.19, .41],
     [.184, .38], [.16, .32], [.12, .27], [.072, .236], [.0, .226]], 44, 1, BOWL_SZ, T.x, BOWL_Z);
-  box(.26, .24, .22, M.steel, T.x, .12, T.z + .28);   // the apron that joins bowl and cabinet
   // ### The water in the bowl mirrors the room like the puddles and the mop water do (WATER.bucket): murky yellow-brown,
   // ### with a film of yellowish foam and bubbles on it (this picture, on black where there is none) and a brown tide
   // ### line on the steel just above it.
@@ -2093,10 +2155,6 @@ const TOILET = { x: 3.25, z: -2.82, top: .958 }, BOWL_Z = -2.418, BOWL_SZ = 1.22
   tide.castShadow = false; tide.material = new THREE.MeshStandardMaterial({ color: 0x4a3a20, roughness: .8, transparent: true, opacity: .4, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, side: THREE.DoubleSide });
   cyl(.045, .045, .002, M.dark, T.x, .238, BOWL_Z - .03, 16);
   for (const dx of [-.215, .215]) cyl(.014, .014, .012, M.chrome, T.x + dx, .006, BOWL_Z + .03, 6);   // floor bolts
-  // the cold-water supply: a stop valve on the wall and a chrome pipe into the side of the cabinet
-  cyl(.012, .012, .24, M.chrome, T.x + .43, .24, -2.95, 10).rotation.z = Math.PI / 2;
-  cyl(.03, .03, .07, M.dullSteel, T.x + .55, .24, -2.95, 12).rotation.x = Math.PI / 2;
-  const wheel = new THREE.Mesh(new THREE.TorusGeometry(.03, .006, 6, 16), M.red); wheel.position.set(T.x + .55, .24, -2.9); add(wheel);
   // limescale and dirt on the floor round the foot, and the soft shadow under the unit
   flat(.75, .95, M.blob, T.x, -2.55, .002); flat(.62, .62, M.stain, T.x, BOWL_Z, .004);
   WATER.puddle(.7, .48, T.x - .25, -1.98);
@@ -2527,14 +2585,63 @@ function buildBin(x, z){
   for (const sx of [-1, 1]) aoEdge(1.9, .22, v3(SX0 + sx * .02, 1.1, -D / 2 + .002), v3(sx, 0, 0), v3(0, 0, 1));
   flat(.9, 2.9, M.blob, -3.7, 0); flat(.7, .7, M.blob, 3.35, 2.45); flat(.8, .8, M.stain, 0, .3); WATER.puddle(1.15, .75, -3.2, .55);
   WATER.puddle(1.6, 1.3, -.25, .75);   // round the floor drain in the middle
-  // the security camera high in the north-west corner, its red light blinking
+  // ### The security cameras. High in the north-west corner a bullet camera on a wall bracket: a rounded housing of
+  // ### off-white powder-coated aluminium under a sunshield, dark glass in front with the lens and a ring of infrared
+  // ### LEDs glowing faintly red, a status light that blinks, and its cable looping from the back into a grey conduit
+  // ### that runs up the wall to the ceiling. Over the stall a vandal-proof dome camera hangs from the ceiling: a smoked
+  // ### dome on a white base, the camera inside only just visible.
+  const camWhite = new THREE.MeshStandardMaterial({ color: 0xd2d2c8, roughness: .55, map: canvasTex(64, 64, (g, w, h) => {
+    g.fillStyle = '#e8e8e2'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 400; i++){ g.fillStyle = `rgba(90,80,60,${rnd() * .08})`; g.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1); }   // dust and grime
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(110,95,70,.18)'); gr.addColorStop(.4, 'rgba(110,95,70,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  }) });
+  const glassDark = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: .04, metalness: .6, envMapIntensity: 1.4 });
+  const lensCoat = new THREE.MeshStandardMaterial({ color: 0x241a52, roughness: .08, metalness: 1, envMapIntensity: 1.6 });
+  const irLed = new THREE.MeshStandardMaterial({ color: 0x1a0505, emissive: 0x6a0a06, emissiveIntensity: .9, roughness: .3 });
+  const cableMat = new THREE.MeshStandardMaterial({ color: 0x141516, roughness: .6 });
+  const conduitMat = new THREE.MeshStandardMaterial({ color: 0x8e9290, roughness: .5 });
   const cctv = new THREE.Group(); cctv.position.set(-3.72, 2.66, -2.72); cctv.rotation.set(-.42, -Math.PI * .75, 0, 'YXZ'); room.add(cctv);
   const part = (geo, mat, x, y, z, rx = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.x = rx; m.castShadow = m.receiveShadow = true; cctv.add(m); return m; };
-  part(new THREE.BoxGeometry(.13, .12, .3), M.plastic, 0, 0, 0); part(new THREE.BoxGeometry(.17, .015, .34), M.plastic, 0, .07, -.02);
-  part(new THREE.CylinderGeometry(.045, .045, .03, 18), M.dark, 0, 0, -.16, Math.PI / 2); part(new THREE.CylinderGeometry(.03, .03, .005, 18), M.mirror, 0, 0, -.176, Math.PI / 2);
-  part(new THREE.SphereGeometry(.008, 8, 6), M.led, .045, -.04, -.152);
-  box(.06, .06, .02, M.dullSteel, -3.88, 2.74, -2.99); box(.02, .06, .06, M.dullSteel, -3.99, 2.74, -2.88);
-  { const arm = cyl(.014, .014, .25, M.dullSteel, -3.8, 2.73, -2.8, 8); arm.rotation.set(Math.PI / 2, 0, Math.PI / 4); }
+  // the housing: a rounded section drawn out along the camera's axis (its front is towards -z)
+  { const s = new THREE.Shape(); roundedRect(s, -.05, -.045, .05, .045, .03);
+    const g = new THREE.ExtrudeGeometry(s, { depth: .24, bevelEnabled: true, bevelThickness: .008, bevelSize: .006, bevelSegments: 3, curveSegments: 8 }); g.translate(0, 0, -.12); part(g, camWhite, 0, 0, 0); }
+  // the sunshield: a thin curved hood over the top that reaches out past the glass
+  { const g = new THREE.CylinderGeometry(.066, .066, .3, 24, 1, true, -Math.PI * .42, Math.PI * .84); g.rotateX(-Math.PI / 2); const m = part(g, camWhite, 0, .012, -.03); m.material = camWhite.clone(); m.material.side = THREE.DoubleSide; }
+  // the front: a dark bezel, smoked glass, the lens barrel and its coated glass, the infrared ring and the status light
+  part(new THREE.CylinderGeometry(.047, .047, .012, 28), M.dark, 0, 0, -.13, Math.PI / 2);
+  part(new THREE.CylinderGeometry(.043, .043, .002, 28), glassDark, 0, 0, -.137, Math.PI / 2);
+  part(new THREE.CylinderGeometry(.017, .019, .01, 20), M.black, 0, 0, -.132, Math.PI / 2);
+  part(new THREE.SphereGeometry(.012, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, .45, 1), lensCoat, 0, 0, -.136, -Math.PI / 2);
+  for (let i = 0; i < 10; i++){ const a = i / 10 * Math.PI * 2; part(new THREE.CylinderGeometry(.0042, .0042, .002, 10), irLed, Math.cos(a) * .031, Math.sin(a) * .031, -.1365, Math.PI / 2); }
+  part(new THREE.SphereGeometry(.004, 8, 6), M.led, .034, -.034, -.128);
+  // the back: an end cap and the cable gland
+  part(new THREE.CylinderGeometry(.04, .044, .012, 24), camWhite, 0, 0, .128, Math.PI / 2);
+  part(new THREE.CylinderGeometry(.007, .009, .02, 10), M.black, 0, -.02, .14, Math.PI / 2);
+  // the mount on top: a plate on the housing and a ball joint
+  part(new THREE.BoxGeometry(.05, .008, .06), camWhite, 0, .052, .04);
+  part(new THREE.SphereGeometry(.016, 14, 10), M.dullSteel, 0, .07, .04);
+  cctv.updateMatrixWorld(true);
+  const ball = cctv.localToWorld(v3(0, .07, .04)), gland = cctv.localToWorld(v3(0, -.02, .15));
+  // the bracket: a plate screwed to the west wall and an arm from it to the ball joint
+  const WP = v3(-3.985, ball.y + .02, ball.z - .04);
+  box(.012, .1, .1, camWhite, WP.x, WP.y, WP.z);
+  for (const dy of [-.035, .035]) for (const dz of [-.035, .035]){ const sc = cyl(.005, .005, .003, M.chrome, WP.x + .008, WP.y + dy, WP.z + dz, 6); sc.rotation.z = Math.PI / 2; }
+  { const from = v3(WP.x + .006, WP.y, WP.z), len = from.distanceTo(ball), arm = add(new THREE.Mesh(new THREE.CylinderGeometry(.013, .016, len, 12), camWhite));
+    arm.position.copy(from).add(ball).multiplyScalar(.5); arm.quaternion.setFromUnitVectors(v3(0, 1, 0), ball.clone().sub(from).normalize()); }
+  // the cable: from the gland it sags in a loop and goes into the bracket, then a conduit runs up the wall to the ceiling
+  { const pts = [gland, v3(gland.x - .02, gland.y - .09, gland.z - .02), v3(WP.x + .04, WP.y - .1, WP.z + .02), v3(WP.x + .01, WP.y - .045, WP.z)];
+    add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, .0035, 6), cableMat)); }
+  cyl(.012, .012, H - WP.y - .05, conduitMat, -3.982, (H + WP.y + .05) / 2, WP.z - .07, 10);
+  for (const y of [WP.y + .2, H - .08]) box(.01, .02, .035, M.dullSteel, -3.99, y, WP.z - .07);   // its clips
+  box(.03, .05, .03, conduitMat, -3.982, WP.y + .055, WP.z - .07);   // the junction where the cable enters it
+  // the dome camera over the stall: a base ring on the ceiling, a smoked dome and the camera module dim inside it
+  const DOME = v3(2.0, H, -.4);
+  cyl(.085, .09, .03, camWhite, DOME.x, H - .015, DOME.z, 32);
+  cyl(.075, .075, .008, M.dark, DOME.x, H - .033, DOME.z, 32);
+  { const inner = add(new THREE.Mesh(new THREE.SphereGeometry(.035, 16, 12), M.black)); inner.position.set(DOME.x, H - .07, DOME.z);
+    const lens = add(new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, .02, 16), lensCoat)); lens.position.set(DOME.x - .02, H - .085, DOME.z + .02); lens.rotation.set(.7, 0, .6);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(.07, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x0b0c0e, roughness: .03, metalness: .2, transparent: true, opacity: .72, envMapIntensity: 1.5 }));
+    dome.position.set(DOME.x, H - .036, DOME.z); dome.renderOrder = 2; room.add(dome); }
   // a ventilation grille in the ceiling and one high on the wall above the toilet
   box(.52, .02, .42, M.grille, 1.1, H - .01, 1.5); box(.56, .012, .46, M.dullSteel, 1.1, H - .003, 1.5);
   box(.4, .25, .02, M.grille, 3.3, 2.5, -D / 2 + .012); box(.44, .29, .01, M.dullSteel, 3.3, 2.5, -D / 2 + .004);
