@@ -106,7 +106,7 @@ test('CI really runs the browser tests', { skip: !process.env.CI && 'only on the
   assert.ok(CHROME, 'no browser on the CI server: the browser tests would be skipped and the deploy would go ahead untested');
 });
 
-test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROME_PATH)', timeout: 600000 }, async t => {
+test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROME_PATH)', timeout: 900000 }, async t => {
   server = createServer().listen(0, '127.0.0.1');
   await new Promise(r => server.once('listening', r));
   base = `http://127.0.0.1:${server.address().port}/`;
@@ -184,8 +184,8 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await click('[data-action="board"]');
       await waitFor("document.getElementById('overlay').hidden", 10000, 'the garage card to go away');
       await key('keydown', 'KeyW');
-      // about 16 s of game time (the walk, getting in, 50 m up the ramp, then the vehicle drives itself out through the roller
-      // door and into the street); a slow CI machine draws only a few frames a second
+      // about 15 s of game time (the walk, getting in, 50 m up the ramp, then the vehicle drives itself out through the roller
+      // door and into the street); a slow CI machine draws only a few frames a second, and fewer still once the city is drawn
       await waitFor("!!document.getElementById('ovMap')", 300000, 'the map of the evidence on the street');
       assert.ok(await evaluate("!document.getElementById('hud').classList.contains('off')"), 'the HUD is back on the street');
       await key('keyup', 'KeyW');

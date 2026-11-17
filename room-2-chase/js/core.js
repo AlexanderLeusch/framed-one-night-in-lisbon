@@ -287,11 +287,11 @@
   // ### 2 * x wide and runs from z0 to z1 at height y, h high; the ramp leaves through an opening 2 * door wide in the wall at z1,
   // ### climbs rise over a length of ramp and ends on a level stretch of top metres with a roller door at its end. Each bay is
   // ### [x, z, heading], nose to the ramp. On foot the player walks at walk and runs at run (m/s, with Shift). Over the top of
-  // ### the ramp the vehicle drives itself at out m/s. street is where the middle of that roller door is in the city ([x, z]: in
+  // ### the ramp the vehicle drives itself at out m/s, and at away m/s once it is through the door. street is where the middle of that roller door is in the city ([x, z]: in
   // ### the south wall of the house north-east of the start, facing the cross street), and way the left turn from the door into
   // ### the eastbound lane, as the four points of a curve in metres from the door (x east, z south).
   const GARAGE = Object.freeze({
-    y: -30, x: 17, z0: -16, z1: 12, h: 5.2, door: 4.6, tunnel: 4.7, ramp: 34, rise: 4.8, top: 22, speed: 9, pillar: 0.4, walk: 3.4, run: 5.6, out: 6,
+    y: -30, x: 17, z0: -16, z1: 12, h: 5.2, door: 4.6, tunnel: 4.7, ramp: 34, rise: 4.8, top: 16, speed: 9, pillar: 0.4, walk: 3.4, run: 5.6, out: 6, away: 8,
     street: Object.freeze([30, -10]), way: Object.freeze([[0, 1.5], [0, 8], [1.5, 12.5], [7, 12.5]].map(q => Object.freeze(q))),
     order: Object.freeze(['car', 'bike', 'truck']),
     bays: Object.freeze({ car: Object.freeze([-8, -8.5, 0.34]), bike: Object.freeze([0, -9, 0]), truck: Object.freeze([8.5, -8, -0.36]) }),

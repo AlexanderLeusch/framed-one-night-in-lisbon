@@ -1086,7 +1086,7 @@ const shardSpots = [], roadSpots = [], intersections = [];
 // ### getting in), 'drive' and 'exit' (over the top of the ramp the vehicle drives itself out through the roller door to the street). live: the player is at the wheel.
 // ### shift is null down in the garage and, once the vehicle has been moved up into the city, the step it was moved by (see
 // ### garageSwap); open is how far the roller door is rolled up; run is true while Shift is held.
-const garage = { on: false, live: false, phase: '', t: 0, sit: -1, path: [], shift: null, open: 0, run: false, way: [], wi: 0,
+const garage = { on: false, live: false, phase: '', t: 0, sit: -1, path: [], shift: null, open: 0, run: false, way: [], wi: 0, near: 1,
   from: new THREE.Vector3(), seat: new THREE.Vector3(), look: new THREE.Vector3(), turn: new THREE.Quaternion(), spin: new THREE.Quaternion() };
 const hill = (x, z) => Core.hillMesh(mode, x, z);
 function groundH(x, z){
@@ -7678,7 +7678,7 @@ function garageBoard(){
 // how long each part of getting in takes, in seconds: the hand to the handle, the door swinging open, the way onto the seat,
 // pulling the door shut, a moment at the wheel while the engine starts, and the view drawing back behind the vehicle; and how
 // long the roller door at the top takes to roll up
-const GARAGE_T = { reach: 0.3, open: 0.45, sit: 0.9, shut: 0.35, wheel: 0.5, back: 0.8, door: 0.9 };
+const GARAGE_T = { reach: 0.3, open: 0.45, sit: 0.9, shut: 0.35, wheel: 0.5, back: 0.8, door: 0.7 };
 // ### The driver's door of the chosen vehicle (the motorcycle has none): 0 shut, 1 wide open. Every other one is shut.
 function garageSwing(k){
   for (const md of Object.values(MODELS)){
@@ -7774,7 +7774,7 @@ function garageAuto(dt){
   const [i, ax, az, done] = Core.wayAim(garage.way, garage.wi, x, z, V.key === 'truck' ? 5.5 : 4);
   garage.wi = i;
   const rate = clamp(wrapAngle(Math.atan2(ax - x, az - z) - car.heading) * 3, -1.1, 1.1);
-  car.speed += (Core.GARAGE.out - car.speed) * Math.min(1, dt * 2);
+  car.speed += ((z < 0 ? Core.GARAGE.out : Core.GARAGE.away) - car.speed) * Math.min(1, dt * 2);
   car.heading += rate * dt; car.yaw = rate; car.steer = rate / 1.1;
   car.x += Math.sin(car.heading) * car.speed * dt; car.z += Math.cos(car.heading) * car.speed * dt;
   settleCar(dt);
@@ -7786,7 +7786,9 @@ function garageAuto(dt){
 function garageCam(dt, snap){
   const G = Core.GARAGE, truck = V.key === 'truck', S = garage.shift, ox = S ? S.x : 0, oy = S ? S.y : 0, oz = S ? S.z : 0;
   car.camHeading += wrapAngle(car.heading - car.camHeading) * Math.min(1, dt * 5);
-  const fx = Math.sin(car.camHeading), fz = Math.cos(car.camHeading), d = truck ? 8.5 : V.key === 'bike' ? 5 : 6.5, edge = G.door - 0.7;
+  // on the way out it closes up on the vehicle, so that it is on the level stretch soon after it
+  garage.near += ((garage.phase === 'exit' ? 0.68 : 1) - garage.near) * (snap ? 1 : Math.min(1, dt * 3));
+  const fx = Math.sin(car.camHeading), fz = Math.cos(car.camHeading), d = (truck ? 8.5 : V.key === 'bike' ? 5 : 6.5) * garage.near, edge = G.door - 0.7;
   const cx = car.x - ox, cy = car.y - oy, cz = car.z - oz;
   let tx = cx - fx * d, tz = Math.max(cz - fz * d, G.z0 + 0.7), ty = cy + (truck ? 4.1 : V.key === 'bike' ? 2.0 : 2.5);
   if (tz < GAR.end + 0.4){
@@ -7879,7 +7881,8 @@ function updateGarage(dt){
   }
   const done = garageAuto(dt);
   garageCam(dt, false);
-  if (!g.shift){ if (camera.position.z >= GAR.end - G.top + 0.6) garageSwap(); }
+  // the step up into the city: once the camera is on the level stretch and under the first floor of the house up there
+  if (!g.shift){ if (camera.position.z >= GAR.end - G.top + 0.6 && camera.position.y <= G.y + G.rise + GAR.clear + 0.05) garageSwap(); }
   else garageShutter(ease(clamp(g.t / T.door, 0, 1)));
   if (done) garageToStreet(true);
 }
