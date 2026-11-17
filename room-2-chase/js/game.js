@@ -1636,12 +1636,21 @@ function buildCity(){
   arco(80);
 
   // Quay, Cais das Colunas and the river Tejo
-  trim.box(-700, 700, 0, 0.35, 151, 157, stoneCol);
+  trim.box(-153, 700, 0, 0.35, 151, 157, stoneCol);
   const pillars = mergeGeos([-6, 6].flatMap(x => [new THREE.CylinderGeometry(0.5, 0.6, 6, 12).translate(x, 3.3, 155), new THREE.BoxGeometry(1.5, 0.6, 1.5).translate(x, 6.5, 155)]));
   const colunas = new THREE.Mesh(pillars, stone); colunas.castShadow = true; grp.add(colunas);
   const river = new THREE.Mesh(new THREE.PlaneGeometry(1400, 640, 280, 128).rotateX(-Math.PI / 2), riverMaterial());
   river.position.set(0, 0.08, 157 + 320); river.userData.dynamic = true; river.frustumCulled = false;
   grp.add(river); CITY.water = river;
+  // ### West of the Baixa the river comes in behind a quay wall, up to the road along the bank and round the foot of the hill, so
+  // ### the approach road to the bridge runs out over the water and its loop stands in the river. It is the same water (one
+  // ### material, so it moves with the river), calm in there as the waves die down north of the quay.
+  for (const [x0, x1, z0, z1] of [[-700, -455, -700, 157], [-455, -153, 124, 157]]){
+    const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0, Math.round((x1 - x0) / 6), Math.round((z1 - z0) / 6)).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+    const basin = new THREE.Mesh(g, river.material);
+    basin.position.y = 0.08; basin.userData.dynamic = true; basin.frustumCulled = false; grp.add(basin);
+  }
+  trim.box(-156, -153, 0, 0.35, 124, 157, stoneCol); trim.box(-458, -153, 0, 0.35, 121, 124, stoneCol); trim.box(-458, -455, 0, 0.35, -700, 124, stoneCol);
   radarRects.push({ x0: -300, x1: 300, z0: 157, z1: 340, c: 'rgba(70,140,230,.28)' });
 
   // The hills around the valley: Bairro Alto in the west, the castle hill in the east, the Avenida in the north
@@ -2073,8 +2082,9 @@ function buildCity(){
   // ### The way up to the bridge, after the real one: the north approach of the 25 de Abril bridge is a concrete viaduct on
   // ### tall twin piers that carries the six lanes from the low streets by the river up to the deck, 42 m above the ground. Here
   // ### it starts behind the golden gate at the south-west corner of the Baixa, runs west along the river, passes under the side
-  // ### span of the bridge, and climbs round in a loop to meet the deck at the north anchorage. It lies outside the force field,
-  // ### so nobody can drive on it: it is scenery, the road the finale's jump to the bridge stands for.
+  // ### span of the bridge, and climbs round in a loop to meet the deck at the north anchorage. The loop is banked towards its
+  // ### inside, like a fast motorway curve. It lies outside the force field, so you only drive on it in the finale: through the
+  // ### gate you drive it up to the deck yourself (CITY.approach, updateRamp).
   {
     const DECK = 42.12, R = 50, X0 = -144, Z0 = 144, bdx = Math.cos(1.2), bdz = Math.sin(1.2);
     const N = { x: -400 - 350 * bdx, z: 410 - 350 * bdz };  // the north end of the bridge deck
@@ -2083,6 +2093,9 @@ function buildCity(){
     const L1 = X0 - ax, L2 = L1 + R * (Math.PI + 1.2), LEN = L2 + tEnd;
     // the climb: gentle at both ends, an even 8 % in between
     const rise = s => { const e = 0.2, u = clamp((s - 12) / (LEN - 24), 0, 1); return DECK * (u < e ? u * u / (2 * e * (1 - e)) : u > 1 - e ? 1 - (1 - u) ** 2 / (2 * e * (1 - e)) : (u - e / 2) / (1 - e)); };
+    // the bank of the loop: the road falls 9 cm per metre towards the inside (the right), easing in and out at both ends; it is
+    // level again where the loop ends, so the road meets the flat bridge deck without a step
+    const BANK = 0.09, bank = s => BANK * sstep(L1 - 25, L1 + 25, s) * (1 - sstep(L2 - 45, L2, s));
     // a point on the approach: s is metres from the gate along the middle of the road, side is metres to the right of it
     const at = (s, side = 0) => {
       s = clamp(s, 0, LEN);
@@ -2090,10 +2103,11 @@ function buildCity(){
       if (s <= L1){ x = X0 - s; z = Z0; h = -Math.PI / 2; }
       else if (s <= L2){ const th = (s - L1) / R; x = ax - R * Math.sin(th); z = cz + R * Math.cos(th); h = Math.atan2(-Math.cos(th), -Math.sin(th)); }
       else { const k = LEN - s; x = N.x - k * bdx; z = N.z - k * bdz; h = Math.atan2(bdx, bdz); }
-      return { x: x - Math.cos(h) * side, z: z + Math.sin(h) * side, y: rise(s), h, slope: (rise(s + 1) - rise(s - 1)) / 2 };
+      return { x: x - Math.cos(h) * side, z: z + Math.sin(h) * side, y: rise(s) - side * bank(s), h, slope: (rise(s + 1) - rise(s - 1)) / 2, bank: bank(s) };
     };
     // half the width of the road: as wide as the river avenue at the gate, as wide as the bridge deck further up
     const hw = s => 7 + 1.5 * sstep(8, 60, s);
+    CITY.approach = { len: LEN, at, hw };
     // pulls a cross-section ([side, up] points, up measured from the road) along the road and returns the triangles
     const sweep = (out, s0, s1, step, section, open) => {
       let prev = null;
@@ -2129,9 +2143,9 @@ function buildCity(){
     // lamps as on the bridge: a post with an arm over the road, every 30 m on both sides
     for (let s = 45; s < LEN - 25; s += 30) for (const sg of [-1, 1]){
       const p = at(s), w = hw(s), a = at(s, sg * (w + 0.1)), b = at(s, sg * (w - 0.6)), c = at(s, sg * (w - 1.3));
-      solid(concrete, new THREE.BoxGeometry(0.2, 8, 0.2).translate(a.x, p.y + 4, a.z));
-      solid(concrete, new THREE.BoxGeometry(1.6, 0.14, 0.14).rotateY(p.h).translate(b.x, p.y + 7.9, b.z));
-      lamps.push(c.x, p.y + 7.7, c.z);
+      solid(concrete, new THREE.BoxGeometry(0.2, 8, 0.2).translate(a.x, a.y + 4, a.z));
+      solid(concrete, new THREE.BoxGeometry(1.6, 0.14, 0.14).rotateY(p.h).translate(b.x, b.y + 7.9, b.z));
+      lamps.push(c.x, c.y + 7.7, c.z);
     }
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lamps, 3));
     grp.add(mesh(concrete, new THREE.MeshStandardMaterial({ color: 0x8d8a84, roughness: 0.9, emissive: 0x101010, side: THREE.DoubleSide, fog: false })),
@@ -4687,7 +4701,7 @@ const engineNorm = () => { const E = ENGINES[V.key]; return clamp((eng.rpm - E.i
 function engineRpm(){ return eng.rpm; }
 // ### Runs the gearbox and rpm each frame, crossfades the engine loops, and sets road, wind, tyre, turbo and rotor levels.
 function updateEngine(dt){
-  const sp = Math.abs(car.speed), live = state === 'play' || garage.live, E = ENGINES[V.key];
+  const sp = Math.abs(car.speed), live = state === 'play' || garage.live || (finale.on && finale.ramp), E = ENGINES[V.key];
   // on the bridge of the finale nobody holds a key: updateFinale works the throttle, and the engine is heard at full level
   const cine = finale.on && finale.placed;
   const pedal = live ? (keys.up || (keys.down && car.speed <= 0.5) ? 1 : 0) : cine ? finale.throttle : 0;
@@ -4752,7 +4766,7 @@ function updateEngine(dt){
   a.wind.gain.setTargetAtTime(on ? Math.pow(sp / 55, 2) * 0.06 * under : 0, t, 0.2);
   const squeal = Core.skidAmount(car.speed, keys.down, keys.brake, car.steer) * 0.075;
   a.tire.gain.setTargetAtTime(on ? squeal : 0, t, 0.06);
-  const grind = on && state === 'play' ? scrapeNow.level : 0;
+  const grind = on && live ? scrapeNow.level : 0;
   a.scrape.gain.setTargetAtTime(grind ? 0.05 + 0.17 * grind : 0, t, grind ? 0.02 : 0.07);
   a.scrapeF.frequency.setTargetAtTime(1500 + 2300 * grind, t, 0.05);
   const sirenVol = !muted && (state === 'play' || state === 'over') && nearestCop < Infinity ? 0.075 * clamp(1 - nearestCop / 220, 0, 1) : 0;
@@ -6070,19 +6084,129 @@ function witnessCard(){
     </div>`, 'story');
 }
 
-// ### The finale: through the gate the picture fades, and you are on the 25 de Abril bridge with Marta beside you, driving south
-// ### over the Tejo as the first light comes up behind the towers. The road is yours: no police, no helicopter, heroic music. Then
-// ### the result card. A black plane in front of the camera does the fades. In the story, this ends act 1 (the bridge leads out of
-// ### the city towards the highway); in a free ride it is the end of the run.
+// ### The finale: through the gate you drive the approach road up to the 25 de Abril bridge yourself (updateRamp). On the deck the
+// ### game takes the wheel without a cut, and you cross the bridge with Marta beside you, driving south over the Tejo as the first
+// ### light comes up behind the towers: no police, no helicopter, heroic music. Then the result card. A black plane in front of the
+// ### camera does the fades. In the story, this ends act 1 (the bridge leads out of the city towards the highway); in a free ride
+// ### it is the end of the run.
 const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 14.2, dawnFrom: 1.2, dawnTo: 11.5, shot: 5, cruise: 0.45, accel: 1.3 });
-const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false };
+const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false, ramp: false, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0 };
 const fader = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 fader.position.z = -0.6; fader.renderOrder = 9999; fader.frustumCulled = false; camera.add(fader); scene.add(camera);
 function startFinale(){
   state = 'finale';
-  Object.assign(finale, { on: true, done: false, t: 0, placed: false, throttle: 0, level: 1, kick: false });
+  Object.assign(finale, { on: true, done: false, t: 0, placed: false, throttle: 0, level: 1, kick: false, ramp: !!CITY.approach, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0 });
   hud.classList.add('off');
-  held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
+  // the police give up at the gate; the keys stay held, so you drive straight on up the approach road
+  resetPolice();
+  if (finale.ramp){ finale.s = rampLocal(CITY.approach, car.x, car.z, 0).s; toast('Up the ramp and onto the bridge!', 'gold', 2600); }
+  else { held.clear(); Object.keys(keys).forEach(k => keys[k] = false); }
+}
+// ### The drive up to the bridge. Through the gate you keep the wheel and drive the approach road yourself: west along the river
+// ### and round the banked loop that climbs to the deck, 42 m up. The parapets keep you on the road (a scrape throws sparks, a
+// ### hard knock slows you down), from 90 m on the barrier in the middle keeps you on your side, and you can't go back through the
+// ### gate. The clock stopped at the gate. On the deck the drive over the bridge takes over without a cut, at your speed and in
+// ### your lane, and eases into its own. Nobody is put on the bridge: if you let go of every key for RAMP.idle seconds, or are not
+// ### up there after RAMP.auto seconds, the vehicle drives itself up the rest of the road (keys.up and the steering are worked
+// ### for you, aiming RAMP.look metres ahead in your lane, at RAMP.autoSpeed), and any key you press takes the wheel back.
+const RAMP = Object.freeze({ edge: 1.1, median: 1.3, knock: 6, settle: 1.2, idle: 3, auto: 30, look: 9, autoSpeed: 22, autoLane: 4.2 });
+// where a point lies on the approach road: s, metres along it (searched near s0), and side, metres right of its middle
+function rampLocal(A, x, z, s0){
+  const d2 = s => { const p = A.at(s); return (p.x - x) ** 2 + (p.z - z) ** 2; };
+  let best = clamp(s0, 0, A.len), bd = d2(best);
+  for (let s = Math.max(0, s0 - 8); s <= Math.min(A.len, s0 + 8); s += 0.5){ const d = d2(s); if (d < bd){ bd = d; best = s; } }
+  for (const step of [0.25, 0.1, 0.05]) for (const s of [best - step, best + step]){ if (s < 0 || s > A.len) continue; const d = d2(s); if (d < bd){ bd = d; best = s; } }
+  const p = A.at(best);
+  return { s: best, side: -(x - p.x) * Math.cos(p.h) + (z - p.z) * Math.sin(p.h), h: p.h, slope: p.slope, bank: p.bank };
+}
+function updateRamp(dt){
+  const A = CITY.approach, f = finale;
+  f.rt += dt;
+  let q = rampLocal(A, car.x, car.z, f.s);
+  // through the gate at any angle: the first moment turns the vehicle onto the road
+  if (f.rt < RAMP.settle) car.heading += wrapAngle(q.h - car.heading) * Math.min(1, dt * 5) * (1 - f.rt / RAMP.settle);
+  let rel = wrapAngle(car.heading - q.h);
+  // the vehicle drives itself while you leave it alone, or once you have taken too long
+  const touching = keys.up || keys.down || keys.left || keys.right || keys.brake || Math.abs(TILT.value) > 0.05;
+  f.idle = touching ? 0 : (f.idle || 0) + dt;
+  let pedals = keys, steerIn = (keys.left ? 1 : 0) - (keys.right ? 1 : 0) || TILT.value;
+  if (!touching && (f.idle > RAMP.idle || f.rt > RAMP.auto)){
+    // on the right-hand side of the road, as in Portugal (past the barrier, on the side you are on)
+    const tgt = A.at(f.s + RAMP.look, (f.s > 90 ? f.lane : 1) * RAMP.autoLane), err = wrapAngle(Math.atan2(tgt.x - car.x, tgt.z - car.z) - car.heading);
+    pedals = { up: car.speed < RAMP.autoSpeed, down: false, brake: false };
+    steerIn = clamp(err * 3, -1, 1);
+  }
+  const grade = q.slope * Math.cos(rel);
+  car.speed = Core.stepSpeed(car.speed, pedals, dt, Core.slopeTop(Core.topSpeed(M, V, damage, false), grade, V), V, grade);
+  car.steer = Core.stepSteer(car.steer, steerIn, dt);
+  car.yaw = Core.stepYaw(car.yaw || 0, Core.turnRate(car.steer, car.speed, V, pedals.brake), dt, V);
+  car.heading += car.yaw * dt * (car.speed >= 0 ? 1 : -1);
+  let fx = Math.sin(car.heading), fz = Math.cos(car.heading);
+  car.x += fx * car.speed * dt; car.z += fz * car.speed * dt;
+  q = rampLocal(A, car.x, car.z, f.s); f.s = q.s; rel = wrapAngle(car.heading - q.h);
+  // never back through the gate
+  if (q.s < 1 && car.speed * Math.cos(rel) < 0) car.speed = 0;
+  // the parapets, and from 90 m on the barrier in the middle: you stay on the side you were on
+  const w = A.hw(q.s) - RAMP.edge;
+  let lo = -w, hi = w;
+  if (q.s > 90){ if (f.lane > 0) lo = RAMP.median; else hi = -RAMP.median; } else f.lane = q.side >= 0 ? 1 : -1;
+  let side = q.side;
+  scrapeNow.level = 0;
+  if (side < lo || side > hi){
+    const sg = side > hi ? 1 : -1, nx = sg * Math.cos(q.h), nz = -sg * Math.sin(q.h);
+    side = clamp(side, lo, hi);
+    const p = A.at(q.s, side), vx = fx * car.speed, vz = fz * car.speed, into = -(vx * nx + vz * nz);
+    car.x = p.x; car.z = p.z;
+    if (into > 0){
+      // the vehicle is turned along the wall, and a hard knock costs speed
+      const dirH = car.speed * Math.cos(rel) >= 0 ? q.h : q.h + Math.PI;
+      car.heading += wrapAngle(dirH - car.heading) * Math.min(1, 0.15 + into * 0.04);
+      if (into > RAMP.knock){ sfx.crash(into); car.shake = Math.min(1, into / 18); car.speed *= 0.6; } else car.speed *= 0.985;
+    }
+    const lv = Core.scrapeLevel(vx, vz, nx, nz);
+    if (lv > 0){
+      const along = -vx * nz + vz * nx, dir = Math.sign(along) || 1;
+      Object.assign(scrapeNow, { level: lv, along: Math.abs(along), nx, nz, tx: -nz * dir, tz: nx * dir, vx: 0, vz: 0, c: null,
+        x: car.x - nx * V.r, z: car.z - nz * V.r, y: car.y + 0.5, floor: car.y + 0.03 });
+    }
+  }
+  scrapeEffects(dt);
+  // on the road: its height, its climb and its bank as the vehicle meets them
+  const p = A.at(q.s, side);
+  rel = wrapAngle(car.heading - q.h);
+  car.y = p.y;
+  car.pitch += (Math.atan(q.slope * Math.cos(rel)) - car.pitch) * Math.min(1, 10 * dt);
+  car.roll += (Math.atan(q.bank * Math.cos(rel)) - car.roll) * Math.min(1, 10 * dt);
+  car.wheelRot += car.speed * dt;
+  chaseCam(dt);
+  // up on the deck: the drive over the bridge takes over where you are
+  if (q.s >= A.len - 0.5){
+    f.ramp = false;
+    CITY.bridge.updateMatrixWorld(true);
+    const local = CITY.bridge.worldToLocal(new THREE.Vector3(car.x, finale.deckY, car.z));
+    held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
+    const h0 = car.heading;
+    onTheBridge(local.x, local.z, Math.max(car.speed, 8));
+    // the heading you came up with turns into the bridge's over a moment, not at once
+    f.hOff = wrapAngle(h0 - car.heading); car.heading += f.hOff;
+    f.t = FINALE.fade * 2;
+  }
+}
+// ### Puts the vehicle on the bridge deck, along metres from its middle and side metres right of its centre line, driving south
+// ### at speed, and starts the music and Marta's words.
+function onTheBridge(along, side, speed){
+  const F = FINALE, f = finale;
+  f.placed = true; f.side = side;
+  CITY.bridge.updateMatrixWorld(true);
+  const p = onBridge(along, side), ahead = onBridge(along + 10, side);
+  Object.assign(car, { x: p.x, z: p.z, y: p.y, heading: Math.atan2(ahead.x - p.x, ahead.z - p.z), speed, steer: 0, yaw: 0, pitch: 0, roll: 0, bodyPitch: 0, lift: 0, shake: 0 });
+  // the engine is heard working here (updateEngine): first it cruises one gear above the one that pulls at this speed
+  const E = ENGINES[V.key], pull = Math.min(E.gears.length, E.gears.findIndex(g => g * 0.97 > speed) + 1 || E.gears.length);
+  eng.gear = Math.min(E.gears.length, pull + 1); eng.shift = 0; eng.rpm = Core.engineTarget(E, eng.gear, speed, 1); f.throttle = F.cruise;
+  resetPolice(); clearEffects(); if (!witness.inCar) hideWitness();  // Marta rides over the bridge in the passenger seat
+  playAnthem();
+  toast(`${WITNESS.name}: “I saw him climb out of that window. I will tell them everything.”`, 'gold', 5200);
+  setTimeout(() => { if (finale.on && !finale.done) toast('HALE: Across the bridge and you are out of the city. Well done, detective.', 'hale', 5200); }, 5600);
 }
 // ### Ends the finale and its morning light: before a new run or the menu.
 function endFinale(){
@@ -6093,6 +6217,7 @@ function endFinale(){
 function onBridge(along, side, up){ return CITY.bridge.localToWorld(new THREE.Vector3(along, finale.deckY + (up || 0), side)); }
 function updateFinale(dt){
   const F = FINALE, f = finale;
+  if (f.ramp) return updateRamp(dt);
   f.t += dt;
   const t = f.t;
   if (!f.placed){
@@ -6101,17 +6226,7 @@ function updateFinale(dt){
     fader.material.opacity = Math.min(1, t / F.fade);
     chaseCam(dt);
     if (t < F.fade) return;
-    f.placed = true;
-    CITY.bridge.updateMatrixWorld(true);
-    const p = onBridge(F.start, F.lane), ahead = onBridge(F.start + 10, F.lane);
-    Object.assign(car, { x: p.x, z: p.z, y: p.y, heading: Math.atan2(ahead.x - p.x, ahead.z - p.z), speed: F.speed, steer: 0, yaw: 0, pitch: 0, roll: 0, bodyPitch: 0, lift: 0, shake: 0 });
-    // the engine is heard working here (updateEngine): first it cruises one gear above the one that pulls at this speed
-    const E = ENGINES[V.key], pull = Math.min(E.gears.length, E.gears.findIndex(g => g * 0.97 > F.speed) + 1 || E.gears.length);
-    eng.gear = Math.min(E.gears.length, pull + 1); eng.shift = 0; eng.rpm = Core.engineTarget(E, eng.gear, F.speed, 1); f.throttle = F.cruise;
-    resetPolice(); clearEffects(); if (!witness.inCar) hideWitness();  // Marta rides over the bridge in the passenger seat
-    playAnthem();
-    toast(`${WITNESS.name}: “I saw him climb out of that window. I will tell them everything.”`, 'gold', 5200);
-    setTimeout(() => { if (finale.on && !finale.done) toast('HALE: Across the bridge and you are out of the city. Well done, detective.', 'hale', 5200); }, 5600);
+    onTheBridge(F.start, F.lane, F.speed);
   }
   // across the bridge at a steady speed; after the last fade it rolls to a stop under the card
   // With the second shot the driver puts the foot down: a gear down, the engine pulls through to the next change and on. At the
@@ -6120,8 +6235,11 @@ function updateFinale(dt){
   else if (t >= F.shot){
     if (!f.kick){ f.kick = true; eng.gear = Math.max(1, eng.gear - 1); f.throttle = 1; }
     car.speed += F.accel * dt;
-  }
+  } else car.speed += (F.speed - car.speed) * Math.min(1, dt * 0.8);  // from the approach road: into the cruising speed
   const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
+  // from the approach road: over into the lane
+  if (f.side !== null && !f.done){ const ds = (F.lane - f.side) * Math.min(1, dt * 1.2); f.side += ds; car.x += -fz * ds; car.z += fx * ds; }
+  if (f.hOff){ const dh = f.hOff * Math.min(1, dt * 2.5); f.hOff = Math.abs(f.hOff - dh) < 1e-4 ? 0 : f.hOff - dh; car.heading -= dh; }
   car.x += fx * car.speed * dt; car.z += fz * car.speed * dt; car.y = finale.deckY; car.wheelRot += car.speed * dt;
   const sm = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
   setDawn(sm(F.dawnFrom, F.dawnTo, t));
@@ -6638,13 +6756,14 @@ function applyCarMesh(dt){
   carGroup.position.set(car.x, car.y, car.z);
   carGroup.rotation.y = car.heading;
   const sp = Math.abs(car.speed), md = MODELS[V.key];
-  const braking = (state === 'play' || garage.live) && Core.isBraking(car.speed, keys.down, keys.up, keys.brake);
+  const driving = state === 'play' || garage.live || (finale.on && finale.ramp);
+  const braking = driving && Core.isBraking(car.speed, keys.down, keys.up, keys.brake);
   if (braking !== brakeLights.on){
     brakeLights.on = braking;
     brakeLights.mat.color.setHex(braking ? 0xff2a38 : 0x7a0c14);
     brakeLights.glows.forEach(s => { s.visible = braking; });
   }
-  const reversing = (state === 'play' || garage.live) && Core.isReversing(car.speed);
+  const reversing = driving && Core.isReversing(car.speed);
   if (reversing !== reverseLights.on){
     reverseLights.on = reversing;
     reverseLights.mat.color.setHex(reversing ? 0xf4f8ff : 0x4a4e55);
