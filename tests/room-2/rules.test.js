@@ -207,7 +207,9 @@ test('damage: soft bumps are free, the truck takes 55 %, damage stays within 0-1
 test('bust meter: fills only when slow next to a cop, drains otherwise, busts at 100 %', () => {
   let b = { bust: 0, busted: false };
   for (let i = 0; i < 60; i++) b = Core.bustStep(b.bust, 5, 2, 1 / 60);
-  assert.ok(b.bust > 0.4 && b.bust < 0.5 && !b.busted);
+  assert.ok(Math.abs(b.bust - 1 / Core.BUST.fill) < 0.01 && !b.busted, 'one second next to a cop fills 1 / BUST.fill of the meter');
+  assert.ok(Core.BUST.fill >= 3, 'a short stop next to a cop is not the end');
+  assert.equal(Core.bustStep(0.5, Core.BUST.radius + 0.5, 0, 0.05).bust < 0.5, true, 'a cop just outside the radius does not fill it');
   const fast = Core.bustStep(0.5, 5, 20, 0.05);
   assert.ok(fast.bust < 0.5, 'driving away drains the meter');
   const far = Core.bustStep(0.5, 30, 0, 0.05);
