@@ -27,8 +27,8 @@ function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t
 
 // ---------- Renderer, scene, camera ----------
 // ### One renderer with soft shadows and filmic tone mapping. The room is lit like a real night-time washroom: one caged
-// ### fluorescent tube that burns steadily (it no longer flickers), a weaker lamp over the stall, and cold corridor light
-// ### through the door window.
+// ### fluorescent tube that now and then flickers (see "The mood of the lights"), a weaker lamp over the stall, and cold
+// ### corridor light through the door window.
 const canvas = $('room');
 let renderer;
 try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
@@ -1091,7 +1091,8 @@ plane(1.5, .56, M.sign, -1.9, 2.2, -D / 2 + .012);
 // ### stall over the toilet. Each has a soft glow round the glass (the puddles mirror it too). Every light costs time at
 // ### every pixel, so only two of them really shine, without shadows: a point light over the door and a spot in the
 // ### stall aimed at the toilet (it stays inside the partition). The lamp over the mirror paints its red wash onto the
-// ### wall instead. They burn steadily.
+// ### wall instead. They burn steadily until time runs short (see "The mood of the lights").
+const RED_LAMPS = [], RED_WASHES = [];
 const glowTex = canvasTex(128, 128, (g, w, h) => {
   const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
   gr.addColorStop(0, 'rgba(255,120,90,.9)'); gr.addColorStop(.12, 'rgba(255,50,25,.55)'); gr.addColorStop(.4, 'rgba(200,20,8,.16)'); gr.addColorStop(1, 'rgba(160,0,0,0)');
@@ -1112,16 +1113,103 @@ function redLamp(x, y, z, ry, intensity, reach, aim){
   const glow = new THREE.Sprite(glowMat); glow.position.set(0, 0, .08); glow.scale.setScalar(.55); g.add(glow);
   if (!intensity){   // no light: a soft red wash on the wall round the lamp
     const wash = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.6), new THREE.MeshBasicMaterial({ map: glowTex, color: 0x9a3a2a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-    wash.position.set(0, -.15, .004); g.add(wash);
+    wash.position.set(0, -.15, .004); g.add(wash); RED_WASHES.push(wash.material);
     return;
   }
   const light = aim ? new THREE.SpotLight(0xff2a14, intensity, reach, .6, .6, 1.5) : new THREE.PointLight(0xff2a14, intensity, reach, 2);
-  light.position.set(0, -.08, .3); g.add(light);
+  light.position.set(0, -.08, .3); g.add(light); RED_LAMPS.push({ light, base: intensity });
   if (aim){ light.target.position.set(...aim); room.add(light.target); }
 }
 redLamp(0, 2.5, D / 2 - .002, Math.PI, 1.8, 6);                       // over the door
 redLamp(-W / 2 + .002, 2.32, 0, Math.PI / 2, 0);                      // over the mirror
 redLamp(2.2, 2.45, -D / 2 + .002, 0, 4, 5, [3.1, .4, -2.6]);          // in the stall, over the toilet
+
+// ### The mood of the lights. The old tube mostly burns steadily, but now and then it struggles: a few quick dips, and
+// ### sometimes it drops out for a moment and stutters back, each time with a tick from its starter. The lamp over the
+// ### stall does the same, more rarely. The dips are at least a third of a second apart, so the light never flashes more
+// ### than three times a second, and with reduced motion it never flickers at all. Under the tube hangs a faint cone of
+// ### light with dust drifting through it. When time runs short the red emergency lamps begin to throb: slowly from two
+// ### minutes left, faster in the last minute.
+const LIGHTS = { t: 0, tube: 1, stall: 1, red: 0, phase: 0, main: mainLight.intensity, stallI: stallLight.intensity, hemi: hemi.intensity,
+  tubeGlow: M.tube.emissiveIntensity, stallGlow: stallTube.material.emissiveIntensity, glass: redGlass.emissiveIntensity, handKey: null, handI: 0,
+  tubeEp: null, tubeNext: 8 + Math.random() * 8, stallEp: null, stallNext: 30 + Math.random() * 25 };
+// ### One bout of flickering: two to five dips, the last one sometimes a longer drop-out before the tube catches again.
+function flickerBout(){
+  const steps = [], n = 2 + Math.floor(Math.random() * 4);
+  let at = 0;
+  for (let i = 0; i < n; i++){
+    const out = i === n - 1 && Math.random() < .35;
+    steps.push({ at, dur: out ? .2 + Math.random() * .25 : .05 + Math.random() * .07, level: out ? .08 : .25 + Math.random() * .4, heard: false });
+    at += .34 + Math.random() * .3;
+  }
+  return { t0: LIGHTS.t, steps, end: at };
+}
+// ### How bright a lamp is during its bout (1 between the dips), and whether the bout is over.
+function boutLevel(ep, vol){
+  const tau = LIGHTS.t - ep.t0;
+  for (const s of ep.steps) if (tau >= s.at && tau < s.at + s.dur){ if (!s.heard){ s.heard = true; cue(vol); } return s.level; }
+  return 1;
+}
+// the cone of light under the tube: brightest where you look straight through it, fading towards its edges and the floor
+const lightCone = (() => {
+  const h = 2.84, geo = new THREE.CylinderGeometry(.42, 1.45, h, 40, 1, true);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { strength: { value: .07 }, tint: { value: new THREE.Color(0xffe6c8) } },
+    vertexShader: 'varying vec3 vN; varying vec3 vV; varying float vY; void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); vY = uv.y; gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform float strength; uniform vec3 tint; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ float a = pow(abs(dot(normalize(vN), normalize(vV))), 2.0) * pow(vY, 1.6) * strength; gl_FragColor = vec4(tint * a, 1.0); }',
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+  });
+  const m = new THREE.Mesh(geo, mat); m.position.set(-.6, 2.9 - h / 2, .3); m.scale.x = 1.3; m.renderOrder = 3; room.add(m);
+  return m;
+})();
+// dust in the cone: slow motes that only show where the tube lights them
+const roomDust = (() => {
+  const n = 160, geo = new THREE.BufferGeometry(), pos = new Float32Array(n * 3), col = new Float32Array(n * 3), seed = new Float32Array(n);
+  for (let i = 0; i < n; i++){ pos[i * 3] = -.6 + (Math.random() - .5) * 2.4; pos[i * 3 + 1] = .3 + Math.random() * 2.4; pos[i * 3 + 2] = .3 + (Math.random() - .5) * 2; seed[i] = Math.random() * 100; }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const dot = canvasTex(32, 32, (g, w, h) => { const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.4, 'rgba(255,255,255,.4)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: .013, map: dot, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  pts.frustumCulled = false; room.add(pts);
+  return { pts, pos, col, seed, n };
+})();
+// ### Moves the lights on each frame: the bouts of flickering, the cone and its dust, and the throbbing red lamps.
+function updateLights(dt){
+  const L = LIGHTS; L.t += dt;
+  if (!REDUCED){
+    if (!L.tubeEp && L.t > L.tubeNext) L.tubeEp = flickerBout();
+    if (!L.stallEp && L.t > L.stallNext) L.stallEp = flickerBout();
+  }
+  let f = 1, fs = 1;
+  if (L.tubeEp){ f = boutLevel(L.tubeEp, 'flicker'); if (L.t - L.tubeEp.t0 > L.tubeEp.end){ L.tubeEp = null; L.tubeNext = L.t + 12 + Math.random() * 22; } }
+  if (L.stallEp){ fs = boutLevel(L.stallEp, 'flickerFar'); if (L.t - L.stallEp.t0 > L.stallEp.end){ L.stallEp = null; L.stallNext = L.t + 35 + Math.random() * 40; } }
+  // a tube snaps on and off within a few hundredths of a second
+  L.tube += (f - L.tube) * Math.min(1, dt * 45); L.stall += (fs - L.stall) * Math.min(1, dt * 45);
+  mainLight.intensity = L.main * L.tube; M.tube.emissiveIntensity = L.tubeGlow * (.12 + .88 * L.tube);
+  stallLight.intensity = L.stallI * L.stall; stallTube.material.emissiveIntensity = L.stallGlow * (.12 + .88 * L.stall);
+  hemi.intensity = L.hemi * (.5 + .5 * L.tube);   // the room's soft fill comes from the tube too
+  if (!L.handKey){ L.handKey = handScene.children.find(o => o.isDirectionalLight); L.handI = L.handKey.intensity; }
+  L.handKey.intensity = L.handI * (.25 + .75 * L.tube);
+  lightCone.material.uniforms.strength.value = .07 * L.tube * L.tube;
+  // the dust drifts and turns in the air; a mote is lit by how close it is to the middle of the cone
+  const d = roomDust, p = d.pos, c = d.col, t = L.t;
+  for (let i = 0; i < d.n; i++){
+    const j = i * 3, s = d.seed[i];
+    p[j] += Math.sin(t * .23 + s) * .03 * dt; p[j + 1] += (Math.sin(t * .17 + s * 2) * .02 - .006) * dt; p[j + 2] += Math.cos(t * .19 + s) * .03 * dt;
+    if (p[j + 1] < .2) p[j + 1] = 2.7;
+    const y = clamp(p[j + 1] / 2.9, 0, 1), r = .42 + (1.45 - .42) * (1 - y), dx = (p[j] + .6) / 1.3, dz = p[j + 2] - .3;
+    const b = clamp(1 - Math.hypot(dx, dz) / r, 0, 1) * (.25 + .75 * y) * L.tube * (.6 + .4 * Math.sin(t * 1.3 + s * 5));
+    c[j] = b * .55; c[j + 1] = b * .5; c[j + 2] = b * .42;
+  }
+  d.pts.geometry.attributes.position.needsUpdate = true; d.pts.geometry.attributes.color.needsUpdate = true;
+  // the red lamps: steady until two minutes are left, then a slow throb that quickens in the last minute
+  const urge = REDUCED || S.ending || S.scene === 'intro' ? 0 : S.time <= 60 ? 1 : S.time <= 120 ? .55 : 0;
+  L.red += (urge - L.red) * Math.min(1, dt * .8);
+  L.phase += dt * Math.PI * 2 / (2.6 - 1.3 * clamp((L.red - .55) / .45, 0, 1));
+  const pulse = 1 + .32 * L.red * Math.sin(L.phase);
+  for (const r of RED_LAMPS) r.light.intensity = r.base * pulse;
+  redGlass.emissiveIntensity = L.glass * pulse; glowMat.opacity = Math.min(1, pulse);
+  for (const w of RED_WASHES) w.opacity = pulse;
+}
 
 // The door with its barred window; Officer Hale's silhouette appears in it. It hangs on hinges on the west side (x -0.52)
 // and swings into the room; doorPivot turns it. Closed (rotation 0) it is exactly where it always was.
@@ -3957,6 +4045,8 @@ function cue(name){
   if (!ac || !name) return;
   switch (name){
     case 'tick': tone(2400, .03, 'square', .03); noise(.03, .05, 'highpass', 3000); break;
+    case 'flicker': noise(.045, .07, 'highpass', 3200); tone(100, .09, 'sawtooth', .022); break;   // the tube's starter ticks
+    case 'flickerFar': noise(.04, .03, 'highpass', 3500); break;
     case 'clunk': noise(.25, .5, 'lowpass', 260); tone(90, .3, 'sine', .3, 50); break;
     case 'scrape': for (let i = 0; i < 4; i++) noise(.12, .18, 'bandpass', 2600, i * .11); break;
     case 'take': tone(660, .12, 'triangle', .12); tone(990, .16, 'triangle', .1, null, .08); break;
@@ -4448,6 +4538,7 @@ function frame(now){
     scene.fog.density = .03 + under * .07; scene.fog.color.copy(FOG_ROOM).lerp(FOG_TUNNEL, under);
   }
   updateDust(dt, clock);
+  updateLights(dt);
   if (doorFlash > 0){ doorFlash = Math.max(0, doorFlash - dt * .5); windowLight.intensity = .9 + doorFlash * 8; }
   // dripping tap
   if (ac && !paused && (dripIn -= dt) < 0){ dripIn = 2.5 + Math.random() * 5; tone(1200 + Math.random() * 500, .08, 'sine', .025, 500); }
