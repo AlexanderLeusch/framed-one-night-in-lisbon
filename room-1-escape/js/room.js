@@ -361,7 +361,7 @@ function tileMat(w, h = TILE_H){
 const partitionTex = canvasTex(512, 512, (g, w, h) => {
   g.fillStyle = '#6f7c75'; g.fillRect(0, 0, w, h);
   for (let i = 0; i < 5000; i++){ const v = rnd() < .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${rnd() * .05})`; g.fillRect(rnd() * w, rnd() * h, 2, 2); }
-  grime(g, w, h, 30, 'rgba(50,44,30,.22)', w * .12, true);
+  grime(g, w, h, 14, 'rgba(50,44,30,.12)', w * .12, true);
   g.strokeStyle = 'rgba(205,210,200,.35)'; g.lineWidth = 1;
   for (let i = 0; i < 26; i++){ const x = rnd() * w, y = rnd() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - .5) * 70, y + (rnd() - .5) * 18); g.stroke(); }
   g.fillStyle = 'rgba(30,30,28,.3)'; for (let i = 0; i < 12; i++){ g.beginPath(); g.arc(rnd() * w, rnd() * h, 1 + rnd() * 3, 0, 7); g.fill(); }
@@ -409,8 +409,10 @@ function panelMaterial(wm, hm, foot, grips = []){
   e.fillStyle = '#808080'; e.fillRect(0, 0, w, h);
   r.fillStyle = 'rgb(0,118,80)'; r.fillRect(0, 0, w, h);
   // the paint's own shifts of colour, and the orange peel of the powder coat
-  for (let i = 0; i < area * 30; i++) blob(g, R() * w, R() * h, D * (.05 + R() * .2), R() < .5 ? 'rgba(150,165,155,.06)' : 'rgba(40,48,44,.07)');
+  for (let i = 0; i < area * 30; i++) blob(g, R() * w, R() * h, D * (.05 + R() * .2), R() < .5 ? 'rgba(150,165,155,.035)' : 'rgba(40,48,44,.04)');
   for (let i = 0; i < w * h / 26; i++){ const v = 128 + (R() - .5) * 34 | 0; e.fillStyle = `rgb(${v},${v},${v})`; e.beginPath(); e.arc(R() * w, R() * h, .8 + R() * 1.6, 0, 7); e.fill(); }
+  // the sheet steel is never quite flat: broad, gentle waves that show in the gloss (oil-canning)
+  for (let i = 0; i < area * 3; i++) blob(e, R() * w, R() * h, D * (.25 + R() * .35), R() < .5 ? 'rgba(150,150,150,.12)' : 'rgba(105,105,105,.12)');
   // chips along the edges: bare steel inside a rim of red primer, a little lower than the paint
   for (let i = 0; i < (wm + hm) * 2 * 12; i++){
     const side = R() * 4 | 0, t = R(), d = Math.pow(R(), 2) * D * .018, x = side < 2 ? t * w : side === 2 ? d : w - d, y = side === 0 ? d : side === 1 ? h - d : t * h;
@@ -2032,19 +2034,48 @@ const SX0 = 1.5, SZ1 = -.7;
   side.position.set(SX0, .15, SZ1); side.rotation.y = Math.PI / 2;   // its own x runs to -z, its front faces into the stall
   for (const [x, grips] of [[SX0, [[1, 1.12]]], [3.7, [[0, 1.3]]]]) add(new THREE.Mesh(panelGeo(.3, 2.03, .04), panelMaterial(.3, 2.03, .02, grips))).position.set(x, .02, SZ1);
 }
-box(2.54, .06, .06, M.dullSteel, 2.75, 2.06, SZ1);
-for (const z of [-2.9, SZ1 + .05]) box(.06, .14, .06, M.dullSteel, SX0, .07, z);
-// steel edge caps on the partitions and wall brackets that hold them
+// ### The stall's hardware, all brushed stainless: an anti-grip headrail (a rounded profile with a flat underside) with end
+// ### caps and a wall bracket, a U-channel that holds the partition to the wall along its whole height, two round
+// ### adjustable feet under the partition, and shoes round the foot of each pilaster.
+{
+  const hr = new THREE.Shape(); hr.moveTo(-.025, 0); hr.lineTo(.025, 0); hr.lineTo(.025, .022); hr.absarc(0, .022, .025, 0, Math.PI, false); hr.closePath();
+  const rail = add(new THREE.Mesh(new THREE.ExtrudeGeometry(hr, { depth: 2.52, bevelEnabled: false, curveSegments: 12 }), M.steel));
+  rail.rotation.y = Math.PI / 2; rail.position.set(SX0 - .02, 2.033, SZ1);
+  for (const x of [SX0 - .022, 4.0 - .005]){ const cap = add(new THREE.Mesh(new THREE.ExtrudeGeometry(hr, { depth: .004, bevelEnabled: false, curveSegments: 12 }), M.dullSteel)); cap.rotation.y = Math.PI / 2; cap.position.set(x, 2.033, SZ1); cap.scale.set(1.08, 1.08, 1); }
+  box(.008, .09, .07, M.dullSteel, 3.996, 2.05, SZ1);   // the bracket that holds the rail to the east wall
+  // the U-channel along the wall joint, with its screws
+  for (const dx of [-.024, .024]) box(.003, 1.86, .03, M.steel, SX0 + dx, 1.08, -2.985);
+  box(.051, 1.86, .003, M.steel, SX0, 1.08, -2.9985);
+  for (const y of [.35, .8, 1.25, 1.7]) for (const dx of [-.026, .026]){ const sc = cyl(.004, .004, .003, M.chrome, SX0 + dx, y, -2.975, 6); sc.rotation.z = Math.PI / 2; }
+  // the partition's feet: a round base on the floor, a threaded post and a clamp round the panel's lower edge
+  for (const z of [-2.75, SZ1 - .12]){
+    cyl(.034, .038, .012, M.steel, SX0, .006, z, 20); cyl(.011, .011, .14, M.chrome, SX0, .08, z, 12); cyl(.016, .016, .02, M.dullSteel, SX0, .045, z, 6);
+    box(.052, .045, .05, M.steel, SX0, .16, z);
+  }
+}
+// steel edge caps on the partitions
 box(.055, 1.9, .012, M.dullSteel, SX0, 1.1, SZ1 - .01); box(.012, 1.9, .05, M.dullSteel, SX0 + .3, 1.1, SZ1); box(.012, 1.9, .05, M.dullSteel, 3.7, 1.1, SZ1);
-for (const y of [.4, 1.1, 1.8]) box(.09, .05, .03, M.dullSteel, SX0, y, -2.985);
-for (const x of [SX0 + .15, 3.85]) box(.32, .12, .07, M.steel, x, .06, SZ1);   // pilaster shoes
+// shoes round the foot of each pilaster: a rounded stainless sleeve
+for (const x of [SX0 + .15, 3.85]){
+  const sh = new THREE.Shape(); roundedRect(sh, -.162, -.03, .162, .03, .012);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: .09, bevelEnabled: true, bevelThickness: .006, bevelSize: .004, bevelSegments: 2, curveSegments: 6 });
+  g.rotateX(-Math.PI / 2); g.translate(x, .006, SZ1); add(new THREE.Mesh(g, M.steel));
+}
 // the stall door stands open against the east wall: hinges, a slide latch and a coat hook
 {
   const pivot = new THREE.Group(); pivot.position.set(3.7, 0, SZ1 + .025); pivot.rotation.y = 1.72; room.add(pivot);
   const put = m => { m.castShadow = m.receiveShadow = true; pivot.add(m); return m; };
   const bx = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return put(m); };
   put(new THREE.Mesh(panelGeo(.86, 1.62, .03), panelMaterial(.86, 1.62, .23, [[.08, 1.12], [.5, 1.5]]))).position.set(-.88, .23, 0);
-  for (const y of [.42, 1.04, 1.66]){ const h = new THREE.Mesh(new THREE.CylinderGeometry(.011, .011, .12, 10), M.steel); h.position.set(-.005, y, .02); put(h); }
+  for (const y of [.42, 1.04, 1.66]){
+    const h = new THREE.Mesh(new THREE.CylinderGeometry(.011, .011, .12, 12), M.steel); h.position.set(-.005, y, .02); put(h);
+    for (const z of [-.017, .017]) bx(.07, .11, .003, M.steel, -.045, y, z);   // the hinge's leaves wrap round the door's edge
+    for (const y2 of [-.035, .035]) for (const z of [-.019, .019]){ const sc = new THREE.Mesh(new THREE.CylinderGeometry(.004, .004, .002, 6), M.chrome); sc.rotation.x = Math.PI / 2; sc.position.set(-.06, y + y2, z); put(sc); }
+  }
+  // the occupancy indicator on the outside of the door: a steel rosette with a little window showing green, free
+  { const ind = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .006, 24), M.steel); ind.rotation.x = Math.PI / 2; ind.position.set(-.8, 1.12, -.018); put(ind);
+    const freeTex = canvasTex(64, 32, (g, w, h) => { g.fillStyle = '#2f8a3a'; g.fillRect(0, 0, w, h); g.fillStyle = '#e9f2e6'; g.font = 'bold 16px Arial, sans-serif'; g.textAlign = 'center'; g.fillText('FREE', w / 2, 22); });
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(.034, .016), new THREE.MeshStandardMaterial({ map: freeTex, roughness: .4 })); win.rotation.y = Math.PI; win.position.set(-.8, 1.128, -.0215); pivot.add(win); }
   bx(.1, .035, .02, M.steel, -.8, 1.12, .028); bx(.025, .02, .03, M.steel, -.77, 1.12, .045);
   bx(.03, .06, .015, M.steel, -.45, 1.62, -.024); const hook = new THREE.Mesh(new THREE.TorusGeometry(.022, .006, 6, 12, Math.PI), M.steel); hook.position.set(-.45, 1.58, -.045); hook.rotation.set(0, Math.PI / 2, Math.PI); put(hook);
 }
