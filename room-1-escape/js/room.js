@@ -2081,65 +2081,201 @@ for (const x of [SX0 + .15, 3.85]){
 }
 box(.035, .06, .02, M.steel, SX0 + .3, 1.12, SZ1 + .03);   // the latch keeper on the other pilaster
 
-// ### The toilet: a stainless-steel prison pan with its cistern on the wall above it. The pan is one turned piece (foot,
-// ### waist, flaring sides, a rolled rim, no seat) with a rounded back that runs to the wall; the cistern is a brushed
-// ### steel box with a lid that sits a little proud, a dual flush button on top, security screws, a stamped plate, and
-// ### limescale and rust running down its front from the lid seam. A chrome flush pipe with collar nuts runs down into the
-// ### back of the pan, and the cold water comes from a stop valve on the wall into the side of the cistern.
+// ### The toilet: a stainless-steel prison pan with a low-level cistern on the wall above it, both of the same polished
+// ### steel (M.bowl: the scanned scratches of Poly Haven's "Blue Metal Plate", fetched through its API, with the vault
+// ### HDRI in the reflections). The pan is one turned piece (foot, waist, flaring sides, a rolled rim, no seat) with a
+// ### flush horn welded to its back under the rim. The cistern is pressed sheet steel: round corners, rounded edges and
+// ### a front that bows out a little, as thin sheet does, so the light slides over it; a lid with a turned-down lip, a
+// ### dual flush button, security screws, a stamped plate, and soft runs of limescale and rust from the lid's lip.
+// ### Cistern and pan are joined the way a real low-level cistern is: the flush pipe leaves the cistern through its
+// ### outlet nut, runs down the wall, bends forward and slides into the horn through a black rubber connector. The cold
+// ### water comes from a stop valve on the wall into the side of the cistern.
 const TOILET = { x: 3.25, z: -2.82, top: .958 }, BOWL_Z = -2.418, BOWL_SZ = 1.22;
 {
-  const T = TOILET;
+  const T = TOILET, WALLZ = -2.986;
   const mesh = (geo, mat) => add(new THREE.Mesh(geo, mat));
-  // a rounded footprint (x across, z from the wall out) raised from y0 to y1, with soft bevelled edges
-  const block = (x0, x1, z0, z1, y0, y1, r, bev, mat) => {
-    const s = new THREE.Shape(); roundedRect(s, x0 + bev, -z1 + bev, x1 - bev, -z0 - bev, Math.max(.001, r - bev));
-    const g = new THREE.ExtrudeGeometry(s, { depth: y1 - y0 - 2 * bev, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 3, curveSegments: 10 });
-    g.rotateX(-Math.PI / 2); g.translate(T.x, y0 + bev, 0); return mesh(g, mat);
-  };
   const lathe = (pts, seg, sx, sz, x, z) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg); g.scale(sx, 1, sz); g.translate(x, 0, z); return mesh(g, M.bowl); };
-  // the pan's rounded back, from the wall to the bowl (it stops short of the bowl's inside, which curves in low down)
-  block(-.19, .19, -2.985, -2.675, 0, .405, .06, .012, M.steel); block(-.11, .11, -2.7, -2.6, 0, .24, .04, .01, M.steel);
-  // the cistern: body, a dark seam under the lid, and the lid
-  const CY0 = .66, CY1 = 1.016, CZ1 = -2.8;
-  block(-.235, .235, -2.985, CZ1, CY0, CY1, .03, .01, M.steel);
-  block(-.228, .228, -2.98, CZ1 - .006, CY1 - .01, CY1 + .006, .025, .002, M.dark);
-  block(-.243, .243, -2.988, CZ1 + .007, CY1 + .004, CY1 + .03, .032, .007, M.steel);
+  // a decal that casts no shadow: limescale and dirt are not metal, so they are matt and lie on top of the steel
+  const decalMat = map => new THREE.MeshStandardMaterial({ map, transparent: true, depthWrite: false, roughness: .85, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 });
+  // ### A pressed steel box. Seen from above it is a rectangle (half sizes hw and hd round cx, cz) with round corners
+  // ### (radius R); its top and bottom edges are rounded off too (rt, rb, 0 for a sharp edge). bulge(x, y) says how far
+  // ### the front stands out of the flat (x from the middle). It is built ring by ring from the bottom up and closed with
+  // ### a flat top and bottom, its normals smooth all round; the scan is laid on in metres, the same size as on the bowl.
+  const steelBox = (cx, cz, hw, hd, y0, y1, R, rt, rb, bulge) => {
+    const K = 8, BACK = 3, FRONT = 12, SIDE = 6, ax = hw - R, az = hd - R;
+    // the outline inset metres in from the outside, from the middle of the back (against the wall) all the way round
+    const outline = inset => {
+      const r = R - inset, pts = [[0, -az - r]];
+      const line = (x0, z0, x1, z1, n) => { for (let i = 1; i < n; i++) pts.push([x0 + (x1 - x0) * i / n, z0 + (z1 - z0) * i / n]); };
+      const arc = (x, z, a0) => { for (let i = 0; i <= K; i++){ const a = a0 + Math.PI / 2 * i / K; pts.push([x + Math.cos(a) * r, z + Math.sin(a) * r]); } };
+      line(0, -az - r, ax, -az - r, BACK); arc(ax, -az, -Math.PI / 2);
+      line(ax + r, -az, ax + r, az, SIDE); arc(ax, az, 0);
+      line(ax, az + r, -ax, az + r, FRONT); arc(-ax, az, Math.PI / 2);
+      line(-ax - r, az, -ax - r, -az, SIDE); arc(-ax, -az, Math.PI);
+      line(-ax, -az - r, 0, -az - r, BACK); pts.push([0, -az - r]);
+      return pts;
+    };
+    // the rings: round the bottom edge, up the straight sides (often, so the bulge is smooth), round the top edge
+    const rings = [], V = 10, ys0 = y0 + rb, ys1 = y1 - rt;
+    if (rb > 0) for (let i = 0; i < K; i++){ const a = -Math.PI / 2 + Math.PI / 2 * i / K; rings.push([ys0 + Math.sin(a) * rb, rb * (1 - Math.cos(a))]); }
+    for (let i = 0; i <= V; i++) rings.push([ys0 + (ys1 - ys0) * i / V, 0]);
+    if (rt > 0) for (let i = 1; i <= K; i++){ const a = Math.PI / 2 * i / K; rings.push([ys1 + Math.sin(a) * rt, rt * (1 - Math.cos(a))]); }
+    const pos = [], uv = [], idx = [];
+    let n = 0;
+    for (const [y, inset] of rings){
+      const pts = outline(inset);
+      n = pts.length;
+      let u = 0;
+      pts.forEach(([x, z], j) => {
+        if (j) u += Math.hypot(x - pts[j - 1][0], z - pts[j - 1][1]);
+        pos.push(cx + x, y, cz + z + (z > az && bulge ? bulge(x, y) : 0)); uv.push(u, y);
+      });
+    }
+    for (let i = 0; i < rings.length - 1; i++) for (let j = 0; j < n - 1; j++){
+      const a = i * n + j, b = a + 1, c = a + n + 1, d = a + n;
+      idx.push(a, c, b, a, d, c);
+    }
+    // the flat top and bottom: a fan from the middle, with points of their own so their normals stay straight
+    for (const [ring, up] of [[rings.length - 1, true], [0, false]]){
+      const c0 = pos.length / 3, y = rings[ring][0];
+      pos.push(cx, y, cz); uv.push(cx, -cz);
+      for (let j = 0; j < n; j++){ const k = (ring * n + j) * 3; pos.push(pos[k], y, pos[k + 2]); uv.push(pos[k], -pos[k + 2]); }
+      for (let j = 1; j < n; j++) idx.push(c0, c0 + (up ? j + 1 : j), c0 + (up ? j : j + 1));
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals();
+    return mesh(g, M.bowl);
+  };
+  // ### The cistern: a body of thin sheet whose front bows out 3 mm in the middle, and a lid that sits over its top
+  // ### edge, 8 mm proud all round, with a turned-down lip. The outlet is in the middle of its floor.
+  const CY0 = .66, CY1 = 1.016, CZ1 = -2.8, CZ = (CZ1 + WALLZ) / 2, CW = .235, CR = .026, LIP = .998, LT = 1.032;
+  const SY0 = CY0 + .016, SY1 = CY1, BX0 = CW - CR, BULGE = .003;
+  const bulge = (x, y) => BULGE * Math.max(0, 1 - (x / BX0) ** 2) * Math.max(0, 1 - ((y - (SY0 + SY1) / 2) / ((SY1 - SY0) / 2)) ** 2);
+  const frontAt = (x, y) => CZ1 + bulge(x, y);
+  steelBox(T.x, CZ, CW, (CZ1 - WALLZ) / 2, CY0, CY1, CR, 0, .016, bulge);
+  steelBox(T.x, (CZ1 + .008 + WALLZ) / 2, CW + .008, (CZ1 + .008 - WALLZ) / 2, LIP, LT, CR + .007, .007, .0015);
   // the dual flush button on the lid: a chrome ring and two half buttons, the small flush and the full one
-  const BX = T.x + .11, BZ = -2.89, LT = CY1 + .03;
+  const BX = T.x + .11, BZ = CZ;
   cyl(.034, .035, .005, M.chrome, BX, LT + .0025, BZ, 28);
-  for (const [a, h] of [[0, .006], [Math.PI, .008]]){ const b = mesh(new THREE.CylinderGeometry(.027, .027, h, 20, 1, false, a + .06, Math.PI - .12), M.chrome); b.position.set(BX, LT + .005 + h / 2, BZ); }
-  // security screws in the lid and on the front, and a small stamped plate
-  for (const dx of [-.19, .19]) for (const z of [-2.955, CZ1 - .035]) cyl(.006, .006, .002, M.chrome, T.x + dx, LT - .0005, z, 6);
-  for (const dx of [-.2, .2]) for (const y of [CY0 + .04, CY1 - .05]){ const s = cyl(.0065, .0065, .004, M.chrome, T.x + dx, y, CZ1 + .002, 6); s.rotation.x = Math.PI / 2; }
+  for (const [a, h] of [[0, .006], [Math.PI, .008]]){ const b = mesh(new THREE.CylinderGeometry(.027, .027, h, 20, 1, false, a + .06, Math.PI - .12), M.bowl); b.position.set(BX, LT + .005 + h / 2, BZ); }
+  // security screws: domed heads with a pin-hex hole, in the lid and in the front
+  const screw = (x, y, z, up) => {
+    const head = mesh(new THREE.SphereGeometry(.0065, 12, 4, 0, Math.PI * 2, 0, Math.PI / 2), M.chrome);
+    head.scale.set(1, .45, 1); head.position.set(x, y, z); if (!up) head.rotation.x = Math.PI / 2;
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(.0021, 6), M.dark);
+    if (up){ hole.rotation.x = -Math.PI / 2; hole.position.set(x, y + .003, z); } else hole.position.set(x, y, z + .003);
+    room.add(hole);
+  };
+  for (const dx of [-.2, .2]) for (const z of [WALLZ + .03, CZ1 - .022]) screw(T.x + dx, LT, z, true);
+  const FRONT_SCREWS = [[-.19, .7], [.19, .7], [-.19, .965], [.19, .965]];
+  for (const [dx, y] of FRONT_SCREWS) screw(T.x + dx, y, frontAt(dx, y), false);
+  // a small stamped plate, riveted on under the lid
   const plateTex = canvasTex(128, 48, (g, w, h) => {
     g.fillStyle = '#9da4a6'; g.fillRect(0, 0, w, h); g.strokeStyle = '#6c7375'; g.lineWidth = 3; g.strokeRect(2, 2, w - 4, h - 4);
     g.fillStyle = '#4a5052'; g.font = 'bold 15px Arial, sans-serif'; g.textAlign = 'center'; g.fillText('BLOCK D  WC 2', w / 2, 21); g.font = '11px Arial, sans-serif'; g.fillText('6 L / 3 L', w / 2, 37);
   });
-  plane(.075, .028, new THREE.MeshStandardMaterial({ map: plateTex, metalness: .7, roughness: .45 }), T.x - .1, CY1 - .06, CZ1 + .0015);
-  // limescale and rust run down the front from the seam and gather at the bottom edge
-  const dripRnd = mulberry32(2117);
-  const dripTex = canvasTex(256, 256, (g, w, h) => {
-    for (let i = 0; i < 26; i++){
-      const x = dripRnd() * w, l = h * (.15 + dripRnd() * .75), rust = dripRnd() < .35, gr = g.createLinearGradient(0, 0, 0, l);
-      const c = rust ? '120,70,30' : '215,210,190'; gr.addColorStop(0, `rgba(${c},${.25 + dripRnd() * .3})`); gr.addColorStop(1, `rgba(${c},0)`);
-      g.fillStyle = gr; g.fillRect(x, 0, 1.5 + dripRnd() * 3, l);
+  const PX = -.1, PY = .955;
+  plane(.075, .028, new THREE.MeshStandardMaterial({ map: plateTex, metalness: .7, roughness: .45, polygonOffset: true, polygonOffsetFactor: -1 }), T.x + PX, PY, frontAt(PX, PY) + .0012);
+  for (const dx of [-.033, .033]){ const r = mesh(new THREE.SphereGeometry(.0022, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), M.dullSteel); r.rotation.x = Math.PI / 2; r.position.set(T.x + PX + dx, PY, frontAt(PX + dx, PY) + .0012); }
+  // ### What runs down the front: limescale (chalky and pale) and a little rust from the screws, in thin wavering runs
+  // ### that start at the lid's lip, thin out as they go and sometimes end in a dried bead; dried drops, and grime and a
+  // ### crust of limescale along the bottom, where the water gathers before it drips off. The picture lies on the flat
+  // ### of the front and bows out with it.
+  const DTOP = LIP, DBOT = SY0, DW = 2 * BX0, DH = DTOP - DBOT, drnd = mulberry32(2117);
+  const toPx = (dx, y, w, h) => [(dx + BX0) / DW * w, (DTOP - y) / DH * h];
+  const runs = (g, x, y, len, w0, a0, c) => {
+    const f = 2 + drnd() * 5, ph = drnd() * 7, amp = .5 + drnd() * 1.5, drift = (drnd() - .5) * 5, steps = Math.ceil(len * 1.4);
+    for (let i = 0; i <= steps; i++){
+      const t = i / steps, px = x + Math.sin(t * f + ph) * amp + drift * t, py = y + t * len, r = w0 * (1 - .5 * t);
+      g.fillStyle = `rgba(${c},${a0 * Math.pow(1 - t, .7)})`; g.beginPath(); g.arc(px, py, r, 0, 7); g.fill();
     }
-    const bot = g.createLinearGradient(0, h * .82, 0, h); bot.addColorStop(0, 'rgba(200,195,170,0)'); bot.addColorStop(1, 'rgba(200,195,170,.35)'); g.fillStyle = bot; g.fillRect(0, 0, w, h);
+    if (drnd() < .45){ g.fillStyle = `rgba(${c},${a0 * 2})`; g.beginPath(); g.ellipse(x + Math.sin(f + ph) * amp + drift, y + len, w0 * .9, w0 * 1.3, 0, 0, 7); g.fill(); }
+  };
+  const dripTex = canvasTex(256, Math.round(256 * DH / DW), (g, w, h) => {
+    if ('filter' in g) g.filter = 'blur(.5px)';
+    // a faint brown line right under the lip, where water creeps out of the seam
+    let gr = g.createLinearGradient(0, 0, 0, 7); gr.addColorStop(0, 'rgba(105,82,52,.3)'); gr.addColorStop(1, 'rgba(105,82,52,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, 7);
+    // grime towards the bottom, and a crust of limescale along the bottom edge
+    gr = g.createLinearGradient(0, h * .62, 0, h); gr.addColorStop(0, 'rgba(92,84,64,0)'); gr.addColorStop(1, 'rgba(92,84,64,.3)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    gr = g.createLinearGradient(0, h - 8, 0, h); gr.addColorStop(0, 'rgba(226,222,204,0)'); gr.addColorStop(1, 'rgba(226,222,204,.22)'); g.fillStyle = gr; g.fillRect(0, h - 8, w, 8);
+    for (let i = 0; i < 90; i++){ const r = .6 + drnd() * 1.8; g.fillStyle = `rgba(226,222,204,${.05 + drnd() * .1})`; g.beginPath(); g.ellipse(drnd() * w, h - Math.pow(drnd(), 2) * 6, r * 2.2, r * .5, 0, 0, 7); g.fill(); }
+    // runs of limescale from the lip, most of them short
+    for (let i = 0; i < 11; i++) runs(g, 6 + drnd() * (w - 12), drnd() * 3, h * (.12 + Math.pow(drnd(), 1.6) * .75), .9 + drnd() * 1.4, .05 + drnd() * .06, '234,230,214');
+    // rust from the screws and from the plate's rivets
+    for (const [dx, y] of FRONT_SCREWS){ const [x, py] = toPx(dx, y, w, h); if (py > 0 && py < h * .9) runs(g, x, py + 2, h * (.06 + drnd() * .22), 1.1, .12, '124,70,32'); }
+    { const [x, py] = toPx(PX + .033, PY - .012, w, h); runs(g, x, py, h * .2, .9, .09, '124,70,32'); }
+    // dried drops: little rings of limescale with a faint middle
+    for (let i = 0; i < 26; i++){
+      const x = drnd() * w, y = h * (.25 + drnd() * .75), r = .8 + drnd() * 2.2;
+      g.strokeStyle = `rgba(232,228,210,${.12 + drnd() * .12})`; g.lineWidth = .7; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke();
+      g.fillStyle = 'rgba(232,228,210,.05)'; g.fill();
+    }
   });
-  const drips = plane(.41, CY1 - CY0 - .05, new THREE.MeshStandardMaterial({ map: dripTex, transparent: true, depthWrite: false, roughness: .8, polygonOffset: true, polygonOffsetFactor: -2 }), T.x, (CY0 + CY1) / 2 - .01, CZ1 + .001);
-  drips.castShadow = false;
-  // the flush pipe, with a collar nut where it leaves the cistern and where it enters the pan
-  cyl(.021, .021, CY0 - .4, M.chrome, T.x, (CY0 + .4) / 2, -2.9, 16);
-  for (const y of [CY0 - .014, .414]) cyl(.03, .03, .026, M.dullSteel, T.x, y, -2.9, 6);
-  // the cold water: a stop valve with a red wheel on the wall, a short chrome pipe into the side of the cistern
+  {
+    const geo = new THREE.PlaneGeometry(DW, DH, 12, 8), p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) p.setZ(i, bulge(p.getX(i), p.getY(i) + (DTOP + DBOT) / 2) + .0012);
+    const drips = mesh(geo, decalMat(dripTex)); drips.position.set(T.x, (DTOP + DBOT) / 2, CZ1); drips.castShadow = false;
+  }
+  // ### And on the lid: dust along the wall, greasy fingerprints round the flush button and a few dried drops.
+  {
+    const LW = 2 * (CW - CR), LD = CZ1 - WALLZ - .02;
+    const lidTex = canvasTex(256, Math.round(256 * LD / LW), (g, w, h) => {
+      if ('filter' in g) g.filter = 'blur(.6px)';
+      let gr = g.createLinearGradient(0, 0, 0, h * .35); gr.addColorStop(0, 'rgba(128,120,100,.6)'); gr.addColorStop(1, 'rgba(128,120,100,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      for (const x of [0, w]){ gr = g.createRadialGradient(x, 0, 0, x, 0, h * .7); gr.addColorStop(0, 'rgba(120,112,92,.45)'); gr.addColorStop(1, 'rgba(120,112,92,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); }
+      const bx = (BX - T.x + LW / 2) / LW * w, by = (BZ - (WALLZ + .01)) / LD * h;
+      for (let i = 0; i < 14; i++){
+        const a = drnd() * Math.PI * 2, d = 20 + drnd() * 26, x = bx + Math.cos(a) * d, y = by + Math.sin(a) * d * .8, r = 4 + drnd() * 5;
+        gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(66,60,48,${.16 + drnd() * .14})`); gr.addColorStop(1, 'rgba(66,60,48,0)');
+        g.fillStyle = gr; g.save(); g.translate(x, y); g.rotate(a); g.scale(1.4, 1); g.translate(-x, -y); g.fillRect(x - r, y - r, r * 2, r * 2); g.restore();
+      }
+      for (let i = 0; i < 16; i++){ const x = drnd() * w, y = drnd() * h, r = .8 + drnd() * 2; g.strokeStyle = `rgba(232,228,210,${.12 + drnd() * .12})`; g.lineWidth = .7; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); }
+    });
+    const top = mesh(new THREE.PlaneGeometry(LW, LD), decalMat(lidTex)); top.rotation.x = -Math.PI / 2; top.position.set(T.x, LT + .0006, WALLZ + .01 + LD / 2); top.castShadow = false;
+  }
+  // ### The flush pipe, 38 mm steel like the pan: out of the outlet nut under the cistern, down the wall, a smooth bend
+  // ### forward at the height of the horn, and a short straight run into the rubber connector.
+  const HY = .362, BR = .075, PZ = CZ, HORN = -2.765, CUFF = -2.738, CUFF_L = .065;
+  {
+    const k = .5523 * BR, path = new THREE.CurvePath();
+    path.add(new THREE.LineCurve3(v3(T.x, CY0 - .015, PZ), v3(T.x, HY + BR, PZ)));
+    path.add(new THREE.CubicBezierCurve3(v3(T.x, HY + BR, PZ), v3(T.x, HY + BR - k, PZ), v3(T.x, HY, PZ + BR - k), v3(T.x, HY, PZ + BR)));
+    path.add(new THREE.LineCurve3(v3(T.x, HY, PZ + BR), v3(T.x, HY, CUFF - CUFF_L + .03)));
+    const geo = new THREE.TubeGeometry(path, 64, .019, 18, false), uv = geo.attributes.uv, len = path.getLength();
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * len, uv.getY(i) * .12);
+    mesh(geo, M.bowl);
+  }
+  // the outlet nut under the cistern: a ribbed black plastic coupling, and a rubber washer above it
+  {
+    const nut = mesh(new THREE.LatheGeometry([[.0195, -.028], [.03, -.027], [.032, -.023], [.032, -.006], [.029, -.002], [.026, 0]].map(([r, y]) => new THREE.Vector2(r, y)), 18),
+      new THREE.MeshStandardMaterial({ color: 0x232527, roughness: .55, flatShading: true }));
+    nut.position.set(T.x, CY0 + .001, PZ);
+  }
+  // the cold water: a stop valve with a red wheel on the wall, a short chrome pipe into the side of the cistern, where a
+  // tank connector nut holds it
   const VX = T.x + .36, VY = .9;
   cyl(.028, .028, .06, M.dullSteel, VX, VY, -2.965, 12).rotation.x = Math.PI / 2;
   const wheel = new THREE.Mesh(new THREE.TorusGeometry(.026, .006, 6, 16), M.red); wheel.position.set(VX, VY, -2.925); add(wheel);
   cyl(.009, .009, .025, M.chrome, VX, VY, -2.935, 8).rotation.x = Math.PI / 2;
-  cyl(.009, .009, VX - (T.x + .235), M.chrome, (VX + T.x + .235) / 2, VY, -2.95, 10).rotation.z = Math.PI / 2;
+  cyl(.009, .009, VX - (T.x + CW), M.chrome, (VX + T.x + CW) / 2, VY, -2.95, 10).rotation.z = Math.PI / 2;
+  cyl(.016, .016, .012, M.dullSteel, T.x + CW + .006, VY, -2.95, 6).rotation.z = Math.PI / 2;
   // the bowl and its pedestal in one turned piece: foot, waist, flaring sides, rolled rim, then down into the trap
   lathe([[.175, 0], [.186, .012], [.186, .034], [.165, .06], [.158, .13], [.172, .22], [.2, .31], [.218, .37], [.228, .404], [.226, .424], [.212, .432], [.197, .426], [.19, .41],
     [.184, .38], [.16, .32], [.12, .27], [.072, .236], [.0, .226]], 44, 1, BOWL_SZ, T.x, BOWL_Z);
+  // ### The flush horn: a short steel spigot welded to the back of the bowl under the rim (the weld a smooth fillet that
+  // ### starts inside the steel), and over its end the black rubber connector that takes the flush pipe, ribbed where it
+  // ### grips the horn and tight round the pipe. Both are turned round the line of the pipe, from the bowl to the wall.
+  {
+    const along = (pts, seg, z0, mat, su, sv) => {
+      const g = new THREE.LatheGeometry(pts.map(([r, a]) => new THREE.Vector2(r, a)), seg), uv = g.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
+      g.rotateX(-Math.PI / 2); g.translate(T.x, HY, z0); return mesh(g, mat);
+    };
+    along([[.0335, 0], [.0335, .012], [.031, .02], [.027, .028], [.024, .036], [.0225, .045], [.0225, -2.662 - HORN]], 24, -2.662, M.bowl, .15, .11);
+    along([[.0226, 0], [.031, 0], [.0335, .003], [.0345, .01], [.0345, .02], [.0325, .024], [.0335, .028], [.0335, .032], [.031, .038], [.028, .046], [.0255, .054],
+      [.0235, .06], [.0215, .064], [.0192, CUFF_L]], 28, CUFF, new THREE.MeshStandardMaterial({ color: 0x131313, roughness: .82, metalness: 0, envMapIntensity: .5 }), 1, 1);
+  }
   // ### The water in the bowl mirrors the room like the puddles and the mop water do (WATER.bucket): murky yellow-brown,
   // ### with a film of yellowish foam and bubbles on it (this picture, on black where there is none) and a brown tide
   // ### line on the steel just above it.
