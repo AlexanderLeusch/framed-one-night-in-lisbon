@@ -2085,8 +2085,9 @@ function buildCity(){
     const L1 = X0 - ax, L2 = L1 + R * (Math.PI + 1.2), LEN = L2 + tEnd;
     // the climb: gentle at both ends, an even 8 % in between
     const rise = s => { const e = 0.2, u = clamp((s - 12) / (LEN - 24), 0, 1); return DECK * (u < e ? u * u / (2 * e * (1 - e)) : u > 1 - e ? 1 - (1 - u) ** 2 / (2 * e * (1 - e)) : (u - e / 2) / (1 - e)); };
-    // the bank of the loop: the road falls 9 cm per metre towards the inside (the right), easing in and out at both ends
-    const BANK = 0.09, bank = s => BANK * sstep(L1 - 25, L1 + 25, s) * (1 - sstep(L2 - 25, L2 + 25, s));
+    // the bank of the loop: the road falls 9 cm per metre towards the inside (the right), easing in and out at both ends; it is
+    // level again where the loop ends, so the road meets the flat bridge deck without a step
+    const BANK = 0.09, bank = s => BANK * sstep(L1 - 25, L1 + 25, s) * (1 - sstep(L2 - 45, L2, s));
     // a point on the approach: s is metres from the gate along the middle of the road, side is metres to the right of it
     const at = (s, side = 0) => {
       s = clamp(s, 0, LEN);
@@ -6073,12 +6074,12 @@ function witnessCard(){
 // ### camera does the fades. In the story, this ends act 1 (the bridge leads out of the city towards the highway); in a free ride
 // ### it is the end of the run.
 const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 14.2, dawnFrom: 1.2, dawnTo: 11.5, shot: 5, cruise: 0.45, accel: 1.3 });
-const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false, ramp: false, rt: 0, s: 0, lane: 1, side: null };
+const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false, ramp: false, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0 };
 const fader = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 fader.position.z = -0.6; fader.renderOrder = 9999; fader.frustumCulled = false; camera.add(fader); scene.add(camera);
 function startFinale(){
   state = 'finale';
-  Object.assign(finale, { on: true, done: false, t: 0, placed: false, throttle: 0, level: 1, kick: false, ramp: !!CITY.approach, rt: 0, s: 0, lane: 1, side: null });
+  Object.assign(finale, { on: true, done: false, t: 0, placed: false, throttle: 0, level: 1, kick: false, ramp: !!CITY.approach, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0 });
   hud.classList.add('off');
   // the police give up at the gate; the keys stay held, so you drive straight on up the approach road
   resetPolice();
@@ -6089,9 +6090,10 @@ function startFinale(){
 // ### and round the banked loop that climbs to the deck, 42 m up. The parapets keep you on the road (a scrape throws sparks, a
 // ### hard knock slows you down), from 90 m on the barrier in the middle keeps you on your side, and you can't go back through the
 // ### gate. The clock stopped at the gate. On the deck the drive over the bridge takes over without a cut, at your speed and in
-// ### your lane, and eases into its own. If you are not up there after RAMP.giveUp seconds, the picture fades and you are on the
-// ### bridge as before.
-const RAMP = Object.freeze({ edge: 1.1, median: 1.3, knock: 6, giveUp: 45, settle: 1.2 });
+// ### your lane, and eases into its own. Nobody is put on the bridge: if you let go of every key for RAMP.idle seconds, or are not
+// ### up there after RAMP.auto seconds, the vehicle drives itself up the rest of the road (keys.up and the steering are worked
+// ### for you, aiming RAMP.look metres ahead in your lane, at RAMP.autoSpeed), and any key you press takes the wheel back.
+const RAMP = Object.freeze({ edge: 1.1, median: 1.3, knock: 6, settle: 1.2, idle: 3, auto: 30, look: 9, autoSpeed: 22, autoLane: 4.2 });
 // where a point lies on the approach road: s, metres along it (searched near s0), and side, metres right of its middle
 function rampLocal(A, x, z, s0){
   const d2 = s => { const p = A.at(s); return (p.x - x) ** 2 + (p.z - z) ** 2; };
@@ -6108,11 +6110,20 @@ function updateRamp(dt){
   // through the gate at any angle: the first moment turns the vehicle onto the road
   if (f.rt < RAMP.settle) car.heading += wrapAngle(q.h - car.heading) * Math.min(1, dt * 5) * (1 - f.rt / RAMP.settle);
   let rel = wrapAngle(car.heading - q.h);
+  // the vehicle drives itself while you leave it alone, or once you have taken too long
+  const touching = keys.up || keys.down || keys.left || keys.right || keys.brake || Math.abs(TILT.value) > 0.05;
+  f.idle = touching ? 0 : (f.idle || 0) + dt;
+  let pedals = keys, steerIn = (keys.left ? 1 : 0) - (keys.right ? 1 : 0) || TILT.value;
+  if (!touching && (f.idle > RAMP.idle || f.rt > RAMP.auto)){
+    // on the right-hand side of the road, as in Portugal (past the barrier, on the side you are on)
+    const tgt = A.at(f.s + RAMP.look, (f.s > 90 ? f.lane : 1) * RAMP.autoLane), err = wrapAngle(Math.atan2(tgt.x - car.x, tgt.z - car.z) - car.heading);
+    pedals = { up: car.speed < RAMP.autoSpeed, down: false, brake: false };
+    steerIn = clamp(err * 3, -1, 1);
+  }
   const grade = q.slope * Math.cos(rel);
-  car.speed = Core.stepSpeed(car.speed, keys, dt, Core.slopeTop(Core.topSpeed(M, V, damage, false), grade, V), V, grade);
-  const steerIn = (keys.left ? 1 : 0) - (keys.right ? 1 : 0) || TILT.value;
+  car.speed = Core.stepSpeed(car.speed, pedals, dt, Core.slopeTop(Core.topSpeed(M, V, damage, false), grade, V), V, grade);
   car.steer = Core.stepSteer(car.steer, steerIn, dt);
-  car.yaw = Core.stepYaw(car.yaw || 0, Core.turnRate(car.steer, car.speed, V, keys.brake), dt, V);
+  car.yaw = Core.stepYaw(car.yaw || 0, Core.turnRate(car.steer, car.speed, V, pedals.brake), dt, V);
   car.heading += car.yaw * dt * (car.speed >= 0 ? 1 : -1);
   let fx = Math.sin(car.heading), fz = Math.cos(car.heading);
   car.x += fx * car.speed * dt; car.z += fz * car.speed * dt;
@@ -6158,12 +6169,11 @@ function updateRamp(dt){
     CITY.bridge.updateMatrixWorld(true);
     const local = CITY.bridge.worldToLocal(new THREE.Vector3(car.x, finale.deckY, car.z));
     held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
+    const h0 = car.heading;
     onTheBridge(local.x, local.z, Math.max(car.speed, 8));
+    // the heading you came up with turns into the bridge's over a moment, not at once
+    f.hOff = wrapAngle(h0 - car.heading); car.heading += f.hOff;
     f.t = FINALE.fade * 2;
-  } else if (f.rt > RAMP.giveUp){
-    // still not up there: into the dark, and onto the bridge as before
-    f.ramp = false; f.t = 0;
-    held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
   }
 }
 // ### Puts the vehicle on the bridge deck, along metres from its middle and side metres right of its centre line, driving south
@@ -6213,6 +6223,7 @@ function updateFinale(dt){
   const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
   // from the approach road: over into the lane
   if (f.side !== null && !f.done){ const ds = (F.lane - f.side) * Math.min(1, dt * 1.2); f.side += ds; car.x += -fz * ds; car.z += fx * ds; }
+  if (f.hOff){ const dh = f.hOff * Math.min(1, dt * 2.5); f.hOff = Math.abs(f.hOff - dh) < 1e-4 ? 0 : f.hOff - dh; car.heading -= dh; }
   car.x += fx * car.speed * dt; car.z += fz * car.speed * dt; car.y = finale.deckY; car.wheelRot += car.speed * dt;
   const sm = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
   setDawn(sm(F.dawnFrom, F.dawnTo, t));
