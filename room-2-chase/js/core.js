@@ -271,12 +271,42 @@
       case 'story': return state === 'menu' || (state === 'done' && !!story && story.act + 1 >= STORY_ACTS);
       case 'again': return state === 'done' || state === 'over' || state === 'pause';
       case 'resume': return state === 'pause';
-      case 'menu': return state === 'menu' || state === 'pause' || state === 'done' || state === 'over';
+      case 'menu': return state === 'menu' || state === 'pause' || state === 'done' || state === 'over' || state === 'garage';
+      // the garage card: get into the chosen vehicle, or go straight to the street
+      case 'board': case 'street': return state === 'garage';
       case 'act': return !!story && (state === 'menu' || state === 'done');
       case 'next-act': return !!story && state === 'done' && story.act + 1 < STORY_ACTS;
       case 'retry-act': return !!story && (state === 'over' || state === 'pause');
       default: return false;
     }
+  }
+
+  // ---------- The garage ----------
+  // ### A run in Lisbon begins in a lock-up garage under the Baixa: the three vehicles stand in their bays, the player picks one,
+  // ### gets in and drives up the ramp to the street. Nothing counts down here and no police come. All in metres: the hall is
+  // ### 2 * x wide and runs from z0 to z1 at height y, h high; the ramp leaves through an opening 2 * door wide in the wall at z1,
+  // ### climbs rise over a length of ramp and ends on a level stretch of top metres. Each bay is [x, z, heading], nose to the ramp.
+  const GARAGE = Object.freeze({
+    y: -30, x: 17, z0: -16, z1: 12, h: 5.2, door: 4.6, tunnel: 4.7, ramp: 34, rise: 4.8, top: 10, speed: 9, pillar: 0.4,
+    order: Object.freeze(['car', 'bike', 'truck']),
+    bays: Object.freeze({ car: Object.freeze([-8, -8.5, 0.34]), bike: Object.freeze([0, -9, 0]), truck: Object.freeze([8.5, -8, -0.36]) }),
+    pillars: Object.freeze([[-12.5, -2], [12.5, -2], [-12.5, 6], [12.5, 6]].map(q => Object.freeze(q)))
+  });
+  // ### The height of the garage floor: level in the hall, rising along the ramp, level again at the top.
+  const garageFloor = (x, z) => GARAGE.y + GARAGE.rise * clamp((z - GARAGE.z1) / GARAGE.ramp, 0, 1);
+  // ### The slope under a vehicle (rise per metre driven): only on the ramp, and only as far as the vehicle points up it.
+  const garageGrade = (z, heading) => (z > GARAGE.z1 && z < GARAGE.z1 + GARAGE.ramp ? GARAGE.rise / GARAGE.ramp : 0) * Math.cos(heading);
+  // ### True once the vehicle is over the top of the ramp: from there the street begins.
+  const garageOut = z => z >= GARAGE.z1 + GARAGE.ramp + 2;
+  // ### The walls and pillars as boxes for collisions: the hall, the wall with the opening, both sides of the ramp and its far end.
+  function garageWalls(){
+    const G = GARAGE, e = G.z1 + G.ramp + G.top, b = (x0, x1, z0, z1) => ({ t: 'b', x0, x1, z0, z1 });
+    return [
+      b(-G.x - 1, G.x + 1, G.z0 - 1, G.z0), b(-G.x - 1, -G.x, G.z0, G.z1), b(G.x, G.x + 1, G.z0, G.z1),
+      b(-G.x - 1, -G.door, G.z1, G.z1 + 1), b(G.door, G.x + 1, G.z1, G.z1 + 1),
+      b(-G.door - 1, -G.door, G.z1, e), b(G.door, G.door + 1, G.z1, e), b(-G.door - 1, G.door + 1, e, e + 1),
+      ...G.pillars.map(([x, z]) => b(x - G.pillar, x + G.pillar, z - G.pillar, z + G.pillar))
+    ];
   }
 
   // ---------- Vehicle stats for the menu ----------
@@ -1014,7 +1044,7 @@
   return Object.freeze({
     MODES, VEH, REV_SPEED, REPAIR_AMOUNT, MAX_DT, STORY_ACTS, KEY_MAP, BAIXA, streetAt, TRAM_LOOP, tramNext, RAIL, trackOffset, railCrossings, railShake, routeTo, routeMarks,
     EVIDENCE, WITNESS, WITNESS_RULE, witnessGetsIn, witnessGivesUp, witnessSpotOk, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
-    parsePick, parseBest, applyPick, actionAllowed,
+    parsePick, parseBest, applyPick, actionAllowed, GARAGE, garageFloor, garageGrade, garageOut, garageWalls,
     vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, SCRAPE, scrapeLevel, sparkCount, LOOK, lookingBack, lookBackView, NITRO, newNitro, nitroPickup, nitroFire, nitroOn, nitroStep, nitroTop, nitroPush, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
     crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, KIT_GUIDE_AT, kitToGuide, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,

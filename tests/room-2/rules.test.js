@@ -943,3 +943,34 @@ test('kit guide: points at the nearest repair kit left, only from KIT_GUIDE_AT %
   assert.equal(Core.kitToGuide(kits, 0, 0, NaN), null, 'rejected: bad damage');
   assert.equal(Core.kitToGuide([{ x: NaN, z: 0 }, kits[0]], 0, 0, 80), kits[0], 'a broken kit entry is skipped');
 });
+
+test('the garage: a level hall, a ramp that climbs to the street, and walls all round', () => {
+  const G = Core.GARAGE, top = G.z1 + G.ramp;
+  assert.equal(Core.garageFloor(0, G.z0), G.y, 'the hall is level');
+  assert.equal(Core.garageFloor(9, G.z1), G.y, 'up to the foot of the ramp');
+  assert.ok(Math.abs(Core.garageFloor(0, G.z1 + G.ramp / 2) - (G.y + G.rise / 2)) < 1e-9, 'halfway up the ramp');
+  assert.equal(Core.garageFloor(0, top), G.y + G.rise);
+  assert.equal(Core.garageFloor(0, top + G.top), G.y + G.rise, 'level again at the top');
+  assert.equal(Core.garageGrade(0, 0), 0, 'no slope in the hall');
+  assert.ok(Math.abs(Core.garageGrade(G.z1 + 5, 0) - G.rise / G.ramp) < 1e-9, 'uphill, driving up the ramp');
+  assert.ok(Core.garageGrade(G.z1 + 5, Math.PI) < 0, 'downhill, driving back down');
+  assert.equal(Core.garageOut(top), false, 'still on the ramp');
+  assert.equal(Core.garageOut(top + 2), true, 'over the top: the street begins');
+  assert.ok(G.y < -10, 'well under the city');
+  // every vehicle stands inside the hall, clear of the walls and pillars, and can climb the ramp from a standstill at its foot
+  const walls = Core.garageWalls();
+  for (const k of G.order){
+    const [x, z, h] = G.bays[k], V = Core.VEH[k];
+    for (const s of V.samples) for (const c of walls) assert.equal(Core.collidePoint(x + Math.sin(h) * s, z + Math.cos(h) * s, V.r, c), null, k + ' is clear of the walls');
+    let sp = 0, zz = G.z1, t = 0;
+    while (zz < top && t < 30){ sp = Core.stepSpeed(sp, { up: true }, 1 / 60, Math.min(G.speed, Core.topSpeed(Core.MODES.city, V, 0, false)), V, Core.garageGrade(zz, 0)); zz += sp / 60; t += 1 / 60; }
+    assert.ok(t < 10, k + ' climbs the ramp in ' + t.toFixed(1) + ' s');
+  }
+  // the walls hold: a point pushed against each side of the hall is pushed back in, and the only way out is the opening to the ramp
+  assert.ok(Core.collidePoint(G.x, 0, 1, walls[2]), 'east wall');
+  assert.ok(Core.collidePoint(-G.x, 0, 1, walls[1]), 'west wall');
+  assert.ok(Core.collidePoint(0, G.z0, 1, walls[0]), 'back wall');
+  assert.ok(walls.every(c => !Core.collidePoint(0, G.z1 + 0.5, 1, c)), 'the opening is free');
+  assert.ok(walls.some(c => Core.collidePoint(G.door + 2, G.z1 + 0.5, 1, c)), 'beside the opening is wall');
+  assert.ok(walls.some(c => Core.collidePoint(0, top + G.top, 1, c)), 'the far end of the ramp is closed');
+});

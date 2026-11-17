@@ -179,3 +179,12 @@ test('leaderboard of the month: its own board per calendar month, which starts e
   r = Core.recordRun(Core.newBoard(), 'highway', 'Alex', 70, 'car', 3);
   assert.deepEqual([r.rank, r.monthRank, r.board.month.key], [1, 0, '']);
 });
+
+test('the garage card: get in and skip only work in the garage, and the menu can be reached from there', () => {
+  const all = [...STATES, 'garage'];
+  for (const a of ['board', 'street']) assert.deepEqual(all.filter(state => Core.actionAllowed(a, { state, story: null })), ['garage'], a);
+  assert.equal(Core.actionAllowed('menu', { state: 'garage', story: null }), true);
+  assert.equal(Core.actionAllowed('menu', { state: 'garage', story: Core.newStory() }), true);
+  // rejected: nothing else on a stale card can run down there
+  for (const a of ['go', 'again', 'resume', 'story', 'act', 'next-act', 'retry-act']) assert.equal(Core.actionAllowed(a, { state: 'garage', story: Core.newStory() }), false, a);
+});

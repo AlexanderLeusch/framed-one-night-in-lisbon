@@ -29,7 +29,7 @@ test('every data-action on a card is a known action', () => {
   // the pause card writes the action with a template
   actions.add('again'); actions.add('retry-act');
   for (const a of actions){
-    const somewhere = ['menu', 'pause', 'done', 'over'].some(state => Core.actionAllowed(a, { state, story: Core.newStory() }));
+    const somewhere = ['menu', 'garage', 'pause', 'done', 'over'].some(state => Core.actionAllowed(a, { state, story: Core.newStory() }));
     assert.ok(somewhere, `${a} is never allowed, so its button would be dead`);
   }
 });

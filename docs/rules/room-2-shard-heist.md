@@ -8,6 +8,18 @@ Room 2 begins where room 1 ends. You (inmate 4471, the framed detective) have cl
 
 **Officer Hale is a secret ally.** He believes you were framed, but he cannot prove it. In the story mode he helps over the radio; his messages are shown in **orange**, the colour of room 1. Police dispatch messages are **red**.
 
+### The garage (Lisbon)
+
+A run in Lisbon begins in that garage, 30 m under the Baixa, and on foot. You are the same person as in room 1: you walk with the arrow keys or W A S D at the same pace (1.7 m/s), turn your head by dragging, and see your own hands in the striped sleeves; the walk, the head movement, the hands and the echo of your steps are room 1's. The three getaway vehicles stand in their bays.
+
+- **Choose:** walk up to a vehicle, or tap it on the card (you then walk to its driver's door). The one you stand at is the chosen one. This is the same choice as in the menu, so the menu's vehicle is the one marked when you arrive.
+- **Get in:** you walk to the driver's door, reach for it and slide onto the seat. *Esc* at the wheel puts you back on your feet beside the door.
+- **Drive out:** drive up the ramp (at most 32 km/h down here). Walls, pillars and the two parked vehicles stop you, but a bump costs only speed, never damage. Over the top of the ramp the picture fades and you roll out onto the street at the usual start, where the map of the evidence opens.
+- **Nothing counts in the garage:** the clock does not run, no police come, and the HUD is hidden. The run starts with *Start driving* on the map, as before.
+- *Skip the garage* goes straight to the street. *Try again* and *Restart* skip it too; so do the highway and the countryside, which start on the road. Act 1 of the story begins in the garage.
+
+Room 2 plays no sound files, so the steps here are synthesised, where room 1 plays recordings.
+
 ## Two ways to play
 
 - **Free ride:** pick a map and a getaway vehicle, then escape.

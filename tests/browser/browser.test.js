@@ -86,8 +86,12 @@ const click = sel => evaluate(`(() => { const b = document.querySelector(${JSON.
 const text = sel => evaluate(`(document.querySelector(${JSON.stringify(sel)}) || {}).textContent || ''`);
 const menuReady = "!document.getElementById('overlay').hidden && !!document.querySelector('[data-action=\"go\"]')";
 const playing = "document.getElementById('overlay').hidden && !document.getElementById('hud').classList.contains('off')";
-// A Lisbon run first shows the map of the evidence; this presses "Start driving" and waits until the car can move
+// A Lisbon run begins in the garage and then shows the map of the evidence; this takes the short way to the street
+// ("Skip the garage"), presses "Start driving" and waits until the car can move
+const inGarage = "!!document.querySelector('#card.garage [data-action=\"board\"]')";
 async function startDriving(label){
+  await waitFor(inGarage + " || !!document.getElementById('ovMap') || (" + playing + ")", 30000, label);
+  if (await evaluate(inGarage)) await click('[data-action="street"]');
   await waitFor("!!document.getElementById('ovMap') || (" + playing + ")", 30000, label);
   if (await evaluate("!!document.getElementById('ovMap')")) await click('[data-action="resume"]');
   await waitFor(playing, 30000, label);
@@ -168,7 +172,20 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
 
     await t.test('a run starts, the timer runs and the throttle moves the car', async () => {
       await click('[data-action="go"]');
-      await waitFor("!!document.getElementById('ovMap')", 30000, 'the map of the evidence');
+      // the run begins on foot in the garage: no clock, no HUD, the three vehicles to choose from
+      await waitFor(inGarage, 30000, 'the garage');
+      assert.match(await text('#card h2'), /Choose your getaway vehicle/);
+      assert.ok(await evaluate("document.getElementById('hud').classList.contains('off')"), 'no HUD in the garage');
+      assert.equal(await evaluate("document.querySelectorAll('#card.garage [data-pick=\"veh\"]').length"), 3);
+      await click('#card.garage [data-pick="veh"][data-val="bike"]');
+      assert.equal(await evaluate("document.querySelector('#card.garage [data-pick=\"veh\"][aria-pressed=\"true\"]').dataset.val"), 'bike');
+      assert.match(await text('#garNote'), /agile/);
+      // get in (the walk to the door, the seat), then hold the gas: the motorcycle stands nose to the ramp and drives up to the street
+      await click('[data-action="board"]');
+      await waitFor("document.getElementById('overlay').hidden", 10000, 'the garage card to go away');
+      await key('keydown', 'KeyW');
+      await waitFor("!!document.getElementById('ovMap')", 90000, 'the map of the evidence at the top of the ramp');
+      await key('keyup', 'KeyW');
       assert.match(await text('#card h2'), /Where the evidence is/);
       assert.match(await evaluate("document.getElementById('ovMap').getAttribute('aria-label')"), /Photos.*Fingerprints.*Torch.*Lockpick.*Clothes.*Balaclava/);
       const clock0 = await text('#time'); await sleep(1500);
