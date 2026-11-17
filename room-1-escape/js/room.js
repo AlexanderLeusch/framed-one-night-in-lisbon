@@ -2196,6 +2196,11 @@ wheelTex.forEach((t, i) => { const wm = new THREE.Mesh(new THREE.PlaneGeometry(.
 hot('lock', lockBody, lid);
 HOT['go:hatch'] = HOT.lock;   // from the stall, clicking the hatch kneels you down at it
 
+// ### The ladder and the hatch frame once more, as a mask that draws only depth: drawn just before your hands, it hides
+// ### the fingers where they wrap round behind a rung, so the hands really hold the wood.
+const GRIP_MASK = new THREE.Scene(), MASK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false }), RUNG_AT = [];
+function gripMask(o){ const m = new THREE.Mesh(o.geometry, MASK_MAT); m.position.copy(o.position); m.quaternion.copy(o.quaternion); m.scale.copy(o.scale); GRIP_MASK.add(m); }
+{ const f = new THREE.Mesh(new THREE.BoxGeometry(HS + .08, .43, .43)); f.position.set(HATCH.x, -.185, HATCH.z - HS / 2 - .19); gripMask(f); }   // the floor and the frame beyond the hatch's north edge
 // ---------- The tunnel under the hatch ----------
 // ### Below the hatch an old brick shaft drops 3.6 m into a vaulted catacomb passage that runs off under the corridor:
 // ### walls of rough stone blocks, a barrel vault of old brick and a floor of worn brick pavers. The surfaces are CC0
@@ -2270,12 +2275,13 @@ const tbox = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.Box
   const top = -.03, len = top - floor;
   for (const s of [-1, 1]){
     const rail = new THREE.Mesh(uvMetres(new THREE.BoxGeometry(.055, len, .045), .11, len / .5), TM.wood);
-    rail.position.set(x + s * .21, (top + floor) / 2, TUN.ladderZ); rail.rotation.z = s * .004; room.add(rail);
+    rail.position.set(x + s * .21, (top + floor) / 2, TUN.ladderZ); rail.rotation.z = s * .004; room.add(rail); gripMask(rail);
     for (const y of [-.55, -1.95, -3.2]){ tbox(.07, .045, .15, TM.iron, x + s * .21, y, zN + .075); }
   }
   for (let i = 1; i <= 11; i++){
     const g = uvMetres(new THREE.CylinderGeometry(.019, .021, .47, 10), .12 / .5, .47 / .5).rotateZ(Math.PI / 2);
     const rung = new THREE.Mesh(g, TM.wood); rung.position.set(x + (trnd() - .5) * .01, -i * .3 + (trnd() - .5) * .012, TUN.ladderZ); rung.rotation.set(trnd() * 3, (trnd() - .5) * .03, (trnd() - .5) * .025); room.add(rung);
+    RUNG_AT[i] = rung.position.clone(); gripMask(rung);
   }
   // Hale's note, taped to the left rail where you pass it on the way down
   const note = new THREE.Mesh(new THREE.PlaneGeometry(.15, .11), new THREE.MeshStandardMaterial({ roughness: .9, map: canvasTex(384, 280, (g, w, h) => {
@@ -3560,7 +3566,9 @@ function drawHands(){
   const lit = 1 - clamp(-camera.position.y / 1.5, 0, 1) * .6;
   handScene.traverse(l => { if (l.isLight){ if (l.userData.i0 === undefined) l.userData.i0 = l.intensity; l.intensity = l.userData.i0 * lit; } });
   handCam.projectionMatrix.copy(camera.projectionMatrix); handCam.projectionMatrixInverse.copy(camera.projectionMatrixInverse);
-  renderer.autoClear = false; renderer.clearDepth(); renderer.render(handScene, handCam); renderer.autoClear = true;
+  renderer.autoClear = false; renderer.clearDepth();
+  if (climb && climb.hands) renderer.render(GRIP_MASK, camera);   // on the ladder the rungs hide what wraps round behind them
+  renderer.render(handScene, handCam); renderer.autoClear = true;
 }
 
 // ---------- Hotspots: markers and clicking objects ----------
@@ -4235,7 +4243,15 @@ const FOG_ROOM = scene.fog.color.clone(), FOG_TUNNEL = new THREE.Color(0x15110c)
 const easeIO = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const bump = (t, a, b) => Math.sin(Math.PI * clamp((t - a) / (b - a), 0, 1));
 // ### Where a hand holds on: the edge of the hatch frame at the top, a rung (at height y) below it.
-const gripAt = (side, y) => y > -.1 ? new THREE.Vector3(TUN.x + side * .2, .035, TUN.zN + .015) : new THREE.Vector3(TUN.x + side * .14, y, TUN.ladderZ);
+const gripAt = (side, y) => {
+  if (y > -.1) return new THREE.Vector3(TUN.x + side * .2, .035, TUN.zN + .015);
+  const r = RUNG_AT[Math.round(-y / .3)];
+  return r ? new THREE.Vector3(r.x + side * .14, r.y, r.z) : new THREE.Vector3(TUN.x + side * .14, y, TUN.ladderZ);
+};
+// ### How a hand holds on, in the world: the way the fingers point before they bend and the way the back of the hand
+// ### faces. On a rung this turns with the forearm (see climbHands); on the hatch frame the hand lies flat, fingers forward.
+const GRIP = { rung: { F: new THREE.Vector3(0, -.35, -1).normalize(), B: new THREE.Vector3(0, 1, -.35).normalize(), up: .033, back: .075, curl: .95 },
+  edge: { F: new THREE.Vector3(0, -.12, -1).normalize(), B: new THREE.Vector3(0, 1, -.12).normalize(), up: .02, back: .07, curl: .45 } };
 // ### Where a boot stands: the ankle above the rung at height y, so the sole rests on it under the ball of the foot.
 const footAt = (side, y) => new THREE.Vector3(TUN.x + side * .1, y + .113, TUN.ladderZ + .1);
 function endingA(){
@@ -4489,7 +4505,7 @@ function twoBone(root, end, a, b, pole){
   const p = pole.clone().sub(d.clone().multiplyScalar(pole.dot(d))).normalize();
   return root.clone().add(d.multiplyScalar(along)).add(p.multiplyScalar(h));
 }
-const _inv = new THREE.Matrix4(), _m4 = new THREE.Matrix4(), _qw = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _qy = new THREE.Quaternion();
+const _q2 = new THREE.Quaternion(), _inv = new THREE.Matrix4(), _m4 = new THREE.Matrix4(), _qw = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _qy = new THREE.Quaternion();
 const _hv = new THREE.Vector3(), _up = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _ax = new THREE.Vector3();
 const AXIS_X = new THREE.Vector3(1, 0, 0), AXIS_Y = new THREE.Vector3(0, 1, 0), AXIS_Z = new THREE.Vector3(0, 0, 1);
 const toCam = v => v.clone().applyMatrix4(_inv);
@@ -4526,6 +4542,16 @@ function climbHands(dt){
     // the rung sits across the palm: the wrist is a hand's breadth back along the forearm and a little to the back of the hand
     const zl = _a.copy(AXIS_Z).applyQuaternion(h.arm.quaternion), yl = _b.copy(AXIS_Y).applyQuaternion(h.arm.quaternion);
     _hv.copy(g.pos).applyMatrix4(_inv).addScaledVector(zl, .075).addScaledVector(yl, .032); _hv.y -= HANDS.down * .35;
+    // holding on, the hand is set by the rung itself: the rung across the palm at the base of the fingers, the
+    // fingers over the top and down round its far side, the knuckles along it; the wrist bends to meet the forearm
+    const grip = g.pos.y > -.1 ? GRIP.edge : GRIP.rung;
+    if (grip === GRIP.rung){
+      // a hand can turn round a rung: it lines up with the forearm (as it was a moment ago), so the wrist hardly bends
+      const d = h.toElbow || _b.set(0, -.4, 1), dyz = _a.set(0, d.y, d.z);
+      if (dyz.lengthSq() > .04){ grip.F.copy(dyz).normalize().negate(); grip.B.copy(grip.F).negate().cross(AXIS_X); }
+    }
+    h.hold = (h.hold || 0) + ((g.moving || climb.release ? 0 : 1) - (h.hold || 0)) * (1 - Math.exp(-dt * 16));
+    if (h.hold > .001) _hv.lerp(g.pos.clone().addScaledVector(grip.F, -grip.back).addScaledVector(grip.B, grip.up).applyMatrix4(_inv), h.hold);
     if (climb.release){   // at the bottom the hands let go and hang at your sides
       const hang = neck.clone().addScaledVector(right, side * .24).addScaledVector(fwd, .06).add(new THREE.Vector3(0, -.62, 0)).applyMatrix4(_inv);
       _hv.lerp(hang, climb.release); g.moving = climb.release < 1; g.curl = .35;
@@ -4543,6 +4569,7 @@ function climbHands(dt){
     const elbow = twoBone(shoulder, wristW, UPPER_ARM, FOREARM, right.clone().multiplyScalar(side * .8).add(new THREE.Vector3(0, -1, 0)).addScaledVector(fwd, -.3));
     // the forearm points to the elbow, the back of the hand faces up and towards you, the thumb a little inwards
     const elbowC = toCam(elbow);
+    h.toElbow = (h.toElbow || new THREE.Vector3()).copy(elbow).sub(wristW).normalize();
     _up.set(0, 1, 0).transformDirection(_inv).add(_ax.copy(h.p).normalize().negate());
     _m4.lookAt(elbowC, h.p, _up);
     _qw.setFromRotationMatrix(_m4).multiply(new THREE.Quaternion().setFromAxisAngle(AXIS_Z, -side * (g.moving ? .5 : .25)));
@@ -4559,7 +4586,13 @@ function climbHands(dt){
     aimJoint(ME.elbow[i], shoulder.clone().sub(elbow).cross(wristW.clone().sub(elbow)));
     if (h.wrist){
       h.wrist.rotation.set(g.moving ? .1 : -.35, 0, 0); h.wr.set(0, 0); h.wv.set(0, 0);
-      for (let f = 0; f < 5; f++) h.curl[f] += ((f === 4 ? g.curl * .75 : g.curl) - h.curl[f]) * (1 - Math.exp(-dt * 14));
+      if (h.hold > .001){
+        const z = grip.F.clone().negate(), x = grip.B.clone().cross(z);
+        _qw.setFromRotationMatrix(_m4.makeBasis(x, grip.B, z)).premultiply(_qc).premultiply(_q2.copy(h.arm.quaternion).invert());
+        h.wrist.quaternion.slerp(_qw, h.hold);
+      }
+      const curl = g.moving ? g.curl : grip.curl;
+      for (let f = 0; f < 5; f++) h.curl[f] += ((f === 4 ? curl * .75 : curl) - h.curl[f]) * (1 - Math.exp(-dt * 14));
       poseFingers(h, side, g.moving ? .12 : 0);
     }
     // the leg on this side: hip, knee bent towards the ladder, boot on its rung
