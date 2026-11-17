@@ -357,15 +357,10 @@ function tileMat(w, h = TILE_H){
   map.repeat.set(w / 1.8, h / 1.8);
   return new THREE.MeshStandardMaterial({ map, normalMap: mk(tileRelief.normal, ANISO), roughnessMap: mk(tileRelief.gloss, Math.min(ANISO, 4)), roughness: 1, metalness: 0 });
 }
-// ### Powder-coated stall partitions: a slightly mottled finish, scuffs, scratched tally marks and dirt rising from the floor.
-const partitionTex = canvasTex(512, 512, (g, w, h) => {
-  g.fillStyle = '#6f7c75'; g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 5000; i++){ const v = rnd() < .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${rnd() * .05})`; g.fillRect(rnd() * w, rnd() * h, 2, 2); }
-  grime(g, w, h, 14, 'rgba(50,44,30,.12)', w * .12, true);
-  g.strokeStyle = 'rgba(205,210,200,.35)'; g.lineWidth = 1;
-  for (let i = 0; i < 26; i++){ const x = rnd() * w, y = rnd() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - .5) * 70, y + (rnd() - .5) * 18); g.stroke(); }
-  g.fillStyle = 'rgba(30,30,28,.3)'; for (let i = 0; i < 12; i++){ g.beginPath(); g.arc(rnd() * w, rnd() * h, 1 + rnd() * 3, 0, 7); g.fill(); }
-});
+// ### The stall's panels paint their whole coat themselves now (see panelMaterial). The shared picture they used to stretch
+// ### over every panel took this many of the room's random numbers; they are still drawn, so every texture after it keeps
+// ### its look.
+for (let i = 0; i < 20182; i++) rnd();
 // ### The ceiling: painted concrete with the joints of the slabs and brown water stains around the old leaks.
 const ceilingTex = canvasTex(TEX / 2, TEX / 2, (g, w, h) => {
   g.fillStyle = '#4a4f4c'; g.fillRect(0, 0, w, h);
@@ -389,69 +384,128 @@ const speakerTex = canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#a4abad'; g
 
 // soft gradients and small parts need no extra texture samples at grazing angles; the ceiling and steel need only a few
 for (const t of [aoTex, blobTex, stainTex, grilleTex, speakerTex]) t.anisotropy = 1;
-ceilingTex.anisotropy = partitionTex.anisotropy = 4;
+ceilingTex.anisotropy = 4;
 
 // ### Powder-coated steel for the stall. Each panel (the partition, the two pilasters, the door) gets a picture of its own
-// ### from corner to corner, about 3 mm a pixel: the old mottled coat above as the ground, the fine orange peel of the
-// ### powder coat, paint chipped to bare steel and red primer along the edges, kicked-in dents, scratches, black scuffs
-// ### of rubber soles low down, dirt and mop splashes rising from the floor, streaks of dried water and greasy patches
-// ### where hands push. The relief is a normal map; roughness and metalness come from one more picture (bare steel and
-// ### grease are smooth, dirt is rough). foot is how high above the floor the panel starts, grips are [u, height] where
-// ### hands push.
+// ### from corner to corner, about 3 mm a pixel, painted the way a real panel looks after years in a prison washroom. The
+// ### coat is a semi-gloss paint with no metal in it, so it takes a soft sheen from the lamps: a faint mottling, a fine
+// ### speckle, the orange peel of the powder and the sheet steel's gentle waves under it, its gloss a little uneven.
+// ### The wear is where it really happens. Chips come in small clusters where something knocked the panel, mostly along
+// ### the edges and low down: bare, shiny steel inside, or rust where it stayed wet, bleeding a little down the paint.
+// ### Scratches come in groups of near-parallel strokes at hand and hip height (a key, a ring, a belt buckle dragged
+// ### along), with a few long single ones and a haze of fine scuffs that only dulls the gloss. Low down: kicked-in
+// ### dents, black scuffs of rubber soles, dirt and mop splashes rising from the floor, and rust and blistered paint
+// ### along the bottom edge where the mop water sits. Streaks of dried water run down, grime sits in the rolled edges,
+// ### and greasy hand prints show where people push. The relief is a normal map; roughness (green) and metalness (blue)
+// ### come from one more picture: bare steel is smooth metal, grease is smooth, dirt and rust are rough. foot is how
+// ### high above the floor the panel starts, grips are [u, height] where hands push.
 const panelRnd = mulberry32(5150);   // its own random numbers, so the rest of the room keeps its look
 function panelMaterial(wm, hm, foot, grips = []){
-  const R = panelRnd, D = COARSE ? 170 : 320, w = Math.max(32, Math.round(wm * D)), h = Math.max(32, Math.round(hm * D)), area = wm * hm;
+  const R = panelRnd, D = COARSE ? 170 : 320, w = Math.max(32, Math.round(wm * D)), h = Math.max(32, Math.round(hm * D)), area = wm * hm, px = D / 320;
   const mk = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const col = mk(), hgt = mk(), rgh = mk(), g = col.getContext('2d'), e = hgt.getContext('2d'), r = rgh.getContext('2d');
   const Y = m => (hm - (m - foot)) * D;   // the canvas row at a height of m metres above the floor
   const blob = (c, x, y, rad, colour) => { const gr = c.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, colour); gr.addColorStop(1, colour.replace(/[\d.]+\)$/, '0)')); c.fillStyle = gr; c.fillRect(x - rad, y - rad, rad * 2, rad * 2); };
-  g.drawImage(partitionTex.image, 0, 0, w, h);
+  // the coat: its colour, a faint mottling and a fine speckle; semi-gloss and no metal
+  g.fillStyle = '#5f6d65'; g.fillRect(0, 0, w, h);
   e.fillStyle = '#808080'; e.fillRect(0, 0, w, h);
-  r.fillStyle = 'rgb(0,118,80)'; r.fillRect(0, 0, w, h);
-  // the paint's own shifts of colour, and the orange peel of the powder coat
-  for (let i = 0; i < area * 30; i++) blob(g, R() * w, R() * h, D * (.05 + R() * .2), R() < .5 ? 'rgba(150,165,155,.035)' : 'rgba(40,48,44,.04)');
+  r.fillStyle = 'rgb(0,118,0)'; r.fillRect(0, 0, w, h);
+  for (let i = 0; i < area * 30; i++) blob(g, R() * w, R() * h, D * (.05 + R() * .2), R() < .5 ? 'rgba(150,165,155,.045)' : 'rgba(40,48,44,.05)');
+  for (let i = 0; i < w * h / 70; i++){ const v = R() < .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${R() * .045})`; g.fillRect(R() * w, R() * h, 1.5 * px, 1.5 * px); }
+  for (let i = 0; i < area * 8; i++) blob(r, R() * w, R() * h, D * (.08 + R() * .25), R() < .5 ? 'rgba(0,150,0,.25)' : 'rgba(0,92,0,.25)');
+  // the orange peel of the powder coat
   for (let i = 0; i < w * h / 26; i++){ const v = 128 + (R() - .5) * 34 | 0; e.fillStyle = `rgb(${v},${v},${v})`; e.beginPath(); e.arc(R() * w, R() * h, .8 + R() * 1.6, 0, 7); e.fill(); }
   // the sheet steel is never quite flat: broad, gentle waves that show in the gloss (oil-canning)
   for (let i = 0; i < area * 3; i++) blob(e, R() * w, R() * h, D * (.25 + R() * .35), R() < .5 ? 'rgba(150,150,150,.12)' : 'rgba(105,105,105,.12)');
-  // chips along the edges: bare steel inside a rim of red primer, a little lower than the paint
-  for (let i = 0; i < (wm + hm) * 2 * 12; i++){
-    const side = R() * 4 | 0, t = R(), d = Math.pow(R(), 2) * D * .018, x = side < 2 ? t * w : side === 2 ? d : w - d, y = side === 0 ? d : side === 1 ? h - d : t * h;
-    const pts = [], n = 5 + R() * 4 | 0, rad = 1.5 + R() * R() * D * .012;
-    for (let k = 0; k < n; k++){ const a = k / n * 6.283, rr = rad * (.5 + R() * .7); pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]); }
-    const path = c => { c.beginPath(); c.moveTo(...pts[0]); for (const q of pts) c.lineTo(...q); c.closePath(); };
-    path(g); g.strokeStyle = 'rgba(122,62,42,.75)'; g.lineWidth = 1.5; g.stroke(); g.fillStyle = 'rgb(138,144,146)'; g.fill();
-    path(e); e.fillStyle = '#5a5a5a'; e.fill(); path(r); r.fillStyle = 'rgb(0,95,200)'; r.fill();
+  // a haze of fine scuffs that only dulls the gloss, thickest at hand height
+  r.lineCap = 'round';
+  for (let i = 0; i < area * 140; i++){
+    const x = R() * w, y = Y(foot + Math.min(hm, .2 + R() * 1.6)), l = D * (.004 + R() * .02), a = (R() - .5) * 1.6;
+    r.strokeStyle = 'rgba(0,160,0,.45)'; r.lineWidth = .7 * px; r.beginPath(); r.moveTo(x, y); r.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); r.stroke();
   }
   // dents where the panel was kicked, mostly low down
   for (let i = 0; i < Math.max(1, area * 2.2); i++){
     const x = R() * w, y = Y(foot + .1 + R() * Math.min(hm * .6, 1)), rad = D * (.015 + R() * .03);
     blob(e, x, y, rad, 'rgba(40,40,40,.7)'); blob(g, x, y + rad * .3, rad, 'rgba(20,24,22,.1)');
   }
-  // scratches: fine pale ones in the paint, a few down to the steel
-  for (let i = 0; i < area * 16; i++){
-    const x = R() * w, y = R() * h, l = D * (.015 + R() * R() * .16), a = R() * 6.283, deep = R() < .2;
-    const line = (c, style, lw) => { c.strokeStyle = style; c.lineWidth = lw; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); c.stroke(); };
-    line(g, deep ? 'rgba(170,176,176,.6)' : 'rgba(190,200,192,.22)', deep ? 1.1 : .7);
-    line(e, deep ? '#4a4a4a' : '#6c6c6c', 1);
-    if (deep) line(r, 'rgb(0,100,190)', 1);
+  // ### A scratch: a slightly bent stroke. A light one only whitens and dulls the paint; a deep one cuts to the steel.
+  const scratch = (x0, y0, x1, y1, bend, deep) => {
+    const mx = (x0 + x1) / 2 - (y1 - y0) * bend, my = (y0 + y1) / 2 + (x1 - x0) * bend;
+    for (const [c, st, lw] of [[g, deep ? 'rgba(158,164,166,.7)' : `rgba(196,206,198,${.05 + R() * .12})`, deep ? 1.1 : .7], [e, deep ? '#4c4c4c' : '#727272', 1], [r, deep ? 'rgb(0,90,235)' : 'rgb(0,150,0)', 1]]){
+      c.strokeStyle = st; c.lineWidth = lw * px; c.lineCap = 'round'; c.beginPath(); c.moveTo(x0, y0); c.quadraticCurveTo(mx, my, x1, y1); c.stroke();
+    }
+  };
+  // groups of strokes side by side, dragged together, mostly along the panel, at hand and hip height
+  for (let k = 0; k < Math.max(2, area * 3.2); k++){
+    const cx = R() * w, cy = Y(foot + Math.min(hm - .05, .35 + R() * 1.2)), a = (R() - .5) * 1.1 + (R() < .25 ? Math.PI / 2 : 0);
+    const n = 2 + (R() * 5 | 0), l = D * (.03 + R() * R() * .22), gap = D * (.0015 + R() * .004), bend = (R() - .5) * .25, deep = R() < .12;
+    for (let i = 0; i < n; i++){
+      const o = (i - n / 2) * gap, aa = a + (R() - .5) * .07, ll = l * (.55 + R() * .45), s = (R() - .5) * l * .25;
+      const x0 = cx - Math.sin(a) * o + Math.cos(aa) * s, y0 = cy + Math.cos(a) * o + Math.sin(aa) * s;
+      scratch(x0, y0, x0 + Math.cos(aa) * ll, y0 + Math.sin(aa) * ll, bend, deep && i === 0);
+    }
+  }
+  for (let k = 0; k < area; k++){ const x = R() * w, y = R() * h, a = R() * 6.283, l = D * (.06 + R() * .2); scratch(x, y, x + Math.cos(a) * l, y + Math.sin(a) * l, (R() - .5) * .15, R() < .05); }
+  // ### A chip: the coat broken off in an uneven patch, a little lower than the paint, with the broken edge as a thin
+  // ### dark rim. Inside is bare, shiny steel, or rust where it stayed wet, which bleeds a little down the paint below.
+  const chip = (x, y, rad) => {
+    const pts = [], n = 5 + (R() * 4 | 0), sq = .6 + R() * .5, rust = R() < .3;
+    for (let k = 0; k < n; k++){ const a = (k + R() * .5) / n * 6.283, rr = rad * (.45 + R() * .75); pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr * sq]); }
+    const path = c => { c.beginPath(); c.moveTo(...pts[0]); for (const q of pts) c.lineTo(...q); c.closePath(); };
+    path(g); g.lineWidth = 1.1 * px; g.strokeStyle = 'rgba(30,34,31,.5)'; g.stroke();
+    g.fillStyle = rust ? `rgb(${76 + R() * 22 | 0},${52 + R() * 12 | 0},${38 + R() * 8 | 0})` : 'rgb(142,147,149)'; g.fill();
+    path(e); e.fillStyle = rust ? '#686868' : '#5a5a5a'; e.fill();
+    path(r); r.fillStyle = rust ? 'rgb(0,235,0)' : 'rgb(0,85,255)'; r.fill();
+    if (rust && R() < .7){ const l = D * (.01 + R() * .05), gr = g.createLinearGradient(0, y, 0, y + l); gr.addColorStop(0, 'rgba(96,64,42,.3)'); gr.addColorStop(1, 'rgba(96,64,42,0)'); g.fillStyle = gr; g.fillRect(x - rad * .35, y, rad * .7 + px, l); }
+  };
+  // the knocks: on a vertical edge (more often low), on the bottom or the top edge, or low on the face
+  for (let k = 0; k < Math.max(2, Math.round((wm + hm) * 1.5)); k++){
+    const s = R(), inset = D * .006;
+    let x, y;
+    if (s < .35){ x = R() < .5 ? inset : w - inset; y = Y(foot + Math.pow(R(), 1.6) * hm); }
+    else if (s < .55){ x = R() * w; y = h - inset; }
+    else if (s < .65){ x = R() * w; y = inset; }
+    else { x = R() * w; y = Y(foot + Math.pow(R(), 2) * Math.min(hm, .9)); }
+    const n = 1 + (R() * 6 | 0), spread = D * (.006 + R() * .025);
+    for (let i = 0; i < n; i++) chip(x + (R() - .5) * spread * 2, y + (R() - .5) * spread * 2, (1 + Math.pow(R(), 3) * 6) * 1.2 * px);
   }
   // black scuffs of rubber soles between 5 and 40 cm above the floor
   for (let i = 0; i < wm * 6; i++){
     const x = R() * w, y = Y(.05 + R() * R() * .4), l = D * (.03 + R() * .12), a = (R() - .5) * 1.4, bend = (R() - .5) * l * .6, x1 = x + Math.cos(a) * l, y1 = y + Math.sin(a) * l;
     if (y < 0 || y > h) continue;
-    for (const [c, st, lw] of [[g, `rgba(22,22,22,${.12 + R() * .22})`, 1.5 + R() * 4], [r, 'rgb(0,80,60)', 4]]){ c.strokeStyle = st; c.lineWidth = lw; c.lineCap = 'round'; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo((x + x1) / 2 - Math.sin(a) * bend, (y + y1) / 2 + Math.cos(a) * bend, x1, y1); c.stroke(); }
+    for (const [c, st, lw] of [[g, `rgba(22,22,22,${.12 + R() * .22})`, 1.5 + R() * 4], [r, 'rgb(0,165,0)', 4]]){ c.strokeStyle = st; c.lineWidth = lw * px; c.lineCap = 'round'; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo((x + x1) / 2 - Math.sin(a) * bend, (y + y1) / 2 + Math.cos(a) * bend, x1, y1); c.stroke(); }
   }
   // dirt rising from the floor, splashes of mop water and the tide line they leave, dull and rough
   const dirt = g.createLinearGradient(0, Y(0), 0, Y(.55)); dirt.addColorStop(0, 'rgba(66,54,36,.5)'); dirt.addColorStop(1, 'rgba(66,54,36,0)');
   g.fillStyle = dirt; g.fillRect(0, 0, w, h);
-  const dull = r.createLinearGradient(0, Y(0), 0, Y(.4)); dull.addColorStop(0, 'rgba(0,200,60,.7)'); dull.addColorStop(1, 'rgba(0,200,60,0)');
+  const dull = r.createLinearGradient(0, Y(0), 0, Y(.4)); dull.addColorStop(0, 'rgba(0,200,0,.7)'); dull.addColorStop(1, 'rgba(0,200,0,0)');
   r.fillStyle = dull; r.fillRect(0, 0, w, h);
-  for (let i = 0; i < wm * 160; i++){ const y = Y(Math.pow(R(), 2) * .16); if (y < 0 || y > h) continue; g.fillStyle = `rgba(60,48,32,${.15 + R() * .3})`; g.beginPath(); g.arc(R() * w, y, .6 + R() * 2.2, 0, 7); g.fill(); }
-  if (foot < .05){ g.strokeStyle = 'rgba(70,58,40,.35)'; g.lineWidth = 2; g.beginPath(); for (let x = 0; x <= w; x += 6) g.lineTo(x, Y(.09 + Math.sin(x * .05) * .006 + (R() - .5) * .004)); g.stroke(); }
+  for (let i = 0; i < wm * 160; i++){ const y = Y(Math.pow(R(), 2) * .16); if (y < 0 || y > h) continue; g.fillStyle = `rgba(60,48,32,${.15 + R() * .3})`; g.beginPath(); g.arc(R() * w, y, (.6 + R() * 2.2) * px, 0, 7); g.fill(); }
+  if (foot < .05){ g.strokeStyle = 'rgba(70,58,40,.35)'; g.lineWidth = 2 * px; g.beginPath(); for (let x = 0; x <= w; x += 6) g.lineTo(x, Y(.09 + Math.sin(x / px * .05) * .006 + (R() - .5) * .004)); g.stroke(); }
+  // the bottom edge, where the mop water sits: rust creeping in under the coat and the paint blistering over it
+  for (let i = 0; i < wm * 14; i++){
+    const x = R() * w, y = h - R() * R() * D * .03, rad = D * (.004 + R() * .012);
+    blob(g, x, y, rad * 1.8, 'rgba(96,60,34,.45)'); blob(r, x, y, rad * 1.8, 'rgba(0,225,0,.8)');
+    if (R() < .5){ blob(e, x, y - rad, rad, 'rgba(190,190,190,.6)'); blob(g, x, y - rad, rad * .8, 'rgba(110,70,40,.25)'); }
+  }
   // streaks of dried water running down
-  for (let i = 0; i < area * 6; i++){ const x = R() * w, y = R() * h * .7, l = D * (.1 + R() * .35); g.strokeStyle = `rgba(48,54,50,${.03 + R() * .04})`; g.lineWidth = 1 + R() * 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (R() - .5) * 4, y + l); g.stroke(); }
-  // greasy patches where hands push: darker and smoother
-  for (const [u, m] of grips) for (let k = 0; k < 6; k++){ const x = u * w + (R() - .5) * D * .1, y = Y(m + (R() - .5) * .2), rad = D * (.03 + R() * .05); blob(g, x, y, rad, 'rgba(30,34,30,.18)'); blob(r, x, y, rad, 'rgba(0,70,80,.6)'); }
+  for (let i = 0; i < area * 6; i++){ const x = R() * w, y = R() * h * .7, l = D * (.1 + R() * .35); g.strokeStyle = `rgba(48,54,50,${.03 + R() * .04})`; g.lineWidth = (1 + R() * 2) * px; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (R() - .5) * 4, y + l); g.stroke(); }
+  // grime in the rolled edges
+  g.strokeStyle = 'rgba(40,40,34,.22)'; g.lineWidth = 2 * px; g.strokeRect(px, px, w - 2 * px, h - 2 * px);
+  // ### Where hands push: greasy patches and the prints of whole hands (a palm and four fingers, the thumb to one side),
+  // ### darker and smoother than the paint round them.
+  const HAND = [[0, 0, .045, .05, 0], [-.034, -.075, .009, .03, .12], [-.012, -.088, .0095, .034, .04], [.011, -.085, .0095, .032, -.04], [.031, -.068, .0085, .026, -.14], [.058, -.008, .011, .026, -.9]];
+  const print = (cx, cy, a, s) => {
+    for (const [c, colour] of [[g, `rgba(28,32,28,${.05 + R() * .05})`], [r, 'rgba(0,60,0,.35)']]){
+      c.save(); c.translate(cx, cy); c.rotate(a); c.fillStyle = colour;
+      for (const [x, y, rx, ry, rot] of HAND){ c.beginPath(); c.ellipse(x * D * s, y * D * s, rx * D * s, ry * D * s, rot, 0, 6.283); c.fill(); }
+      c.restore();
+    }
+  };
+  for (const [u, m] of grips){
+    for (let k = 0; k < 6; k++){ const x = u * w + (R() - .5) * D * .1, y = Y(m + (R() - .5) * .2), rad = D * (.03 + R() * .05); blob(g, x, y, rad, 'rgba(30,34,30,.18)'); blob(r, x, y, rad, 'rgba(0,70,0,.6)'); }
+    for (let k = 0; k < 3; k++) print(clamp(u * w + (R() - .5) * D * .12, D * .06, w - D * .06), Y(m + (R() - .5) * .25), (R() - .5) * .8 + (u > .5 ? -.3 : .3), .9 + R() * .2);
+  }
   const tex = (c, srgb, aniso) => { const t = new THREE.CanvasTexture(c); if (srgb) t.encoding = THREE.sRGBEncoding; t.anisotropy = aniso; return t; };
   const rm = tex(rgh, false, 2);
   return new THREE.MeshStandardMaterial({ map: tex(col, true, ANISO), normalMap: tex(normalFromHeight(hgt, D, .35), false, 4), roughnessMap: rm, metalnessMap: rm, roughness: 1, metalness: 1 });
@@ -2052,6 +2106,17 @@ const SX0 = 1.5, SZ1 = -.7;
     cyl(.034, .038, .012, M.steel, SX0, .006, z, 20); cyl(.011, .011, .14, M.chrome, SX0, .08, z, 12); cyl(.016, .016, .02, M.dullSteel, SX0, .045, z, 6);
     box(.052, .045, .05, M.steel, SX0, .16, z);
   }
+  // ### Where the partition meets the back of the front pilaster, three stirrup brackets hold it, as on a real stall: a
+  // ### flange on each face of the partition, bolted through it, and on the stall side an ear screwed to the pilaster
+  // ### (on the outside the partition ends flush with the pilaster's edge, so there is nothing to screw to).
+  for (const y of [.42, 1.1, 1.78]){
+    for (const s of [-1, 1]){
+      box(.003, .07, .04, M.steel, SX0 + s * .0215, y, SZ1 - .04);
+      const bolt = cyl(.0055, .0055, .003, M.chrome, SX0 + s * .0245, y, SZ1 - .045, 10); bolt.rotation.z = Math.PI / 2;
+    }
+    box(.026, .07, .003, M.steel, SX0 + .0345, y, SZ1 - .0215);
+    for (const dy of [-.02, .02]){ const sc = cyl(.0042, .0042, .003, M.chrome, SX0 + .038, y + dy, SZ1 - .0235, 8); sc.rotation.x = Math.PI / 2; }
+  }
 }
 // steel edge caps on the partitions
 box(.055, 1.9, .012, M.dullSteel, SX0, 1.1, SZ1 - .01); box(.012, 1.9, .05, M.dullSteel, SX0 + .3, 1.1, SZ1); box(.012, 1.9, .05, M.dullSteel, 3.7, 1.1, SZ1);
@@ -2640,15 +2705,80 @@ function updateDust(dt, t){
   dust.pts.geometry.attributes.position.needsUpdate = true; dust.pts.geometry.attributes.color.needsUpdate = true;
 }
 
+// ### Paper towels. No free library offers paper towels or a paper scan (Poly Haven has none; ambientCG and Openverse
+// ### were out of reach), so they are made here. The paper is painted: recycled off-white with flecks of fibre, and the
+// ### embossed dot pattern of a paper towel as a normal map; one picture is about 6 cm of paper. Every towel is a real
+// ### sheet, a grid of points across the paper, so its thin edges and corners show, never a closed ball. All towels in
+// ### the room go into one mesh (done()), shaded per point: darker in the valleys of the creases, lighter on the ridges,
+// ### greyer where damp, brown where a shoe stood on it. rr is their own random numbers.
+function paperTowels(rr){
+  const TAU = Math.PI * 2;
+  const paper = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#ece8de'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 40; i++){ const px = rr() * w, py = rr() * h, r = 10 + rr() * 30, gr = g.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, `rgba(205,196,178,${.15 + rr() * .2})`); gr.addColorStop(1, 'rgba(205,196,178,0)'); g.fillStyle = gr; g.fillRect(px - r, py - r, r * 2, r * 2); }
+    for (let i = 0; i < 700; i++){
+      const px = rr() * w, py = rr() * h, l = 1 + rr() * 5, a = rr() * TAU, c = rr();
+      g.strokeStyle = c < .04 ? 'rgba(70,95,150,.5)' : c < .5 ? `rgba(150,140,120,${.2 + rr() * .3})` : `rgba(255,255,250,${.3 + rr() * .4})`;
+      g.lineWidth = .5 + rr() * .7; g.beginPath(); g.moveTo(px, py); g.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); g.stroke();
+    }
+  }, [1, 1]);
+  const relief = document.createElement('canvas'); relief.width = relief.height = 256;
+  { const g = relief.getContext('2d'); g.fillStyle = '#7a7a7a'; g.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 256; y += 8) for (let px = (y / 8 % 2) * 4; px < 256; px += 8){ const gr = g.createRadialGradient(px, y, 0, px, y, 3.2); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(px - 4, y - 4, 8, 8); }
+    for (let i = 0; i < 900; i++){ const px = rr() * 256, py = rr() * 256, l = 2 + rr() * 6, a = rr() * TAU; g.strokeStyle = `rgba(${rr() < .5 ? '0,0,0' : '255,255,255'},.25)`; g.lineWidth = .6; g.beginPath(); g.moveTo(px, py); g.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); g.stroke(); } }
+  const paperNormal = new THREE.CanvasTexture(normalFromHeight(relief, 256 / .06, .35)); paperNormal.wrapS = paperNormal.wrapT = THREE.RepeatWrapping; paperNormal.anisotropy = ANISO;
+  const mat = new THREE.MeshStandardMaterial({ map: paper, normalMap: paperNormal, normalScale: new THREE.Vector2(.6, .6), roughness: .95, vertexColors: true, side: THREE.DoubleSide });
+  const pos = [], uv = [], col = [], idx = [];
+  const tri = v => Math.abs(v - Math.floor(v) - .5) * 2;
+  const crinkle = (a, b, c) => { const s = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5; return s - Math.floor(s) - .5; };
+  // ### A sheet of nu x nv squares, sizeU x sizeV metres of paper: at(u, v) gives every point (u and v run from 0 to 1
+  // ### across the paper) as [x, y, z, shade, dirt].
+  function sheet(nu, nv, sizeU, sizeV, at){
+    const base = pos.length / 3, ou = rr(), ov = rr();
+    for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++){
+      const [x, y, z, c, d = 0] = at(i / nu, j / nv);
+      pos.push(x, y, z); uv.push(ou + i / nu * sizeU / .06, ov + j / nv * sizeV / .06);
+      col.push(c * (1 - d) + .14 * d, c * .985 * (1 - d) + .12 * d, c * .96 * (1 - d) + .09 * d);
+    }
+    for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++){ const a = base + j * (nu + 1) + i, b = a + nu + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+  }
+  // ### Creases across the paper: n random straight folds (a triangle wave across each, so they are sharp), period and
+  // ### height between the given limits. Returns the height at (a, b), both from -1 to 1 across the sheet.
+  function creases(n, per0, per1, amp0, amp1){
+    const cr = [];
+    for (let k = 0; k < n; k++){ const a = rr() * Math.PI; cr.push([Math.cos(a), Math.sin(a), per0 + rr() * (per1 - per0), rr(), amp0 + rr() * (amp1 - amp0)]); }
+    return (a, b) => { let h = 0; for (const [dx, dy, per, off, amp] of cr) h += amp * (tri((a * dx + b * dy) / per + off) - .5); return h; };
+  }
+  // ### A used towel, crumpled in a fist and thrown away: the sheet wrapped round most of a ball, its corners reaching
+  // ### furthest so they curl out as loose flaps, creased and finely crinkled, squashed as it settled (flatY), turned and
+  // ### put at px, py, pz, about s across. fit(p) may move a point, to keep it inside the bin or above the floor.
+  const m4 = new THREE.Matrix4(), q = new THREE.Vector3();
+  function wad(px, py, pz, s, flatY, damp, n, fit){
+    const wrap = Math.PI * (.6 + rr() * .32), fold = creases(9 + (rr() * 6 | 0), .25, .7, .1, .22), seed = rr() * 100;
+    m4.makeRotationFromEuler(new THREE.Euler(rr() * TAU, rr() * TAU, rr() * TAU));
+    const sx = s * (.85 + rr() * .35), sz = s * (.85 + rr() * .35), sy = s * flatY, tone = damp ? .68 + rr() * .1 : .9 + rr() * .1;
+    sheet(n, n, .24, .24, (u, w) => {
+      const a = u * 2 - 1, b = w * 2 - 1, th = Math.hypot(a, b) / Math.SQRT2 * wrap, ph = Math.atan2(b, a);
+      const hh = fold(a, b) + crinkle(a, b, seed) * .05, r = 1 + hh;
+      q.set(Math.sin(th) * Math.cos(ph) * r, -Math.cos(th) * r, Math.sin(th) * Math.sin(ph) * r).applyMatrix4(m4);
+      const p = [px + q.x * sx, py + q.y * sy, pz + q.z * sz];
+      if (fit) fit(p);
+      return [p[0], p[1], p[2], tone * clamp(.8 + hh * 1.6, .55, 1.05)];
+    });
+  }
+  return { sheet, creases, wad, crinkle, done(){
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx); g.computeVertexNormals();
+    return add(new THREE.Mesh(g, mat));
+  } };
+}
 // ### The bin by the sinks: an open can of brushed stainless steel with a rolled rim, a black bin liner pulled over the
 // ### rim and gathered in folds below it, and the used paper towels from the dispenser above heaped inside, so you see
-// ### them when you look in. No free library offers paper towels or a paper scan (Poly Haven has none; ambientCG and
-// ### Openverse were out of reach), so they are made here: every towel is a ball crumpled by a dozen random creases
-// ### (planes it is folded along) and a fine crinkle, squashed as it settled, darker in its folds, some still damp and
-// ### grey. One towel did not go all the way in and hangs over the rim. Their paper is painted: recycled off-white with
-// ### flecks of fibre and the embossed dot pattern of a paper towel as a normal map. The bin has its own random numbers,
-// ### so the rest of the room keeps its look. x, z is the middle of its foot.
-function buildBin(x, z){
+// ### them when you look in. One towel did not go all the way in and hangs over the rim; one missed the bin and lies
+// ### crumpled on the floor beside it, and another was dropped wet by the sinks and trodden flat. The bin has its own
+// ### random numbers, so the rest of the room keeps its look. x, z is the middle of its foot; T takes the towels.
+function buildBin(x, z, T){
   const rr = mulberry32(2210), TAU = Math.PI * 2;
   const outR = y => .15 + y * .043, inR = y => outR(y) - .006;   // the wall: 30 cm across at the foot, 34 at the rim
   // the can, turned on a lathe: foot, wall, the rim rolled outwards, the inside and the floor
@@ -2679,57 +2809,11 @@ function buildBin(x, z){
   const liner = new THREE.Mesh(lg, linerMat); liner.position.set(x, 0, z); add(liner);
   const floor = new THREE.Mesh(new THREE.CircleGeometry(inR(.032) - .002, 32), linerMat); floor.rotation.x = -Math.PI / 2; floor.position.set(x, .033, z); add(floor);
 
-  // ### The paper: recycled off-white with grey and brown flecks and the odd blue fibre; its relief is the embossed dots of
-  // ### a paper towel and the fibres, turned into a normal map. One picture is about 6 cm of paper.
-  const paper = canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#ece8de'; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 40; i++){ const px = rr() * w, py = rr() * h, r = 10 + rr() * 30, gr = g.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, `rgba(205,196,178,${.15 + rr() * .2})`); gr.addColorStop(1, 'rgba(205,196,178,0)'); g.fillStyle = gr; g.fillRect(px - r, py - r, r * 2, r * 2); }
-    for (let i = 0; i < 700; i++){
-      const px = rr() * w, py = rr() * h, l = 1 + rr() * 5, a = rr() * TAU, c = rr();
-      g.strokeStyle = c < .04 ? 'rgba(70,95,150,.5)' : c < .5 ? `rgba(150,140,120,${.2 + rr() * .3})` : `rgba(255,255,250,${.3 + rr() * .4})`;
-      g.lineWidth = .5 + rr() * .7; g.beginPath(); g.moveTo(px, py); g.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); g.stroke();
-    }
-  }, [1, 1]);
-  const relief = document.createElement('canvas'); relief.width = relief.height = 256;
-  { const g = relief.getContext('2d'); g.fillStyle = '#7a7a7a'; g.fillRect(0, 0, 256, 256);
-    for (let y = 0; y < 256; y += 8) for (let px = (y / 8 % 2) * 4; px < 256; px += 8){ const gr = g.createRadialGradient(px, y, 0, px, y, 3.2); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(px - 4, y - 4, 8, 8); }
-    for (let i = 0; i < 900; i++){ const px = rr() * 256, py = rr() * 256, l = 2 + rr() * 6, a = rr() * TAU; g.strokeStyle = `rgba(${rr() < .5 ? '0,0,0' : '255,255,255'},.25)`; g.lineWidth = .6; g.beginPath(); g.moveTo(px, py); g.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); g.stroke(); } }
-  const paperNormal = new THREE.CanvasTexture(normalFromHeight(relief, 256 / .06, .35)); paperNormal.wrapS = paperNormal.wrapT = THREE.RepeatWrapping; paperNormal.anisotropy = ANISO;
-  const towelMat = new THREE.MeshStandardMaterial({ map: paper, normalMap: paperNormal, normalScale: new THREE.Vector2(.6, .6), roughness: .95, vertexColors: true, side: THREE.DoubleSide });
-
-  // ### A crumpled towel: a ball pushed in and out along a dozen random crease planes (a triangle wave across each, so
-  // ### the folds are sharp), with a fine crinkle that depends only on the point (so the ball stays closed), then
-  // ### squashed, turned and put at px, py, pz. Its folds are darker; a damp towel is greyer.
-  const pos = [], uv = [], col = [], icos = [2, 3].map(n => new THREE.IcosahedronGeometry(1, n));
-  const tri = v => Math.abs(v - Math.floor(v) - .5) * 2;
-  const crinkle = (a, b, c) => { const s = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5; return s - Math.floor(s) - .5; };
-  const m4 = new THREE.Matrix4(), v = new THREE.Vector3(), q = new THREE.Vector3();
-  function wad(px, py, pz, s, flatY, damp, fine){
-    const IP = icos[fine ? 1 : 0].attributes.position.array, IU = icos[fine ? 1 : 0].attributes.uv.array;
-    const cr = [];
-    for (let k = 0, n = 10 + (rr() * 6 | 0); k < n; k++) cr.push([new THREE.Vector3(rr() - .5, rr() - .5, rr() - .5).normalize(), .45 + rr() * .5, rr(), .1 + rr() * .14]);
-    m4.makeRotationFromEuler(new THREE.Euler(rr() * TAU, rr() * TAU, rr() * TAU));
-    const sx = s * (.85 + rr() * .35), sz = s * (.85 + rr() * .35), sy = s * flatY, ou = rr(), ov = rr(), us = s / .015;
-    const tone = damp ? .66 + rr() * .1 : .9 + rr() * .1;
-    for (let i = 0; i < IP.length; i += 3){
-      q.set(IP[i], IP[i + 1], IP[i + 2]);
-      let r = 1;
-      for (const [d, per, off, amp] of cr) r += amp * (tri(q.dot(d) / per + off) - .5);
-      r += crinkle(q.x, q.y, q.z) * .07;
-      v.copy(q).multiplyScalar(r).applyMatrix4(m4);
-      // nothing pokes through the liner: points past the wall are pulled in onto it
-      let wx = px + v.x * sx - x, wy = py + v.y * sy, wz = pz + v.z * sz - z;
-      const lim = inR(Math.min(wy, .43)) - .004, rad = Math.hypot(wx, wz);
-      if (rad > lim){ wx *= lim / rad; wz *= lim / rad; }
-      pos.push(x + wx, wy, z + wz);
-      const j = i / 3 * 2; uv.push(IU[j] * us * 2 + ou, IU[j + 1] * us + ov);
-      const c = tone * clamp(.78 + (r - 1) * 1.3, .55, 1.05);
-      col.push(c, c * .985, c * .96);
-    }
-  }
-  // ### The heap: layers of towels, each laid where it does not sink too far into the others, higher in the middle where
-  // ### they are thrown. The bin is about three quarters full, so you look down past the liner onto the paper; the
-  // ### towels you can see are finer.
+  // ### The heap: layers of crumpled towels, each laid where it does not sink too far into the others, higher in the
+  // ### middle where they are thrown. The bin is about three quarters full, so you look down past the liner onto the
+  // ### paper; the towels you can see have more points. Nothing pokes through the liner: points past its wall are
+  // ### pulled in onto it.
+  const inside = p => { const wx = p[0] - x, wz = p[2] - z, lim = inR(Math.min(p[1], .43)) - .004, rad = Math.hypot(wx, wz); if (rad > lim){ p[0] = x + wx * lim / rad; p[2] = z + wz * lim / rad; } };
   for (const [y0, n, sz, fine] of [[.2, 14, .05], [.25, 16, .048], [.295, 18, .045, 1], [.335, 15, .043, 1], [.362, 5, .04, 1]]){
     const placed = [];
     for (let tries = 0; placed.length < n && tries < 400; tries++){
@@ -2737,33 +2821,99 @@ function buildBin(x, z){
       const px = Math.cos(a) * d, pz = Math.sin(a) * d;
       if (placed.some(([qx, qz, qs]) => Math.hypot(px - qx, pz - qz) < (s + qs) * .8)) continue;
       placed.push([px, pz, s]);
-      wad(x + px, y0 + .025 * (1 - d / R) + rr() * .012, z + pz, s, .6 + rr() * .3, rr() < .18, fine);
+      T.wad(x + px, y0 + .025 * (1 - d / R) + rr() * .012, z + pz, s, .6 + rr() * .3, rr() < .18, fine ? 13 : 8, inside);
     }
   }
   // ### The towel caught on the rim, facing the room: a sheet lying on the heap, bent over the rim and hanging down
   // ### outside, creased across and along and pinched together where it bends.
   {
-    const A = .35, ca = Math.cos(A), sa = Math.sin(A), NU = 14, NV = 26, path = [[.05, .392], [.1, .405], [.14, .43], [.166, .458], [.177, .461], [.186, .452], [.19, .43], [.191, .405], [.189, .38], [.185, .355]];
+    const A = .35, ca = Math.cos(A), sa = Math.sin(A), path = [[.05, .392], [.1, .405], [.14, .43], [.166, .458], [.177, .461], [.186, .452], [.19, .43], [.191, .405], [.189, .38], [.185, .355]];
     const at = t => { const f = t * (path.length - 1), i = Math.min(path.length - 2, Math.floor(f)), k = f - i; return [path[i][0] + (path[i + 1][0] - path[i][0]) * k, path[i][1] + (path[i + 1][1] - path[i][1]) * k]; };
-    const cr = []; for (let k = 0; k < 9; k++){ const a = rr() * Math.PI; cr.push([Math.cos(a), Math.sin(a), .03 + rr() * .05, rr(), .004 + rr() * .006]); }
-    const sp = [], su = [];
-    for (let j = 0; j <= NV; j++) for (let i = 0; i <= NU; i++){
-      const t = j / NV, u = (i / NU - .5) * .15 * (1 - .4 * Math.exp(-(((t - .45) / .18) ** 2))) * (1 - .3 * t) + Math.sin(t * 7 + i * .3) * .006 * t, [r, y] = at(t);
+    const fold = T.creases(9, .2, .53, .027, .067);
+    T.sheet(14, 26, .15, .22, (i, t) => {
+      const u = (i - .5) * .15 * (1 - .4 * Math.exp(-(((t - .45) / .18) ** 2))) * (1 - .3 * t) + Math.sin(t * 7 + i * 4.2) * .006 * t, [r, y] = at(t);
       const [r1, y1] = at(Math.min(1, t + .01)), [r0, y0] = at(Math.max(0, t - .01)), tl = Math.hypot(r1 - r0, y1 - y0), nr = -(y1 - y0) / tl, ny = (r1 - r0) / tl;
-      let hgt = 0; for (const [dx, dy, per, off, amp] of cr) hgt += amp * (tri((u * dx + t * .23 * dy) / per + off) - .5);
-      hgt += crinkle(u, t, 1) * .002;
-      const rr2 = r + nr * hgt, yy = y + ny * hgt;
-      sp.push(x + ca * rr2 - sa * u, yy, z + sa * rr2 + ca * u); su.push(i / NU * 3.3, t * 3.3);
-    }
-    const ix = (i, j) => j * (NU + 1) + i;
-    for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) for (const [a, b] of [[0, 0], [0, 1], [1, 0], [1, 0], [0, 1], [1, 1]]){
-      const k = ix(i + a, j + b); pos.push(sp[k * 3], sp[k * 3 + 1], sp[k * 3 + 2]); uv.push(su[k * 2], su[k * 2 + 1]); col.push(.95, .935, .91);
-    }
+      const hgt = fold(u / .15, t * .23 / .15) * .15 + T.crinkle(u, t, 1) * .002, rr2 = r + nr * hgt;
+      return [x + ca * rr2 - sa * u, y + ny * hgt, z + sa * rr2 + ca * u, .95 * clamp(1 + hgt * 20, .8, 1.04)];
+    });
   }
-  const tg = new THREE.BufferGeometry();
-  tg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); tg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); tg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  tg.computeVertexNormals(); icos.forEach(g => g.dispose());
-  add(new THREE.Mesh(tg, towelMat));
+  // a towel that missed the bin, crumpled on the floor beside it and flattened where it landed
+  T.wad(x + .27, .034, z - .23, .058, .62, false, 13, p => { p[1] = Math.max(.002, p[1]); });
+  flat(.14, .14, M.blob, x + .27, z - .23);
+  // ### A towel dropped wet by the sinks and trodden flat: a C-folded sheet lying on the floor with one third still
+  // ### folded back over it (a little askew, the fold rounded), finely wrinkled, its edges wavy and curling up as they
+  // ### dry, grey and see-through with the water, and brown where a shoe stood on it, the tread across the print.
+  {
+    const cx = x + .42, cz = z - .62, A = .7, ca = Math.cos(A), sa = Math.sin(A), L = .25, VF = 2 / 3, fold = T.creases(12, .15, .5, .2, .45), ph = rr() * 6.283;
+    T.sheet(18, 24, .23, .25, (u, v) => {
+      const a = u * 2 - 1, b = v * 2 - 1, k = Math.max(0, v - VF), hh = fold(a, b);
+      let lx = (u - .5) * .23 * (1 + .03 * Math.sin(v * 17 + ph)), lz = (Math.min(v, VF) - .5) * L - k * L;
+      // the flap folded back, turned a little about the fold as it lies
+      if (k > 0){ const t = .2 * k / (1 - VF), oz = (VF - .5) * L, dz = lz - oz; lz = oz + dz * Math.cos(t) - lx * Math.sin(t) * .3; lx += dz * Math.sin(t) * .3; }
+      lz += .004 * Math.sin(u * 13 + ph);
+      const ridge = Math.max(0, 1 - Math.abs(v - 1 / 3) / .05), roll = k > 0 ? .0022 * Math.exp(-((k / .03) ** 2)) + .0016 : 0;
+      const curl = Math.pow(Math.max(Math.abs(a), Math.abs(b)), 4);
+      const y = .0016 + roll + Math.max(0, ridge * .0025 + hh * .007 + curl * .005 + .002 + T.crinkle(a, b, 7) * .0008);
+      const sole = Math.max(0, 1 - Math.hypot((u - .55) / .32, (v - .38) / .22)), tread = Math.sin(v * 70 + u * 8) > 0 ? 1 : 0;
+      const dirt = .05 + clamp(sole * 1.8, 0, 1) * (.4 + .4 * tread) + curl * .15;
+      return [cx + ca * lx - sa * lz, y, cz + sa * lx + ca * lz, .2 * clamp(.92 + hh * .6 + ridge * .06, .72, 1.04), clamp(dirt, 0, .8)];
+    });
+  }
+}
+// ### The paper-towel dispenser by the sinks, the kind that hangs in every institution: a cabinet of brushed stainless
+// ### steel (its grain runs up and down, with greasy fingerprints where people push the cover) with rounded front
+// ### corners and edges, the front cover hinged at the top and its seam along the sides, a lock with its key slot, a
+// ### narrow window of smoked plastic showing how many towels are left, and underneath the slot the towels come out of,
+// ### with the next towel hanging out ready to be pulled: the bottom of a C-folded sheet, half unfolded, bowing out a
+// ### little and wavy along its edge. wx is the wall, cy and cz the middle of the cabinet; T takes the towel.
+function buildDispenser(wx, cy, cz, T){
+  const rr = mulberry32(3307), d = .105, hw = .14, hgt = .34, rc = .028, bt = .007, bs = .005, y0 = cy - hgt / 2, F = wx + d + 2 * bs, B = y0 - bt;
+  // ### The grain and the fingerprints, as gloss: fine lines up and down, and soft, smooth smudges of fingertips, most of
+  // ### them on the lower half where people push the cover or tug at a towel. three.js lays every map with the normal
+  // ### map's repeat, which is one per metre here, so the picture covers a metre at 2 mm a pixel.
+  const grain = canvasTex(512, 512, (g, w, h) => {
+    g.fillStyle = 'rgb(0,118,0)'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 2600; i++){ const x = rr() * w, y = rr() * h, l = 30 + rr() * 300, v = 80 + rr() * 90 | 0; g.strokeStyle = `rgba(0,${v},0,.4)`; g.lineWidth = .4 + rr() * .6; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rr() - .5) * 1.5, y + l); g.stroke(); }
+    for (let k = 0; k < 90; k++){
+      const x = rr() * w, y = rr() * h, rx = 2.5 + rr() * 3, a = rr() * 3;
+      g.save(); g.translate(x, y); g.rotate(a); g.scale(1, 1.3);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, rx); gr.addColorStop(0, 'rgba(0,64,0,.4)'); gr.addColorStop(1, 'rgba(0,64,0,0)'); g.fillStyle = gr; g.fillRect(-rx, -rx, rx * 2, rx * 2);
+      g.restore();
+    }
+  });
+  grain.encoding = THREE.LinearEncoding;
+  const steel = steelMat(0xb4babe, 1, { roughnessMap: grain });
+  // the cabinet: its plan (depth out from the wall, width) drawn up its height, the top and bottom edges rounded
+  { const s = new THREE.Shape();
+    s.moveTo(0, -hw); s.lineTo(d - rc, -hw); s.quadraticCurveTo(d, -hw, d, -hw + rc); s.lineTo(d, hw - rc); s.quadraticCurveTo(d, hw, d - rc, hw); s.lineTo(0, hw); s.closePath();
+    const geo = new THREE.ExtrudeGeometry(s, { depth: hgt, bevelEnabled: true, bevelThickness: bt, bevelSize: bs, bevelSegments: 3, curveSegments: 8 });
+    geo.rotateX(-Math.PI / 2); geo.translate(wx + bs, y0, cz); add(new THREE.Mesh(geo, steel)); }
+  // the seam of the front cover, down both sides and across the top, 2 cm out from the wall
+  for (const s of [-1, 1]) box(.0018, hgt - .01, .0012, M.dark, wx + .024, cy, cz + s * (hw + bs + .0002));
+  box(.0018, .0012, hw * 2 - .01, M.dark, wx + .024, y0 + hgt + bt + .0003, cz);
+  // the lock near the top of the cover, with its key slot
+  { const lk = cyl(.0085, .0085, .006, M.chrome, F + .0025, y0 + hgt - .032, cz, 18); lk.rotation.z = Math.PI / 2; }
+  box(.0015, .009, .0018, M.dark, F + .0058, y0 + hgt - .032, cz);
+  // ### The level window: smoked plastic over the stack of folded towels, about half full; above the stack the cabinet
+  // ### is dark inside.
+  { const stack = canvasTex(32, 256, (g, w, h) => {
+      g.fillStyle = '#0d0e0f'; g.fillRect(0, 0, w, h);
+      for (let y = h * .46; y < h; y += 3 + rr() * 1.5){ const v = 150 + rr() * 50 | 0; g.fillStyle = `rgb(${v},${v - 4},${v - 12})`; g.fillRect(0, y, w, 2); g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(0, y + 2, w, 1); }
+      const sh = g.createLinearGradient(0, 0, w, 0); sh.addColorStop(0, 'rgba(0,0,0,.55)'); sh.addColorStop(.5, 'rgba(0,0,0,.2)'); sh.addColorStop(1, 'rgba(0,0,0,.55)'); g.fillStyle = sh; g.fillRect(0, 0, w, h);
+    });
+    box(.003, .166, .034, M.dark, F + .0003, cy - .01, cz);
+    plane(.024, .15, new THREE.MeshStandardMaterial({ map: stack, roughness: .12, metalness: 0, envMapIntensity: 1.2 }), F + .0019, cy - .01, cz, Math.PI / 2); }
+  // the slot underneath, with a rolled lip along its front edge
+  box(.032, .002, .2, M.dark, F - .036, B - .0004, cz);
+  { const lip = cyl(.0035, .0035, .2, M.steel, F - .018, B - .0015, cz, 10); lip.rotation.x = Math.PI / 2; }
+  // the next towel hanging from the slot
+  const fold = T.creases(6, .3, .8, .04, .09), ph = [rr() * 6.283, rr() * 6.283];
+  T.sheet(16, 12, .2, .09, (u, t) => {
+    const a = u * 2 - 1, b = t * 2 - 1, hh = fold(a, b);
+    const y = B - .002 - t * .085 * (1 + .07 * Math.sin(u * 9 + ph[0]) * t);
+    const x = F - .036 + .012 * t + .03 * t * t + Math.sin(u * 7 + ph[1]) * .004 * t + hh * .012 * t + Math.max(0, 1 - Math.abs(t - .62) / .08) * .004;
+    return [x, y, cz + (u - .5) * (.2 - .02 * t), .95 * clamp(1 + hh * 1.2, .82, 1.04)];
+  });
 }
 // ### Details that make the washroom feel used and real: tiled skirting, soft shadows in every corner, a camera watching,
 // ### an air vent, the light switch and intercom by the door, a towel dispenser and a bin by the sinks, lamp housings.
@@ -2852,9 +3002,11 @@ function buildBin(x, z){
   box(.17, .24, .02, M.steel, .88, 1.45, D / 2 - .011);
   plane(.11, .11, M.speaker, .88, 1.5, D / 2 - .022, Math.PI);
   { const b = cyl(.02, .02, .02, M.red, .88, 1.38, D / 2 - .025, 16); b.rotation.x = Math.PI / 2; }
-  // a paper-towel dispenser and a steel bin by the sinks
-  box(.12, .38, .3, M.steel, -3.93, 1.4, 2.05); box(.02, .012, .22, M.dark, -3.87, 1.22, 2.05);
-  buildBin(-3.68, 2.25);
+  // a paper-towel dispenser and a steel bin by the sinks, and the used towels: one mesh for all of them
+  { const towels = paperTowels(mulberry32(2211));
+    buildDispenser(-W / 2 + .01, 1.4, 2.05, towels);
+    buildBin(-3.68, 2.25, towels);
+    towels.done(); }
   flat(.55, .55, M.blob, -3.68, 2.25);
   // ### More of a real prison washroom: a stainless urinal trough on the north wall under the house rules, a barred
   // ### window of wired glass high up with the night behind it, two push-button showers on the east wall with their drain,
