@@ -22,6 +22,9 @@ function findChrome(){
 
 const CHROME = findChrome();
 const LOAD_MS = 120000;
+// which part of the workflows to run: 'chase', 'escape', or both when it is not set (see tests/browser/chase.test.js and escape.test.js)
+const PART = process.env.BROWSER_PART || '';
+if (!['', 'chase', 'escape'].includes(PART)) throw new Error('BROWSER_PART must be chase or escape, not ' + PART);
 let chrome, server, base, ws, profile, seq = 0;
 const pending = new Map(), errors = [];
 // ### The escape room asks the Openverse API for its air vent and plays the answer from Freesound's server. Both hosts are
@@ -106,7 +109,7 @@ test('CI really runs the browser tests', { skip: !process.env.CI && 'only on the
   assert.ok(CHROME, 'no browser on the CI server: the browser tests would be skipped and the deploy would go ahead untested');
 });
 
-test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROME_PATH)', timeout: 900000 }, async t => {
+test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROME_PATH)', timeout: 1200000 }, async t => {
   server = createServer().listen(0, '127.0.0.1');
   await new Promise(r => server.once('listening', r));
   base = `http://127.0.0.1:${server.address().port}/`;
@@ -141,8 +144,14 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
   // Software rendering is slow, so start in Balanced graphics unless a test sets something else on purpose
   await send('Page.addScriptToEvaluateOnNewDocument', { source: "try { if (!localStorage.getItem('shard-heist-gfx')) localStorage.setItem('shard-heist-gfx', 'balanced'); } catch (e) {}" });
 
+  // ### The workflows come in two parts that do not depend on each other: the chase (room 2) and, from the start page on, the
+  // ### escape room (room 1). PART picks one of them, so CI can run the two side by side in half the time; without it (as with
+  // ### `npm run test:browser`) both run, one after the other. A part that is left out is not run at all, and not counted.
+  const chase = (name, fn) => PART === 'escape' ? undefined : t.test(name, fn);
+  const escape = (name, fn) => PART === 'chase' ? undefined : t.test(name, fn);
+
   try {
-    await t.test('the menu loads with all three maps, three vehicles and the story mode', async () => {
+    await chase('the menu loads with all three maps, three vehicles and the story mode', async () => {
       await load();
       assert.equal(await evaluate("document.querySelectorAll('[data-pick=\"mode\"]').length"), 3);
       assert.equal(await evaluate("document.querySelectorAll('[data-pick=\"veh\"]').length"), 3);
@@ -152,7 +161,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.deepEqual(errors, []);
     });
 
-    await t.test('the radio chips change the station and refuse nothing silently', async () => {
+    await chase('the radio chips change the station and refuse nothing silently', async () => {
       assert.equal(await evaluate("document.querySelectorAll('[data-radio]').length"), 8);
       await click('[data-radio="techno"]');
       assert.equal(await evaluate("document.getElementById('radioTag').textContent"), 'Techno');
@@ -162,7 +171,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.deepEqual(errors, []);
     });
 
-    await t.test('choosing a vehicle updates the stats card', async () => {
+    await chase('choosing a vehicle updates the stats card', async () => {
       await click('[data-pick="veh"][data-val="bike"]');
       assert.equal(await evaluate("document.querySelector('[data-pick=\"veh\"][data-val=\"bike\"]').getAttribute('aria-pressed')"), 'true');
       assert.match(await text('#vehDetail'), /Superbike/);
@@ -170,7 +179,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.match(await text('#vehDetail'), /Muscle coupe/);
     });
 
-    await t.test('a run starts, the timer runs and the throttle moves the car', async () => {
+    await chase('a run starts, the timer runs and the throttle moves the car', async () => {
       await click('[data-action="go"]');
       // the run begins on foot in the garage: no clock, no HUD, the three vehicles to choose from
       await waitFor(inGarage, 30000, 'the garage');
@@ -185,8 +194,9 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await waitFor("document.getElementById('overlay').hidden", 10000, 'the garage card to go away');
       await key('keydown', 'KeyW');
       // about 15 s of game time (the walk, getting in, 50 m up the ramp, then the vehicle drives itself out through the roller
-      // door and into the street); a slow CI machine draws only a few frames a second, and fewer still once the city is drawn
-      await waitFor("!!document.getElementById('ovMap')", 300000, 'the map of the evidence on the street');
+      // door and into the street); a slow CI machine draws only a few frames a second, and fewer still once the city is drawn.
+      // CI machines differ: the same drive took 231 s on one and more than 300 s on a slower one, so it gets 10 minutes
+      await waitFor("!!document.getElementById('ovMap')", 600000, 'the map of the evidence on the street');
       assert.ok(await evaluate("!document.getElementById('hud').classList.contains('off')"), 'the HUD is back on the street');
       await key('keyup', 'KeyW');
       assert.match(await text('#card h2'), /Where the evidence is/);
@@ -206,13 +216,13 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.deepEqual(errors, []);
     });
 
-    await t.test('rejected: a card button cannot act while driving', async () => {
+    await chase('rejected: a card button cannot act while driving', async () => {
       await evaluate("const c = document.getElementById('card'); c.innerHTML = '<button class=\"btn\" data-action=\"menu\">x</button><button class=\"btn\" data-action=\"next-act\">y</button>'; c.querySelectorAll('button').forEach(b => b.click()); true");
       await sleep(300);
       assert.ok(await evaluate(playing), 'still driving');
     });
 
-    await t.test('pause and resume with the keyboard', async () => {
+    await chase('pause and resume with the keyboard', async () => {
       await key('keydown', 'KeyP');
       await waitFor("!document.getElementById('overlay').hidden", 5000, 'pause card');
       assert.equal(await text('#card h2'), 'Paused');
@@ -223,7 +233,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await waitFor(playing, 5000, 'resume');
     });
 
-    await t.test('story mode: prologue, then act 1 starts on the city map', async () => {
+    await chase('story mode: prologue, then act 1 starts on the city map', async () => {
       await key('keydown', 'KeyP');
       await waitFor("!document.getElementById('overlay').hidden", 5000);
       await click('[data-action="menu"]');
@@ -238,7 +248,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.deepEqual(errors, []);
     });
 
-    await t.test('rejected: tampered saved data falls back to the defaults', async () => {
+    await chase('rejected: tampered saved data falls back to the defaults', async () => {
       await evaluate("localStorage.setItem('shard-heist-pick', '{\"mode\":\"constructor\",\"veh\":\"__proto__\"}'); localStorage.setItem('shard-heist-city-best', 'NaN'); localStorage.setItem('shard-heist-gfx', 'toString'); true");
       await load();
       assert.equal(await evaluate("document.querySelector('[data-pick=\"mode\"][aria-pressed=\"true\"]').dataset.val"), 'city');
@@ -248,7 +258,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await evaluate('localStorage.clear(), true');
     });
 
-    await t.test('error screen: a blocked library shows a clear message instead of a black page', async () => {
+    await chase('error screen: a blocked library shows a clear message instead of a black page', async () => {
       await send('Network.setBlockedURLs', { urls: ['*cdnjs.cloudflare.com*'] });
       await send('Page.navigate', { url: base + 'room-2-chase/' });
       await waitFor("!document.getElementById('fatal').hidden", 30000, 'error screen');
@@ -258,7 +268,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await send('Network.setBlockedURLs', { urls: [] });
     });
 
-    await t.test('error screen: no WebGL shows how to fix it', async () => {
+    await chase('error screen: no WebGL shows how to fix it', async () => {
       const { identifier } = await send('Page.addScriptToEvaluateOnNewDocument', { source: "const g = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function(k, o){ return /webgl/.test(k) ? null : g.call(this, k, o); };" });
       await send('Page.navigate', { url: base + 'room-2-chase/' });
       await waitFor("!document.getElementById('fatal').hidden", 30000, 'error screen');
@@ -277,7 +287,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
     };
     const seconds = async () => { const [m, sec] = (await text('#time')).split(':').map(Number); return m * 60 + sec; };
 
-    await t.test('the game and music volumes are set in the menu, kept, and refused when tampered with', async () => {
+    await chase('the game and music volumes are set in the menu, kept, and refused when tampered with', async () => {
       await load();
       const slide = (k, v) => evaluate(`(() => { const r = document.querySelector('[data-vol="${k}"]'); r.value = ${v}; r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
       assert.equal(await evaluate("document.querySelectorAll('#card [data-vol]').length"), 2, 'two sliders in the menu');
@@ -297,7 +307,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.deepEqual(errors, []);
     });
 
-    await t.test('online driver: a name alone puts you on the online board; taken, empty and HTML names are refused; offline falls back to this device', async () => {
+    await chase('online driver: a name alone puts you on the online board; taken, empty and HTML names are refused; offline falls back to this device', async () => {
       await evaluate(`localStorage.setItem('shard-heist-board', JSON.stringify({ drivers: ['Sarah'], runs: { city: [{ name: '<b>Eve</b>', time: 99 }] } })), localStorage.removeItem('shard-heist-session'), true`);
       Object.assign(supa, { down: false, names: ['Taken'], mine: null, rows: [{ name: '<img src=x onerror=window.__xss=1>', time: '70.00', veh: 'car', stars: 3, driver_id: 'x' }], calls: [] });
       await load();
@@ -337,7 +347,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.deepEqual(errors, []);
     });
 
-    await t.test('phone: tilt steering is offered, hides the steering buttons sideways, and is refused upright', async () => {
+    await chase('phone: tilt steering is offered, hides the steering buttons sideways, and is refused upright', async () => {
       await load();
       // the choice is offered exactly when the browser reports a touch screen and a motion sensor (a mouse-only desktop is refused)
       assert.equal(await evaluate("document.querySelectorAll('[data-steer]').length > 0"), await evaluate("matchMedia('(pointer: coarse)').matches && typeof DeviceOrientationEvent !== 'undefined'"), 'tilt is offered only to touch devices with a sensor');
@@ -369,7 +379,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await send('Emulation.clearDeviceMetricsOverride');
     });
 
-    await t.test('the start page leads to both rooms, in playing order, and runs no script', async () => {
+    await escape('the start page leads to both rooms, in playing order, and runs no script', async () => {
       errors.length = 0;
       await send('Page.navigate', { url: base });
       await waitFor("!!document.querySelector('.start-rooms')", 15000, 'start page');
@@ -384,7 +394,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
     // ### Math.random is fixed for the escape room, so the mini games are dealt as battleship (the tile), spot the difference
     // ### (the mirror) and tic-tac-toe (the scratches), and the tic-tac-toe bot always takes the last free cell.
     let fixedRandom;
-    await t.test('escape room: the briefing explains who, where and how, then the clock starts', async () => {
+    await escape('escape room: the briefing explains who, where and how, then the clock starts', async () => {
       fixedRandom = (await send('Page.addScriptToEvaluateOnNewDocument', { source: 'Math.random = () => .99;' })).identifier;
       await send('Page.navigate', { url: base + 'room-1-escape/' });
       await waitFor("!!document.querySelector('#card h1')", LOAD_MS, 'briefing');
@@ -412,7 +422,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.deepEqual(errors, []);
     });
 
-    await t.test('escape room: the arrow keys walk you through the room; while a card is open they do not', async () => {
+    await escape('escape room: the arrow keys walk you through the room; while a card is open they do not', async () => {
       // the clock starts at the door, facing it: walking backwards takes you to the sinks without any button
       await key('keydown', 'ArrowDown');
       await waitFor("document.getElementById('place').textContent === 'The Sinks'", 60000, 'walking backwards into the sinks');
@@ -426,7 +436,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.deepEqual(errors, []);
     });
 
-    await t.test('escape room: the air vent comes from the Openverse API, is asked for once, kept, and credited on the pause card', async () => {
+    await escape('escape room: the air vent comes from the Openverse API, is asked for once, kept, and credited on the pause card', async () => {
       await waitFor("!!localStorage.getItem('escape-room-vent')", 30000, 'the choice from the API is kept');
       const kept = JSON.parse(await evaluate("localStorage.getItem('escape-room-vent')"));
       assert.equal(kept.url, VENT_ANSWER.results[1].url, 'the CC0 recording, not the CC BY one');
@@ -444,7 +454,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
 
     // ### From here on the tests move between the parts of the room with the touch-screen "Walk to" buttons (hidden on a
     // ### computer, but still in the page), so they do not have to steer a walk with the arrow keys every time.
-    await t.test('escape room rejected: the car key cannot be taken while the tile is on, and the sinks have nothing to take', async () => {
+    await escape('escape room rejected: the car key cannot be taken while the tile is on, and the sinks have nothing to take', async () => {
       await hs('go:stall');
       assert.equal(await evaluate("!!document.querySelector('[data-hotspot=\"take:carkey\"]')"), false);
       assert.equal(await evaluate("!!document.querySelector('[data-hotspot=\"play:tile\"]')"), true);
@@ -471,7 +481,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.equal(await text('#place'), 'The Sinks');
     });
 
-    await t.test('escape room: progress is saved and offered after a reload', async () => {
+    await escape('escape room: progress is saved and offered after a reload', async () => {
       await hs('go:door');
       await hs('take:mop');
       await send('Page.navigate', { url: base + 'room-1-escape/' });
@@ -483,7 +493,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.equal(ventCalls.api, 1, 'after the reload the kept air vent is used: the API is not asked again');
     });
 
-    await t.test('escape room rejected: real keys on a lock wheel never try the code', async () => {
+    await escape('escape room rejected: real keys on a lock wheel never try the code', async () => {
       await hs('go:stall'); await hs('go:hatch'); await hs('lock');
       await waitFor("!!document.getElementById('lockUi')", 5000, 'lock card');
       const realKey = async (code, key, vk) => { for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, code, key, windowsVirtualKeyCode: vk, text: type === 'keyDown' && code === 'Enter' ? '\r' : undefined }); };
@@ -504,7 +514,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await hs('go:sinks');
     });
 
-    await t.test('escape room: the mirror plays only when steamed up, and a won mini game gives its digits', async () => {
+    await escape('escape room: the mirror plays only when steamed up, and a won mini game gives its digits', async () => {
       assert.equal(await text('#place'), 'The Sinks');
       await hs('play:mirror');
       assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'rejected: no mini game at the dry mirror');
@@ -533,7 +543,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.deepEqual(errors, []);
     });
 
-    await t.test('escape room: a wrong code costs 30 s, the right one (1912) is Ending A', async () => {
+    await escape('escape room: a wrong code costs 30 s, the right one (1912) is Ending A', async () => {
       await hs('go:stall');
       await hs('go:hatch');
       await hs('lock');

@@ -62,7 +62,7 @@ You need [Node.js](https://nodejs.org) 22 or newer. There is nothing to install.
 npm start          # serves the start page and both rooms: http://localhost:8080
 npm test           # rules, story, input, page and escape-room tests (about 1 s)
 npm run test:sri   # checks the library files against their integrity hashes (needs internet)
-npm run test:browser   # plays both rooms in headless Chrome or Edge (about 3 to 4 min)
+npm run test:browser   # plays both rooms in headless Chrome or Edge (about 8 min; CI runs its two halves, test:browser:chase and test:browser:escape, side by side)
 npm run test:all   # all of the above
 cd original-solo-project && uv run pytest   # the 36 Python tests of the original Plot Twist project (needs uv)
 ```
@@ -83,6 +83,7 @@ shard-heist/
 │   ├── index.html           page structure: HUD, markers, cards, error screen
 │   ├── styles.css           the prison look
 │   ├── js/rules.js          the rules: scenes, items, clues, lock, clock, saved games (pure functions)
+│   ├── js/minigames.js      the nine mini games behind the three clue spots
 │   ├── js/room.js           the 3D washroom, camera, markers, cards, sound
 │   ├── js/boot.js           error screen (load failures, no WebGL, unexpected errors)
 │   ├── textures/            CC0 scans from Poly Haven: concrete, cinder blocks, scratched steel, the vault HDRI, the tunnel's brick, stone and wood, the uniforms' fabrics, the fire extinguisher's painted steel
@@ -94,13 +95,14 @@ shard-heist/
 │   ├── index.html           page structure: HUD, cockpit, menu, error screen; loads the scripts in order
 │   ├── styles.css           the chase look (also used by the start page)
 │   ├── js/core.js           the rules: driving, damage, police, scoring, story, input checks (pure functions)
-│   ├── js/game.js           everything visual and real-time: worlds, vehicles, AI, sound, HUD, story scenes
+│   ├── js/online.js         the online leaderboard and driver accounts (Supabase, plain fetch)
+│   ├── js/game.js           everything visual and real-time: worlds, the garage, vehicles, AI, sound, HUD, story scenes
 │   ├── js/boot.js           error screen
 │   └── fonts/               the two fonts with their licences
 │
 ├── tests/                   all automated tests
-│   ├── room-1/              rules of room 1
-│   ├── room-2/              rules, story and menu input of room 2
+│   ├── room-1/              rules and mini games of room 1
+│   ├── room-2/              rules, story, menu input and the online leaderboard of room 2
 │   ├── project/             both pages, security, the dev server, documents
 │   └── browser/             plays both rooms and the start page in a real (headless) browser
 │
@@ -114,13 +116,22 @@ shard-heist/
 └── .github/workflows/       CI: all tests on every push and pull request; deploy to GitHub Pages only when they pass
 ```
 
+**Where to find what.**
+
+| You look for | It is in | Its tests |
+|---|---|---|
+| The screens | `index.html` (start page), `room-1-escape/index.html` with `js/room.js`, `room-2-chase/index.html` with `js/game.js` | `tests/browser/`, `tests/project/page.test.js` |
+| The rules | `room-1-escape/js/rules.js`, `room-1-escape/js/minigames.js`, `room-2-chase/js/core.js`; in plain English in `docs/rules/` | `tests/room-1/`, `tests/room-2/rules.test.js`, `story.test.js`, `input.test.js` |
+| The storage | In the browser (`localStorage`): room 1's saved game, written by `room.js` (`save`) and checked by `rules.js` (`restore`), room 2's settings and best times in `core.js` (the `parse…` functions). Online: the leaderboard and driver accounts in `room-2-chase/js/online.js` (Supabase) | `tests/room-1/rules.test.js`, `tests/room-2/input.test.js`, `tests/room-2/online.test.js` |
+| The tests | `tests/`, one folder per room, plus `project/` and `browser/`; run by `.github/workflows/ci.yml` | |
+
 **Where to start reading.** For a room's rules, open its rules file (`room-1-escape/js/rules.js`, `room-2-chase/js/core.js`) and the matching tests. For what the player sees, open its page and its big script (`room.js`, `game.js`). The plain-English rules in `docs/rules/` describe the same things without code.
 
 **Room 1 in one sentence.** `rules.js` holds the state as one plain object; `perform(state, action, target)` returns a new state for an accepted action and the same, unchanged state plus a message for a refused one; `tick()` runs the clock; `room.js` only draws the state and turns clicks into actions. This is the structure of the original Plot Twist project, in JavaScript and 3D.
 
 **The frame loop (room 2).** `frame()` in `game.js` runs once per screen refresh: player physics → police → pickups, timer, story → traffic and signals → particles, boundary, camera → engine sound → HUD and radar → render. The time step is capped at 50 ms (`Core.frameDt`), so a slow frame never moves a car through a wall.
 
-**The state machine.** `menu → play ⇄ pause → done | over`. Every button on a card has a `data-action`, and `Core.actionAllowed(action, state)` decides whether it may run, so a stale click is ignored.
+**The state machine.** `menu → (garage →) play ⇄ pause → done | over`; a run in Lisbon begins on foot in the garage. Every button on a card has a `data-action`, and `Core.actionAllowed(action, state)` decides whether it may run, so a stale click is ignored.
 
 **Rules vs. presentation.** `core.js` contains only pure functions: numbers in, numbers out, no DOM, no 3D, no randomness of its own. `game.js` calls it for every decision that affects the outcome (top speed, braking, damage, bust meter, stars, best times, which ending you get) and does everything else itself. Every section of `game.js` starts with a `// ###` comment that explains it.
 
@@ -143,7 +154,7 @@ shard-heist/
 
 ## Testing
 
-`npm test` runs 165 tests in Node (20 of them for the escape room), and `npm run test:browser` runs 22 more in headless Chrome (4 of them in the escape room). CI runs all of them, plus the SRI check and the 36 pytest checks of `original-solo-project/`, on every push to `main` and on every pull request. They cover:
+`npm test` runs 198 tests in Node (46 of them for the escape room), and `npm run test:browser` runs 22 more in headless Chrome (8 of them in the escape room, 1 on the start page). CI runs all of them, plus the SRI check and the 36 pytest checks of `original-solo-project/`, on every push to `main` and on every pull request. They cover:
 
 - **Escape room:** both endings and the jammed-door grace minute; refused actions (walking where there is no exit, taking an item twice, the car key before the tile is off, the door without the mop, lock wheels that do not exist, anything before the briefing or after an ending) return the unchanged state; wrong codes cost 30 s but never take the clock below zero; warnings sound once; tampered saved games are rejected; in the browser: briefing, refused action, save and continue after a reload, a wrong code and then Ending A (down the ladder, the door refused from the foot of it, the walk to it and the door opened).
 - **Accepted actions:** each menu action in the states whose cards show it; valid map and vehicle picks; restoring a valid saved selection; finishing every story act; both story endings.
