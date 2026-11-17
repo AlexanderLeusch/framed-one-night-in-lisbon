@@ -86,8 +86,12 @@ const click = sel => evaluate(`(() => { const b = document.querySelector(${JSON.
 const text = sel => evaluate(`(document.querySelector(${JSON.stringify(sel)}) || {}).textContent || ''`);
 const menuReady = "!document.getElementById('overlay').hidden && !!document.querySelector('[data-action=\"go\"]')";
 const playing = "document.getElementById('overlay').hidden && !document.getElementById('hud').classList.contains('off')";
-// A Lisbon run first shows the map of the evidence; this presses "Start driving" and waits until the car can move
+// A Lisbon run begins in the garage and then shows the map of the evidence; this takes the short way to the street
+// ("Skip the garage"), presses "Start driving" and waits until the car can move
+const inGarage = "!!document.querySelector('#card.garage [data-action=\"board\"]')";
 async function startDriving(label){
+  await waitFor(inGarage + " || !!document.getElementById('ovMap') || (" + playing + ")", 30000, label);
+  if (await evaluate(inGarage)) await click('[data-action="street"]');
   await waitFor("!!document.getElementById('ovMap') || (" + playing + ")", 30000, label);
   if (await evaluate("!!document.getElementById('ovMap')")) await click('[data-action="resume"]');
   await waitFor(playing, 30000, label);
@@ -102,7 +106,7 @@ test('CI really runs the browser tests', { skip: !process.env.CI && 'only on the
   assert.ok(CHROME, 'no browser on the CI server: the browser tests would be skipped and the deploy would go ahead untested');
 });
 
-test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROME_PATH)', timeout: 600000 }, async t => {
+test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROME_PATH)', timeout: 900000 }, async t => {
   server = createServer().listen(0, '127.0.0.1');
   await new Promise(r => server.once('listening', r));
   base = `http://127.0.0.1:${server.address().port}/`;
@@ -168,7 +172,23 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
 
     await t.test('a run starts, the timer runs and the throttle moves the car', async () => {
       await click('[data-action="go"]');
-      await waitFor("!!document.getElementById('ovMap')", 30000, 'the map of the evidence');
+      // the run begins on foot in the garage: no clock, no HUD, the three vehicles to choose from
+      await waitFor(inGarage, 30000, 'the garage');
+      assert.match(await text('#card h2'), /Choose your getaway vehicle/);
+      assert.ok(await evaluate("document.getElementById('hud').classList.contains('off')"), 'no HUD in the garage');
+      assert.equal(await evaluate("document.querySelectorAll('#card.garage [data-pick=\"veh\"]').length"), 3);
+      await click('#card.garage [data-pick="veh"][data-val="bike"]');
+      assert.equal(await evaluate("document.querySelector('#card.garage [data-pick=\"veh\"][aria-pressed=\"true\"]').dataset.val"), 'bike');
+      assert.match(await text('#garNote'), /agile/);
+      // get in (the walk to the door, the seat), then hold the gas: the motorcycle stands nose to the ramp and drives up to the street
+      await click('[data-action="board"]');
+      await waitFor("document.getElementById('overlay').hidden", 10000, 'the garage card to go away');
+      await key('keydown', 'KeyW');
+      // about 15 s of game time (the walk, getting in, 50 m up the ramp, then the vehicle drives itself out through the roller
+      // door and into the street); a slow CI machine draws only a few frames a second, and fewer still once the city is drawn
+      await waitFor("!!document.getElementById('ovMap')", 300000, 'the map of the evidence on the street');
+      assert.ok(await evaluate("!document.getElementById('hud').classList.contains('off')"), 'the HUD is back on the street');
+      await key('keyup', 'KeyW');
       assert.match(await text('#card h2'), /Where the evidence is/);
       assert.match(await evaluate("document.getElementById('ovMap').getAttribute('aria-label')"), /Photos.*Fingerprints.*Torch.*Lockpick.*Clothes.*Balaclava/);
       const clock0 = await text('#time'); await sleep(1500);
@@ -525,7 +545,16 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       for (const [w, n, d] of [[0, 1, 1], [1, 1, -1], [2, 1, 1], [3, 2, 1]]) for (let k = 0; k < n; k++) await click(`[data-turn="${w},${d}"]`);
       assert.equal(await evaluate("[...document.querySelectorAll('#lockUi output')].map(o => o.textContent).join('')"), '1912');
       await click('[data-do="try"]');
-      await waitFor("/Ending A/.test((document.querySelector('#card .eyebrow') || {}).textContent || '')", 120000, 'Ending A card');
+      // down the ladder there is no card yet: you walk through the tunnel yourself and open the door at its far end
+      await waitFor("/Walk through the tunnel to the door/.test(document.getElementById('say').textContent)", 120000, 'down the ladder, told to walk to the door');
+      assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'no ending card at the foot of the ladder');
+      assert.equal(await evaluate("!!document.querySelector('[data-hotspot=\"open:door\"]')"), false, 'rejected: the door cannot be opened from the foot of the ladder');
+      await key('keydown', 'ArrowUp');
+      await waitFor("!!document.querySelector('[data-hotspot=\"open:door\"]')", 120000, 'walking up to the door');
+      await key('keyup', 'ArrowUp');
+      assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'still no card while the door is shut');
+      await hs('open:door');
+      await waitFor("/Ending A/.test((document.querySelector('#card .eyebrow') || {}).textContent || '')", 60000, 'Ending A card');
       assert.match(await text('#card'), /Took you long enough/);
       assert.deepEqual(errors, []);
       await evaluate("localStorage.removeItem('escape-room-save'), true");

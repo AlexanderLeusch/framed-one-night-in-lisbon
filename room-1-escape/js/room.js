@@ -27,8 +27,8 @@ function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t
 
 // ---------- Renderer, scene, camera ----------
 // ### One renderer with soft shadows and filmic tone mapping. The room is lit like a real night-time washroom: one caged
-// ### fluorescent tube that burns steadily (it no longer flickers), a weaker lamp over the stall, and cold corridor light
-// ### through the door window.
+// ### fluorescent tube that now and then flickers (see "The mood of the lights"), a weaker lamp over the stall, and cold
+// ### corridor light through the door window.
 const canvas = $('room');
 let renderer;
 try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
@@ -361,7 +361,7 @@ function tileMat(w, h = TILE_H){
 const partitionTex = canvasTex(512, 512, (g, w, h) => {
   g.fillStyle = '#6f7c75'; g.fillRect(0, 0, w, h);
   for (let i = 0; i < 5000; i++){ const v = rnd() < .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${rnd() * .05})`; g.fillRect(rnd() * w, rnd() * h, 2, 2); }
-  grime(g, w, h, 30, 'rgba(50,44,30,.22)', w * .12, true);
+  grime(g, w, h, 14, 'rgba(50,44,30,.12)', w * .12, true);
   g.strokeStyle = 'rgba(205,210,200,.35)'; g.lineWidth = 1;
   for (let i = 0; i < 26; i++){ const x = rnd() * w, y = rnd() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - .5) * 70, y + (rnd() - .5) * 18); g.stroke(); }
   g.fillStyle = 'rgba(30,30,28,.3)'; for (let i = 0; i < 12; i++){ g.beginPath(); g.arc(rnd() * w, rnd() * h, 1 + rnd() * 3, 0, 7); g.fill(); }
@@ -409,8 +409,10 @@ function panelMaterial(wm, hm, foot, grips = []){
   e.fillStyle = '#808080'; e.fillRect(0, 0, w, h);
   r.fillStyle = 'rgb(0,118,80)'; r.fillRect(0, 0, w, h);
   // the paint's own shifts of colour, and the orange peel of the powder coat
-  for (let i = 0; i < area * 30; i++) blob(g, R() * w, R() * h, D * (.05 + R() * .2), R() < .5 ? 'rgba(150,165,155,.06)' : 'rgba(40,48,44,.07)');
+  for (let i = 0; i < area * 30; i++) blob(g, R() * w, R() * h, D * (.05 + R() * .2), R() < .5 ? 'rgba(150,165,155,.035)' : 'rgba(40,48,44,.04)');
   for (let i = 0; i < w * h / 26; i++){ const v = 128 + (R() - .5) * 34 | 0; e.fillStyle = `rgb(${v},${v},${v})`; e.beginPath(); e.arc(R() * w, R() * h, .8 + R() * 1.6, 0, 7); e.fill(); }
+  // the sheet steel is never quite flat: broad, gentle waves that show in the gloss (oil-canning)
+  for (let i = 0; i < area * 3; i++) blob(e, R() * w, R() * h, D * (.25 + R() * .35), R() < .5 ? 'rgba(150,150,150,.12)' : 'rgba(105,105,105,.12)');
   // chips along the edges: bare steel inside a rim of red primer, a little lower than the paint
   for (let i = 0; i < (wm + hm) * 2 * 12; i++){
     const side = R() * 4 | 0, t = R(), d = Math.pow(R(), 2) * D * .018, x = side < 2 ? t * w : side === 2 ? d : w - d, y = side === 0 ? d : side === 1 ? h - d : t * h;
@@ -1091,7 +1093,8 @@ plane(1.5, .56, M.sign, -1.9, 2.2, -D / 2 + .012);
 // ### stall over the toilet. Each has a soft glow round the glass (the puddles mirror it too). Every light costs time at
 // ### every pixel, so only two of them really shine, without shadows: a point light over the door and a spot in the
 // ### stall aimed at the toilet (it stays inside the partition). The lamp over the mirror paints its red wash onto the
-// ### wall instead. They burn steadily.
+// ### wall instead. They burn steadily until time runs short (see "The mood of the lights").
+const RED_LAMPS = [], RED_WASHES = [];
 const glowTex = canvasTex(128, 128, (g, w, h) => {
   const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
   gr.addColorStop(0, 'rgba(255,120,90,.9)'); gr.addColorStop(.12, 'rgba(255,50,25,.55)'); gr.addColorStop(.4, 'rgba(200,20,8,.16)'); gr.addColorStop(1, 'rgba(160,0,0,0)');
@@ -1112,16 +1115,103 @@ function redLamp(x, y, z, ry, intensity, reach, aim){
   const glow = new THREE.Sprite(glowMat); glow.position.set(0, 0, .08); glow.scale.setScalar(.55); g.add(glow);
   if (!intensity){   // no light: a soft red wash on the wall round the lamp
     const wash = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.6), new THREE.MeshBasicMaterial({ map: glowTex, color: 0x9a3a2a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-    wash.position.set(0, -.15, .004); g.add(wash);
+    wash.position.set(0, -.15, .004); g.add(wash); RED_WASHES.push(wash.material);
     return;
   }
   const light = aim ? new THREE.SpotLight(0xff2a14, intensity, reach, .6, .6, 1.5) : new THREE.PointLight(0xff2a14, intensity, reach, 2);
-  light.position.set(0, -.08, .3); g.add(light);
+  light.position.set(0, -.08, .3); g.add(light); RED_LAMPS.push({ light, base: intensity });
   if (aim){ light.target.position.set(...aim); room.add(light.target); }
 }
 redLamp(0, 2.5, D / 2 - .002, Math.PI, 1.8, 6);                       // over the door
 redLamp(-W / 2 + .002, 2.32, 0, Math.PI / 2, 0);                      // over the mirror
 redLamp(2.2, 2.45, -D / 2 + .002, 0, 4, 5, [3.1, .4, -2.6]);          // in the stall, over the toilet
+
+// ### The mood of the lights. The old tube mostly burns steadily, but now and then it struggles: a few quick dips, and
+// ### sometimes it drops out for a moment and stutters back, each time with a tick from its starter. The lamp over the
+// ### stall does the same, more rarely. The dips are at least a third of a second apart, so the light never flashes more
+// ### than three times a second, and with reduced motion it never flickers at all. Under the tube hangs a faint cone of
+// ### light with dust drifting through it. When time runs short the red emergency lamps begin to throb: slowly from two
+// ### minutes left, faster in the last minute.
+const LIGHTS = { t: 0, tube: 1, stall: 1, red: 0, phase: 0, main: mainLight.intensity, stallI: stallLight.intensity, hemi: hemi.intensity,
+  tubeGlow: M.tube.emissiveIntensity, stallGlow: stallTube.material.emissiveIntensity, glass: redGlass.emissiveIntensity, handKey: null, handI: 0,
+  tubeEp: null, tubeNext: 8 + Math.random() * 8, stallEp: null, stallNext: 30 + Math.random() * 25 };
+// ### One bout of flickering: two to five dips, the last one sometimes a longer drop-out before the tube catches again.
+function flickerBout(){
+  const steps = [], n = 2 + Math.floor(Math.random() * 4);
+  let at = 0;
+  for (let i = 0; i < n; i++){
+    const out = i === n - 1 && Math.random() < .35;
+    steps.push({ at, dur: out ? .2 + Math.random() * .25 : .05 + Math.random() * .07, level: out ? .08 : .25 + Math.random() * .4, heard: false });
+    at += .34 + Math.random() * .3;
+  }
+  return { t0: LIGHTS.t, steps, end: at };
+}
+// ### How bright a lamp is during its bout (1 between the dips), and whether the bout is over.
+function boutLevel(ep, vol){
+  const tau = LIGHTS.t - ep.t0;
+  for (const s of ep.steps) if (tau >= s.at && tau < s.at + s.dur){ if (!s.heard){ s.heard = true; cue(vol); } return s.level; }
+  return 1;
+}
+// the cone of light under the tube: brightest where you look straight through it, fading towards its edges and the floor
+const lightCone = (() => {
+  const h = 2.84, geo = new THREE.CylinderGeometry(.42, 1.45, h, 40, 1, true);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { strength: { value: .07 }, tint: { value: new THREE.Color(0xffe6c8) } },
+    vertexShader: 'varying vec3 vN; varying vec3 vV; varying float vY; void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); vY = uv.y; gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform float strength; uniform vec3 tint; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ float a = pow(abs(dot(normalize(vN), normalize(vV))), 2.0) * pow(vY, 1.6) * strength; gl_FragColor = vec4(tint * a, 1.0); }',
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+  });
+  const m = new THREE.Mesh(geo, mat); m.position.set(-.6, 2.9 - h / 2, .3); m.scale.x = 1.3; m.renderOrder = 3; room.add(m);
+  return m;
+})();
+// dust in the cone: slow motes that only show where the tube lights them
+const roomDust = (() => {
+  const n = 160, geo = new THREE.BufferGeometry(), pos = new Float32Array(n * 3), col = new Float32Array(n * 3), seed = new Float32Array(n);
+  for (let i = 0; i < n; i++){ pos[i * 3] = -.6 + (Math.random() - .5) * 2.4; pos[i * 3 + 1] = .3 + Math.random() * 2.4; pos[i * 3 + 2] = .3 + (Math.random() - .5) * 2; seed[i] = Math.random() * 100; }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const dot = canvasTex(32, 32, (g, w, h) => { const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.4, 'rgba(255,255,255,.4)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: .013, map: dot, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  pts.frustumCulled = false; room.add(pts);
+  return { pts, pos, col, seed, n };
+})();
+// ### Moves the lights on each frame: the bouts of flickering, the cone and its dust, and the throbbing red lamps.
+function updateLights(dt){
+  const L = LIGHTS; L.t += dt;
+  if (!REDUCED){
+    if (!L.tubeEp && L.t > L.tubeNext) L.tubeEp = flickerBout();
+    if (!L.stallEp && L.t > L.stallNext) L.stallEp = flickerBout();
+  }
+  let f = 1, fs = 1;
+  if (L.tubeEp){ f = boutLevel(L.tubeEp, 'flicker'); if (L.t - L.tubeEp.t0 > L.tubeEp.end){ L.tubeEp = null; L.tubeNext = L.t + 12 + Math.random() * 22; } }
+  if (L.stallEp){ fs = boutLevel(L.stallEp, 'flickerFar'); if (L.t - L.stallEp.t0 > L.stallEp.end){ L.stallEp = null; L.stallNext = L.t + 35 + Math.random() * 40; } }
+  // a tube snaps on and off within a few hundredths of a second
+  L.tube += (f - L.tube) * Math.min(1, dt * 45); L.stall += (fs - L.stall) * Math.min(1, dt * 45);
+  mainLight.intensity = L.main * L.tube; M.tube.emissiveIntensity = L.tubeGlow * (.12 + .88 * L.tube);
+  stallLight.intensity = L.stallI * L.stall; stallTube.material.emissiveIntensity = L.stallGlow * (.12 + .88 * L.stall);
+  hemi.intensity = L.hemi * (.5 + .5 * L.tube);   // the room's soft fill comes from the tube too
+  if (!L.handKey){ L.handKey = handScene.children.find(o => o.isDirectionalLight); L.handI = L.handKey.intensity; }
+  L.handKey.intensity = L.handI * (.25 + .75 * L.tube);
+  lightCone.material.uniforms.strength.value = .07 * L.tube * L.tube;
+  // the dust drifts and turns in the air; a mote is lit by how close it is to the middle of the cone
+  const d = roomDust, p = d.pos, c = d.col, t = L.t;
+  for (let i = 0; i < d.n; i++){
+    const j = i * 3, s = d.seed[i];
+    p[j] += Math.sin(t * .23 + s) * .03 * dt; p[j + 1] += (Math.sin(t * .17 + s * 2) * .02 - .006) * dt; p[j + 2] += Math.cos(t * .19 + s) * .03 * dt;
+    if (p[j + 1] < .2) p[j + 1] = 2.7;
+    const y = clamp(p[j + 1] / 2.9, 0, 1), r = .42 + (1.45 - .42) * (1 - y), dx = (p[j] + .6) / 1.3, dz = p[j + 2] - .3;
+    const b = clamp(1 - Math.hypot(dx, dz) / r, 0, 1) * (.25 + .75 * y) * L.tube * (.6 + .4 * Math.sin(t * 1.3 + s * 5));
+    c[j] = b * .55; c[j + 1] = b * .5; c[j + 2] = b * .42;
+  }
+  d.pts.geometry.attributes.position.needsUpdate = true; d.pts.geometry.attributes.color.needsUpdate = true;
+  // the red lamps: steady until two minutes are left, then a slow throb that quickens in the last minute
+  const urge = REDUCED || S.ending || S.scene === 'intro' ? 0 : S.time <= 60 ? 1 : S.time <= 120 ? .55 : 0;
+  L.red += (urge - L.red) * Math.min(1, dt * .8);
+  L.phase += dt * Math.PI * 2 / (2.6 - 1.3 * clamp((L.red - .55) / .45, 0, 1));
+  const pulse = 1 + .32 * L.red * Math.sin(L.phase);
+  for (const r of RED_LAMPS) r.light.intensity = r.base * pulse;
+  redGlass.emissiveIntensity = L.glass * pulse; glowMat.opacity = Math.min(1, pulse);
+  for (const w of RED_WASHES) w.opacity = pulse;
+}
 
 // The door with its barred window; Officer Hale's silhouette appears in it. It hangs on hinges on the west side (x -0.52)
 // and swings into the room; doorPivot turns it. Closed (rotation 0) it is exactly where it always was.
@@ -1944,52 +2034,248 @@ const SX0 = 1.5, SZ1 = -.7;
   side.position.set(SX0, .15, SZ1); side.rotation.y = Math.PI / 2;   // its own x runs to -z, its front faces into the stall
   for (const [x, grips] of [[SX0, [[1, 1.12]]], [3.7, [[0, 1.3]]]]) add(new THREE.Mesh(panelGeo(.3, 2.03, .04), panelMaterial(.3, 2.03, .02, grips))).position.set(x, .02, SZ1);
 }
-box(2.54, .06, .06, M.dullSteel, 2.75, 2.06, SZ1);
-for (const z of [-2.9, SZ1 + .05]) box(.06, .14, .06, M.dullSteel, SX0, .07, z);
-// steel edge caps on the partitions and wall brackets that hold them
+// ### The stall's hardware, all brushed stainless: an anti-grip headrail (a rounded profile with a flat underside) with end
+// ### caps and a wall bracket, a U-channel that holds the partition to the wall along its whole height, two round
+// ### adjustable feet under the partition, and shoes round the foot of each pilaster.
+{
+  const hr = new THREE.Shape(); hr.moveTo(-.025, 0); hr.lineTo(.025, 0); hr.lineTo(.025, .022); hr.absarc(0, .022, .025, 0, Math.PI, false); hr.closePath();
+  const rail = add(new THREE.Mesh(new THREE.ExtrudeGeometry(hr, { depth: 2.52, bevelEnabled: false, curveSegments: 12 }), M.steel));
+  rail.rotation.y = Math.PI / 2; rail.position.set(SX0 - .02, 2.033, SZ1);
+  for (const x of [SX0 - .022, 4.0 - .005]){ const cap = add(new THREE.Mesh(new THREE.ExtrudeGeometry(hr, { depth: .004, bevelEnabled: false, curveSegments: 12 }), M.dullSteel)); cap.rotation.y = Math.PI / 2; cap.position.set(x, 2.033, SZ1); cap.scale.set(1.08, 1.08, 1); }
+  box(.008, .09, .07, M.dullSteel, 3.996, 2.05, SZ1);   // the bracket that holds the rail to the east wall
+  // the U-channel along the wall joint, with its screws
+  for (const dx of [-.024, .024]) box(.003, 1.86, .03, M.steel, SX0 + dx, 1.08, -2.985);
+  box(.051, 1.86, .003, M.steel, SX0, 1.08, -2.9985);
+  for (const y of [.35, .8, 1.25, 1.7]) for (const dx of [-.026, .026]){ const sc = cyl(.004, .004, .003, M.chrome, SX0 + dx, y, -2.975, 6); sc.rotation.z = Math.PI / 2; }
+  // the partition's feet: a round base on the floor, a threaded post and a clamp round the panel's lower edge
+  for (const z of [-2.75, SZ1 - .12]){
+    cyl(.034, .038, .012, M.steel, SX0, .006, z, 20); cyl(.011, .011, .14, M.chrome, SX0, .08, z, 12); cyl(.016, .016, .02, M.dullSteel, SX0, .045, z, 6);
+    box(.052, .045, .05, M.steel, SX0, .16, z);
+  }
+}
+// steel edge caps on the partitions
 box(.055, 1.9, .012, M.dullSteel, SX0, 1.1, SZ1 - .01); box(.012, 1.9, .05, M.dullSteel, SX0 + .3, 1.1, SZ1); box(.012, 1.9, .05, M.dullSteel, 3.7, 1.1, SZ1);
-for (const y of [.4, 1.1, 1.8]) box(.09, .05, .03, M.dullSteel, SX0, y, -2.985);
-for (const x of [SX0 + .15, 3.85]) box(.32, .12, .07, M.steel, x, .06, SZ1);   // pilaster shoes
+// shoes round the foot of each pilaster: a rounded stainless sleeve
+for (const x of [SX0 + .15, 3.85]){
+  const sh = new THREE.Shape(); roundedRect(sh, -.162, -.03, .162, .03, .012);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: .09, bevelEnabled: true, bevelThickness: .006, bevelSize: .004, bevelSegments: 2, curveSegments: 6 });
+  g.rotateX(-Math.PI / 2); g.translate(x, .006, SZ1); add(new THREE.Mesh(g, M.steel));
+}
 // the stall door stands open against the east wall: hinges, a slide latch and a coat hook
 {
   const pivot = new THREE.Group(); pivot.position.set(3.7, 0, SZ1 + .025); pivot.rotation.y = 1.72; room.add(pivot);
   const put = m => { m.castShadow = m.receiveShadow = true; pivot.add(m); return m; };
   const bx = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return put(m); };
   put(new THREE.Mesh(panelGeo(.86, 1.62, .03), panelMaterial(.86, 1.62, .23, [[.08, 1.12], [.5, 1.5]]))).position.set(-.88, .23, 0);
-  for (const y of [.42, 1.04, 1.66]){ const h = new THREE.Mesh(new THREE.CylinderGeometry(.011, .011, .12, 10), M.steel); h.position.set(-.005, y, .02); put(h); }
+  for (const y of [.42, 1.04, 1.66]){
+    const h = new THREE.Mesh(new THREE.CylinderGeometry(.011, .011, .12, 12), M.steel); h.position.set(-.005, y, .02); put(h);
+    for (const z of [-.017, .017]) bx(.07, .11, .003, M.steel, -.045, y, z);   // the hinge's leaves wrap round the door's edge
+    for (const y2 of [-.035, .035]) for (const z of [-.019, .019]){ const sc = new THREE.Mesh(new THREE.CylinderGeometry(.004, .004, .002, 6), M.chrome); sc.rotation.x = Math.PI / 2; sc.position.set(-.06, y + y2, z); put(sc); }
+  }
+  // the occupancy indicator on the outside of the door: a steel rosette with a little window showing green, free
+  { const ind = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .006, 24), M.steel); ind.rotation.x = Math.PI / 2; ind.position.set(-.8, 1.12, -.018); put(ind);
+    const freeTex = canvasTex(64, 32, (g, w, h) => { g.fillStyle = '#2f8a3a'; g.fillRect(0, 0, w, h); g.fillStyle = '#e9f2e6'; g.font = 'bold 16px Arial, sans-serif'; g.textAlign = 'center'; g.fillText('FREE', w / 2, 22); });
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(.034, .016), new THREE.MeshStandardMaterial({ map: freeTex, roughness: .4 })); win.rotation.y = Math.PI; win.position.set(-.8, 1.128, -.0215); pivot.add(win); }
   bx(.1, .035, .02, M.steel, -.8, 1.12, .028); bx(.025, .02, .03, M.steel, -.77, 1.12, .045);
   bx(.03, .06, .015, M.steel, -.45, 1.62, -.024); const hook = new THREE.Mesh(new THREE.TorusGeometry(.022, .006, 6, 12, Math.PI), M.steel); hook.position.set(-.45, 1.58, -.045); hook.rotation.set(0, Math.PI / 2, Math.PI); put(hook);
 }
 box(.035, .06, .02, M.steel, SX0 + .3, 1.12, SZ1 + .03);   // the latch keeper on the other pilaster
 
-// ### The toilet: a one-piece stainless-steel prison unit bolted to the back wall. A rounded cabinet with a small wash basin,
-// ### a drinking spout and push buttons on top; a deep bowl with a rolled rim and water in it, no seat, security screws.
+// ### The toilet: a stainless-steel prison pan with a low-level cistern on the wall above it, both of the same polished
+// ### steel (M.bowl: the scanned scratches of Poly Haven's "Blue Metal Plate", fetched through its API, with the vault
+// ### HDRI in the reflections). The pan is one turned piece (foot, waist, flaring sides, a rolled rim, no seat) with a
+// ### flush horn welded to its back under the rim. The cistern is pressed sheet steel: round corners, rounded edges and
+// ### a front that bows out a little, as thin sheet does, so the light slides over it; a lid with a turned-down lip, a
+// ### dual flush button, security screws, a stamped plate, and soft runs of limescale and rust from the lid's lip.
+// ### Cistern and pan are joined the way a real low-level cistern is: the flush pipe leaves the cistern through its
+// ### outlet nut, runs down the wall, bends forward and slides into the horn through a black rubber connector. The cold
+// ### water comes from a stop valve on the wall into the side of the cistern.
 const TOILET = { x: 3.25, z: -2.82, top: .958 }, BOWL_Z = -2.418, BOWL_SZ = 1.22;
 {
-  const T = TOILET;
-  const rounded = (s, x0, y0, x1, y1, r) => { s.moveTo(x0 + r, y0); s.lineTo(x1 - r, y0); s.quadraticCurveTo(x1, y0, x1, y0 + r); s.lineTo(x1, y1 - r); s.quadraticCurveTo(x1, y1, x1 - r, y1); s.lineTo(x0 + r, y1); s.quadraticCurveTo(x0, y1, x0, y1 - r); s.lineTo(x0, y0 + r); s.quadraticCurveTo(x0, y0, x0 + r, y0); };
+  const T = TOILET, WALLZ = -2.986;
   const mesh = (geo, mat) => add(new THREE.Mesh(geo, mat));
-  // the cabinet, extruded upwards from its rounded footprint, with an oval opening for the basin (shape y becomes -z)
-  const cs = new THREE.Shape(); rounded(cs, -.3, -.16, .3, .16, .05);
-  const hole = new THREE.Path(); hole.absellipse(0, .01, .155, .112, 0, Math.PI * 2, true); cs.holes.push(hole);
-  const cg = new THREE.ExtrudeGeometry(cs, { depth: .93, bevelEnabled: true, bevelThickness: .014, bevelSize: .014, bevelSegments: 3, curveSegments: 18 });
-  cg.rotateX(-Math.PI / 2); cg.translate(T.x, .014, T.z); mesh(cg, M.steel);
-  // the basin set into the top, its drain and the drinking spout behind it
   const lathe = (pts, seg, sx, sz, x, z) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg); g.scale(sx, 1, sz); g.translate(x, 0, z); return mesh(g, M.bowl); };
-  lathe([[.0, .9], [.055, .905], [.08, .93], [.092, .955], [.1, .966], [.11, .964], [.112, .958]], 32, 1.42, 1, T.x, T.z - .01);
-  cyl(.018, .018, .003, M.dark, T.x, .902, T.z - .01, 16);
-  cyl(.014, .016, .035, M.chrome, T.x, T.top + .017, T.z - .135, 14);
-  const spout = cyl(.008, .008, .05, M.chrome, T.x, T.top + .038, T.z - .115, 10); spout.rotation.x = Math.PI / 2 - .5;
-  // push buttons: basin and spout on the top, flush on the front
-  for (const dx of [-.22, .22]){ cyl(.024, .024, .008, M.dullSteel, T.x + dx, T.top + .004, T.z + .12, 18); cyl(.016, .016, .012, M.chrome, T.x + dx, T.top + .012, T.z + .12, 18); }
-  const fz = T.z + .174; for (const [r, d, mat] of [[.034, .008, M.dullSteel], [.024, .02, M.chrome]]){ const b = cyl(r, r, d, mat, T.x + .19, .82, fz + d / 2, 20); b.rotation.x = Math.PI / 2; }
-  // the seams of the access panel on the front and its security screws
-  for (const [w, h, x, y] of [[.44, .006, 0, .9], [.44, .006, 0, .47], [.006, .43, -.22, .685], [.006, .43, .22, .685]]) box(w, h, .003, M.dark, T.x + x, y, fz + .001);
-  for (const x of [-.25, .25]) for (const y of [.08, .9]){ const s = cyl(.009, .009, .006, M.chrome, T.x + x, y, fz + .003, 6); s.rotation.x = Math.PI / 2; }
+  // a decal that casts no shadow: limescale and dirt are not metal, so they are matt and lie on top of the steel
+  const decalMat = map => new THREE.MeshStandardMaterial({ map, transparent: true, depthWrite: false, roughness: .85, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 });
+  // ### A pressed steel box. Seen from above it is a rectangle (half sizes hw and hd round cx, cz) with round corners
+  // ### (radius R); its top and bottom edges are rounded off too (rt, rb, 0 for a sharp edge). bulge(x, y) says how far
+  // ### the front stands out of the flat (x from the middle). It is built ring by ring from the bottom up and closed with
+  // ### a flat top and bottom, its normals smooth all round; the scan is laid on in metres, the same size as on the bowl.
+  const steelBox = (cx, cz, hw, hd, y0, y1, R, rt, rb, bulge) => {
+    const K = 8, BACK = 3, FRONT = 12, SIDE = 6, ax = hw - R, az = hd - R;
+    // the outline inset metres in from the outside, from the middle of the back (against the wall) all the way round
+    const outline = inset => {
+      const r = R - inset, pts = [[0, -az - r]];
+      const line = (x0, z0, x1, z1, n) => { for (let i = 1; i < n; i++) pts.push([x0 + (x1 - x0) * i / n, z0 + (z1 - z0) * i / n]); };
+      const arc = (x, z, a0) => { for (let i = 0; i <= K; i++){ const a = a0 + Math.PI / 2 * i / K; pts.push([x + Math.cos(a) * r, z + Math.sin(a) * r]); } };
+      line(0, -az - r, ax, -az - r, BACK); arc(ax, -az, -Math.PI / 2);
+      line(ax + r, -az, ax + r, az, SIDE); arc(ax, az, 0);
+      line(ax, az + r, -ax, az + r, FRONT); arc(-ax, az, Math.PI / 2);
+      line(-ax - r, az, -ax - r, -az, SIDE); arc(-ax, -az, Math.PI);
+      line(-ax, -az - r, 0, -az - r, BACK); pts.push([0, -az - r]);
+      return pts;
+    };
+    // the rings: round the bottom edge, up the straight sides (often, so the bulge is smooth), round the top edge
+    const rings = [], V = 10, ys0 = y0 + rb, ys1 = y1 - rt;
+    if (rb > 0) for (let i = 0; i < K; i++){ const a = -Math.PI / 2 + Math.PI / 2 * i / K; rings.push([ys0 + Math.sin(a) * rb, rb * (1 - Math.cos(a))]); }
+    for (let i = 0; i <= V; i++) rings.push([ys0 + (ys1 - ys0) * i / V, 0]);
+    if (rt > 0) for (let i = 1; i <= K; i++){ const a = Math.PI / 2 * i / K; rings.push([ys1 + Math.sin(a) * rt, rt * (1 - Math.cos(a))]); }
+    const pos = [], uv = [], idx = [];
+    let n = 0;
+    for (const [y, inset] of rings){
+      const pts = outline(inset);
+      n = pts.length;
+      let u = 0;
+      pts.forEach(([x, z], j) => {
+        if (j) u += Math.hypot(x - pts[j - 1][0], z - pts[j - 1][1]);
+        pos.push(cx + x, y, cz + z + (z > az && bulge ? bulge(x, y) : 0)); uv.push(u, y);
+      });
+    }
+    for (let i = 0; i < rings.length - 1; i++) for (let j = 0; j < n - 1; j++){
+      const a = i * n + j, b = a + 1, c = a + n + 1, d = a + n;
+      idx.push(a, c, b, a, d, c);
+    }
+    // the flat top and bottom: a fan from the middle, with points of their own so their normals stay straight
+    for (const [ring, up] of [[rings.length - 1, true], [0, false]]){
+      const c0 = pos.length / 3, y = rings[ring][0];
+      pos.push(cx, y, cz); uv.push(cx, -cz);
+      for (let j = 0; j < n; j++){ const k = (ring * n + j) * 3; pos.push(pos[k], y, pos[k + 2]); uv.push(pos[k], -pos[k + 2]); }
+      for (let j = 1; j < n; j++) idx.push(c0, c0 + (up ? j + 1 : j), c0 + (up ? j : j + 1));
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals();
+    return mesh(g, M.bowl);
+  };
+  // ### The cistern: a body of thin sheet whose front bows out 3 mm in the middle, and a lid that sits over its top
+  // ### edge, 8 mm proud all round, with a turned-down lip. The outlet is in the middle of its floor.
+  const CY0 = .66, CY1 = 1.016, CZ1 = -2.8, CZ = (CZ1 + WALLZ) / 2, CW = .235, CR = .026, LIP = .998, LT = 1.032;
+  const SY0 = CY0 + .016, SY1 = CY1, BX0 = CW - CR, BULGE = .003;
+  const bulge = (x, y) => BULGE * Math.max(0, 1 - (x / BX0) ** 2) * Math.max(0, 1 - ((y - (SY0 + SY1) / 2) / ((SY1 - SY0) / 2)) ** 2);
+  const frontAt = (x, y) => CZ1 + bulge(x, y);
+  steelBox(T.x, CZ, CW, (CZ1 - WALLZ) / 2, CY0, CY1, CR, 0, .016, bulge);
+  steelBox(T.x, (CZ1 + .008 + WALLZ) / 2, CW + .008, (CZ1 + .008 - WALLZ) / 2, LIP, LT, CR + .007, .007, .0015);
+  // the dual flush button on the lid: a chrome ring and two half buttons, the small flush and the full one
+  const BX = T.x + .11, BZ = CZ;
+  cyl(.034, .035, .005, M.chrome, BX, LT + .0025, BZ, 28);
+  for (const [a, h] of [[0, .006], [Math.PI, .008]]){ const b = mesh(new THREE.CylinderGeometry(.027, .027, h, 20, 1, false, a + .06, Math.PI - .12), M.bowl); b.position.set(BX, LT + .005 + h / 2, BZ); }
+  // security screws: domed heads with a pin-hex hole, in the lid and in the front
+  const screw = (x, y, z, up) => {
+    const head = mesh(new THREE.SphereGeometry(.0065, 12, 4, 0, Math.PI * 2, 0, Math.PI / 2), M.chrome);
+    head.scale.set(1, .45, 1); head.position.set(x, y, z); if (!up) head.rotation.x = Math.PI / 2;
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(.0021, 6), M.dark);
+    if (up){ hole.rotation.x = -Math.PI / 2; hole.position.set(x, y + .003, z); } else hole.position.set(x, y, z + .003);
+    room.add(hole);
+  };
+  for (const dx of [-.2, .2]) for (const z of [WALLZ + .03, CZ1 - .022]) screw(T.x + dx, LT, z, true);
+  const FRONT_SCREWS = [[-.19, .7], [.19, .7], [-.19, .965], [.19, .965]];
+  for (const [dx, y] of FRONT_SCREWS) screw(T.x + dx, y, frontAt(dx, y), false);
+  // a small stamped plate, riveted on under the lid
+  const plateTex = canvasTex(128, 48, (g, w, h) => {
+    g.fillStyle = '#9da4a6'; g.fillRect(0, 0, w, h); g.strokeStyle = '#6c7375'; g.lineWidth = 3; g.strokeRect(2, 2, w - 4, h - 4);
+    g.fillStyle = '#4a5052'; g.font = 'bold 15px Arial, sans-serif'; g.textAlign = 'center'; g.fillText('BLOCK D  WC 2', w / 2, 21); g.font = '11px Arial, sans-serif'; g.fillText('6 L / 3 L', w / 2, 37);
+  });
+  const PX = -.1, PY = .955;
+  plane(.075, .028, new THREE.MeshStandardMaterial({ map: plateTex, metalness: .7, roughness: .45, polygonOffset: true, polygonOffsetFactor: -1 }), T.x + PX, PY, frontAt(PX, PY) + .0012);
+  for (const dx of [-.033, .033]){ const r = mesh(new THREE.SphereGeometry(.0022, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), M.dullSteel); r.rotation.x = Math.PI / 2; r.position.set(T.x + PX + dx, PY, frontAt(PX + dx, PY) + .0012); }
+  // ### What runs down the front: limescale (chalky and pale) and a little rust from the screws, in thin wavering runs
+  // ### that start at the lid's lip, thin out as they go and sometimes end in a dried bead; dried drops, and grime and a
+  // ### crust of limescale along the bottom, where the water gathers before it drips off. The picture lies on the flat
+  // ### of the front and bows out with it.
+  const DTOP = LIP, DBOT = SY0, DW = 2 * BX0, DH = DTOP - DBOT, drnd = mulberry32(2117);
+  const toPx = (dx, y, w, h) => [(dx + BX0) / DW * w, (DTOP - y) / DH * h];
+  const runs = (g, x, y, len, w0, a0, c) => {
+    const f = 2 + drnd() * 5, ph = drnd() * 7, amp = .5 + drnd() * 1.5, drift = (drnd() - .5) * 5, steps = Math.ceil(len * 1.4);
+    for (let i = 0; i <= steps; i++){
+      const t = i / steps, px = x + Math.sin(t * f + ph) * amp + drift * t, py = y + t * len, r = w0 * (1 - .5 * t);
+      g.fillStyle = `rgba(${c},${a0 * Math.pow(1 - t, .7)})`; g.beginPath(); g.arc(px, py, r, 0, 7); g.fill();
+    }
+    if (drnd() < .45){ g.fillStyle = `rgba(${c},${a0 * 2})`; g.beginPath(); g.ellipse(x + Math.sin(f + ph) * amp + drift, y + len, w0 * .9, w0 * 1.3, 0, 0, 7); g.fill(); }
+  };
+  const dripTex = canvasTex(256, Math.round(256 * DH / DW), (g, w, h) => {
+    if ('filter' in g) g.filter = 'blur(.5px)';
+    // a faint brown line right under the lip, where water creeps out of the seam
+    let gr = g.createLinearGradient(0, 0, 0, 7); gr.addColorStop(0, 'rgba(105,82,52,.3)'); gr.addColorStop(1, 'rgba(105,82,52,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, 7);
+    // grime towards the bottom, and a crust of limescale along the bottom edge
+    gr = g.createLinearGradient(0, h * .62, 0, h); gr.addColorStop(0, 'rgba(92,84,64,0)'); gr.addColorStop(1, 'rgba(92,84,64,.3)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    gr = g.createLinearGradient(0, h - 8, 0, h); gr.addColorStop(0, 'rgba(226,222,204,0)'); gr.addColorStop(1, 'rgba(226,222,204,.22)'); g.fillStyle = gr; g.fillRect(0, h - 8, w, 8);
+    for (let i = 0; i < 90; i++){ const r = .6 + drnd() * 1.8; g.fillStyle = `rgba(226,222,204,${.05 + drnd() * .1})`; g.beginPath(); g.ellipse(drnd() * w, h - Math.pow(drnd(), 2) * 6, r * 2.2, r * .5, 0, 0, 7); g.fill(); }
+    // runs of limescale from the lip, most of them short
+    for (let i = 0; i < 11; i++) runs(g, 6 + drnd() * (w - 12), drnd() * 3, h * (.12 + Math.pow(drnd(), 1.6) * .75), .9 + drnd() * 1.4, .05 + drnd() * .06, '234,230,214');
+    // rust from the screws and from the plate's rivets
+    for (const [dx, y] of FRONT_SCREWS){ const [x, py] = toPx(dx, y, w, h); if (py > 0 && py < h * .9) runs(g, x, py + 2, h * (.06 + drnd() * .22), 1.1, .12, '124,70,32'); }
+    { const [x, py] = toPx(PX + .033, PY - .012, w, h); runs(g, x, py, h * .2, .9, .09, '124,70,32'); }
+    // dried drops: little rings of limescale with a faint middle
+    for (let i = 0; i < 26; i++){
+      const x = drnd() * w, y = h * (.25 + drnd() * .75), r = .8 + drnd() * 2.2;
+      g.strokeStyle = `rgba(232,228,210,${.12 + drnd() * .12})`; g.lineWidth = .7; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke();
+      g.fillStyle = 'rgba(232,228,210,.05)'; g.fill();
+    }
+  });
+  {
+    const geo = new THREE.PlaneGeometry(DW, DH, 12, 8), p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) p.setZ(i, bulge(p.getX(i), p.getY(i) + (DTOP + DBOT) / 2) + .0012);
+    const drips = mesh(geo, decalMat(dripTex)); drips.position.set(T.x, (DTOP + DBOT) / 2, CZ1); drips.castShadow = false;
+  }
+  // ### And on the lid: dust along the wall, greasy fingerprints round the flush button and a few dried drops.
+  {
+    const LW = 2 * (CW - CR), LD = CZ1 - WALLZ - .02;
+    const lidTex = canvasTex(256, Math.round(256 * LD / LW), (g, w, h) => {
+      if ('filter' in g) g.filter = 'blur(.6px)';
+      let gr = g.createLinearGradient(0, 0, 0, h * .35); gr.addColorStop(0, 'rgba(128,120,100,.6)'); gr.addColorStop(1, 'rgba(128,120,100,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      for (const x of [0, w]){ gr = g.createRadialGradient(x, 0, 0, x, 0, h * .7); gr.addColorStop(0, 'rgba(120,112,92,.45)'); gr.addColorStop(1, 'rgba(120,112,92,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); }
+      const bx = (BX - T.x + LW / 2) / LW * w, by = (BZ - (WALLZ + .01)) / LD * h;
+      for (let i = 0; i < 14; i++){
+        const a = drnd() * Math.PI * 2, d = 20 + drnd() * 26, x = bx + Math.cos(a) * d, y = by + Math.sin(a) * d * .8, r = 4 + drnd() * 5;
+        gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(66,60,48,${.16 + drnd() * .14})`); gr.addColorStop(1, 'rgba(66,60,48,0)');
+        g.fillStyle = gr; g.save(); g.translate(x, y); g.rotate(a); g.scale(1.4, 1); g.translate(-x, -y); g.fillRect(x - r, y - r, r * 2, r * 2); g.restore();
+      }
+      for (let i = 0; i < 16; i++){ const x = drnd() * w, y = drnd() * h, r = .8 + drnd() * 2; g.strokeStyle = `rgba(232,228,210,${.12 + drnd() * .12})`; g.lineWidth = .7; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); }
+    });
+    const top = mesh(new THREE.PlaneGeometry(LW, LD), decalMat(lidTex)); top.rotation.x = -Math.PI / 2; top.position.set(T.x, LT + .0006, WALLZ + .01 + LD / 2); top.castShadow = false;
+  }
+  // ### The flush pipe, 38 mm steel like the pan: out of the outlet nut under the cistern, down the wall, a smooth bend
+  // ### forward at the height of the horn, and a short straight run into the rubber connector.
+  const HY = .362, BR = .075, PZ = CZ, HORN = -2.765, CUFF = -2.738, CUFF_L = .065;
+  {
+    const k = .5523 * BR, path = new THREE.CurvePath();
+    path.add(new THREE.LineCurve3(v3(T.x, CY0 - .015, PZ), v3(T.x, HY + BR, PZ)));
+    path.add(new THREE.CubicBezierCurve3(v3(T.x, HY + BR, PZ), v3(T.x, HY + BR - k, PZ), v3(T.x, HY, PZ + BR - k), v3(T.x, HY, PZ + BR)));
+    path.add(new THREE.LineCurve3(v3(T.x, HY, PZ + BR), v3(T.x, HY, CUFF - CUFF_L + .03)));
+    const geo = new THREE.TubeGeometry(path, 64, .019, 18, false), uv = geo.attributes.uv, len = path.getLength();
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * len, uv.getY(i) * .12);
+    mesh(geo, M.bowl);
+  }
+  // the outlet nut under the cistern: a ribbed black plastic coupling, and a rubber washer above it
+  {
+    const nut = mesh(new THREE.LatheGeometry([[.0195, -.028], [.03, -.027], [.032, -.023], [.032, -.006], [.029, -.002], [.026, 0]].map(([r, y]) => new THREE.Vector2(r, y)), 18),
+      new THREE.MeshStandardMaterial({ color: 0x232527, roughness: .55, flatShading: true }));
+    nut.position.set(T.x, CY0 + .001, PZ);
+  }
+  // the cold water: a stop valve with a red wheel on the wall, a short chrome pipe into the side of the cistern, where a
+  // tank connector nut holds it
+  const VX = T.x + .36, VY = .9;
+  cyl(.028, .028, .06, M.dullSteel, VX, VY, -2.965, 12).rotation.x = Math.PI / 2;
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(.026, .006, 6, 16), M.red); wheel.position.set(VX, VY, -2.925); add(wheel);
+  cyl(.009, .009, .025, M.chrome, VX, VY, -2.935, 8).rotation.x = Math.PI / 2;
+  cyl(.009, .009, VX - (T.x + CW), M.chrome, (VX + T.x + CW) / 2, VY, -2.95, 10).rotation.z = Math.PI / 2;
+  cyl(.016, .016, .012, M.dullSteel, T.x + CW + .006, VY, -2.95, 6).rotation.z = Math.PI / 2;
   // the bowl and its pedestal in one turned piece: foot, waist, flaring sides, rolled rim, then down into the trap
   lathe([[.175, 0], [.186, .012], [.186, .034], [.165, .06], [.158, .13], [.172, .22], [.2, .31], [.218, .37], [.228, .404], [.226, .424], [.212, .432], [.197, .426], [.19, .41],
     [.184, .38], [.16, .32], [.12, .27], [.072, .236], [.0, .226]], 44, 1, BOWL_SZ, T.x, BOWL_Z);
-  box(.26, .24, .22, M.steel, T.x, .12, T.z + .28);   // the apron that joins bowl and cabinet
+  // ### The flush horn: a short steel spigot welded to the back of the bowl under the rim (the weld a smooth fillet that
+  // ### starts inside the steel), and over its end the black rubber connector that takes the flush pipe, ribbed where it
+  // ### grips the horn and tight round the pipe. Both are turned round the line of the pipe, from the bowl to the wall.
+  {
+    const along = (pts, seg, z0, mat, su, sv) => {
+      const g = new THREE.LatheGeometry(pts.map(([r, a]) => new THREE.Vector2(r, a)), seg), uv = g.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
+      g.rotateX(-Math.PI / 2); g.translate(T.x, HY, z0); return mesh(g, mat);
+    };
+    along([[.0335, 0], [.0335, .012], [.031, .02], [.027, .028], [.024, .036], [.0225, .045], [.0225, -2.662 - HORN]], 24, -2.662, M.bowl, .15, .11);
+    along([[.0226, 0], [.031, 0], [.0335, .003], [.0345, .01], [.0345, .02], [.0325, .024], [.0335, .028], [.0335, .032], [.031, .038], [.028, .046], [.0255, .054],
+      [.0235, .06], [.0215, .064], [.0192, CUFF_L]], 28, CUFF, new THREE.MeshStandardMaterial({ color: 0x131313, roughness: .82, metalness: 0, envMapIntensity: .5 }), 1, 1);
+  }
   // ### The water in the bowl mirrors the room like the puddles and the mop water do (WATER.bucket): murky yellow-brown,
   // ### with a film of yellowish foam and bubbles on it (this picture, on black where there is none) and a brown tide
   // ### line on the steel just above it.
@@ -2005,10 +2291,6 @@ const TOILET = { x: 3.25, z: -2.82, top: .958 }, BOWL_Z = -2.418, BOWL_SZ = 1.22
   tide.castShadow = false; tide.material = new THREE.MeshStandardMaterial({ color: 0x4a3a20, roughness: .8, transparent: true, opacity: .4, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, side: THREE.DoubleSide });
   cyl(.045, .045, .002, M.dark, T.x, .238, BOWL_Z - .03, 16);
   for (const dx of [-.215, .215]) cyl(.014, .014, .012, M.chrome, T.x + dx, .006, BOWL_Z + .03, 6);   // floor bolts
-  // the cold-water supply: a stop valve on the wall and a chrome pipe into the side of the cabinet
-  cyl(.012, .012, .24, M.chrome, T.x + .43, .24, -2.95, 10).rotation.z = Math.PI / 2;
-  cyl(.03, .03, .07, M.dullSteel, T.x + .55, .24, -2.95, 12).rotation.x = Math.PI / 2;
-  const wheel = new THREE.Mesh(new THREE.TorusGeometry(.03, .006, 6, 16), M.red); wheel.position.set(T.x + .55, .24, -2.9); add(wheel);
   // limescale and dirt on the floor round the foot, and the soft shadow under the unit
   flat(.75, .95, M.blob, T.x, -2.55, .002); flat(.62, .62, M.stain, T.x, BOWL_Z, .004);
   WATER.puddle(.7, .48, T.x - .25, -1.98);
@@ -2050,6 +2332,11 @@ wheelTex.forEach((t, i) => { const wm = new THREE.Mesh(new THREE.PlaneGeometry(.
 hot('lock', lockBody, lid);
 HOT['go:hatch'] = HOT.lock;   // from the stall, clicking the hatch kneels you down at it
 
+// ### The ladder and the hatch frame once more, as a mask that draws only depth: drawn just before your hands, it hides
+// ### the fingers where they wrap round behind a rung, so the hands really hold the wood.
+const GRIP_MASK = new THREE.Scene(), MASK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false }), RUNG_AT = [];
+function gripMask(o){ const m = new THREE.Mesh(o.geometry, MASK_MAT); m.position.copy(o.position); m.quaternion.copy(o.quaternion); m.scale.copy(o.scale); GRIP_MASK.add(m); }
+{ const f = new THREE.Mesh(new THREE.BoxGeometry(HS + .08, .43, .43)); f.position.set(HATCH.x, -.185, HATCH.z - HS / 2 - .19); gripMask(f); }   // the floor and the frame beyond the hatch's north edge
 // ---------- The tunnel under the hatch ----------
 // ### Below the hatch an old brick shaft drops 3.6 m into a vaulted catacomb passage that runs off under the corridor:
 // ### walls of rough stone blocks, a barrel vault of old brick and a floor of worn brick pavers. The surfaces are CC0
@@ -2063,9 +2350,44 @@ TUN.crown = TUN.spring + TUN.r;
 TUN.ladderZ = TUN.zN + .14;
 TUN.mid = (TUN.zN + TUN.zS) / 2;
 TUN.len = TUN.zS - TUN.zN;
+TUN.webs = [];
+// ### The door at the far end of the tunnel: the doorway (w x h), its plank leaf, and what opening it moves.
+const TDOOR = { w: .84, h: 1.76, leafH: 1.73, pivot: null, out: null, glow: null, gap: null };
 const trnd = mulberry32(1912);   // its own random numbers, so the room above keeps its look
 // ### Scales a geometry's texture coordinates so that one picture covers the same number of metres on every surface.
 const uvMetres = (geo, su, sv) => { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv); return geo; };
+// ### The garage behind the tunnel door, 4 x 4 m, 128 pixels a metre, the floor 3.4 m below the top: dark walls, a
+// ### concrete floor, the car facing the door (a dark shape: bumper, grille, bonnet, windscreen, wheels) and its two
+// ### headlights, with their glare and the pools of light they throw on the floor.
+function paintGarage(g, w, h){
+  const ground = 435, cx = w / 2, glare = (x, y, r, a, sx, sy) => {
+    g.save(); g.translate(x, y); g.scale(sx || 1, sy || 1);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, r); gr.addColorStop(0, `rgba(226,236,255,${a})`); gr.addColorStop(1, 'rgba(226,236,255,0)');
+    g.fillStyle = gr; g.fillRect(-r, -r, r * 2, r * 2); g.restore();
+  };
+  let gr = g.createLinearGradient(0, 0, 0, ground); gr.addColorStop(0, '#05070b'); gr.addColorStop(1, '#121822');
+  g.fillStyle = gr; g.fillRect(0, 0, w, ground);
+  gr = g.createLinearGradient(0, ground, 0, h); gr.addColorStop(0, '#161b22'); gr.addColorStop(1, '#0c0f14');
+  g.fillStyle = gr; g.fillRect(0, ground, w, h - ground);
+  // the car: tyres, then the body from the bumper up to the roof, the windscreen catching a little light
+  g.fillStyle = '#030406'; for (const s of [-1, 1]) g.fillRect(cx + s * 92 - 16, ground - 34, 32, 34);
+  g.fillStyle = '#07090d';
+  g.beginPath(); g.moveTo(cx - 112, ground - 14); g.lineTo(cx - 114, ground - 80); g.quadraticCurveTo(cx - 110, ground - 112, cx - 84, ground - 118);
+  g.lineTo(cx - 66, ground - 168); g.quadraticCurveTo(cx, ground - 176, cx + 66, ground - 168); g.lineTo(cx + 84, ground - 118);
+  g.quadraticCurveTo(cx + 110, ground - 112, cx + 114, ground - 80); g.lineTo(cx + 112, ground - 14); g.closePath(); g.fill();
+  gr = g.createLinearGradient(0, ground - 166, 0, ground - 122); gr.addColorStop(0, '#1b2433'); gr.addColorStop(1, '#0b0f16');
+  g.fillStyle = gr; g.beginPath(); g.moveTo(cx - 60, ground - 162); g.quadraticCurveTo(cx, ground - 169, cx + 60, ground - 162); g.lineTo(cx + 76, ground - 122); g.lineTo(cx - 76, ground - 122); g.closePath(); g.fill();
+  g.fillStyle = '#0d1118'; g.fillRect(cx - 40, ground - 92, 80, 18);   // the grille
+  g.fillStyle = '#10141b'; g.fillRect(cx - 112, ground - 40, 224, 10);   // the bumper
+  // the headlights and their glare, added on top of everything
+  g.globalCompositeOperation = 'lighter';
+  for (const s of [-1, 1]){
+    const lx = cx + s * 80, ly = ground - 88;
+    glare(lx, ground + 24, 130, .32, 1.3, .22);   // the pool of light on the floor
+    glare(lx, ly, 230, .22); glare(lx, ly, 70, .7); glare(lx, ly, 260, .2, 1.4, .06); glare(lx, ly, 18, 1);
+  }
+  g.globalCompositeOperation = 'source-over';
+}
 // ### A scanned surface for the tunnel; the tint (linear) greys it with the dust of decades.
 function tunnelMat(color, normal, tint, o){
   const m = new THREE.MeshStandardMaterial(Object.assign({ map: SCAN(color, true), normalMap: SCAN(normal, false, 1, 1, 4),
@@ -2107,12 +2429,32 @@ const tbox = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.Box
   vault.position.set(x, spring, zV + vLen / 2); room.add(vault);
   const face = new THREE.Shape(); face.moveTo(-r, 0); face.lineTo(-r, r); face.lineTo(r, r); face.lineTo(r, 0); face.absarc(0, 0, r, 0, Math.PI, false);
   const faceM = new THREE.Mesh(uvMetres(new THREE.ShapeGeometry(face, 12), 1 / 2.5, 1 / 2.5), TM.brick); faceM.position.set(x, spring, zV); room.add(faceM);
-  // the far end: a stone wall under a brick half-moon, and an old plank door with cold night light coming in under it
-  tplane(r * 2, spring - floor, TM.stone, 2.5, x, (spring + floor) / 2, zS, 0, Math.PI);
-  const moon = new THREE.Mesh(uvMetres(new THREE.CircleGeometry(r, 18, 0, Math.PI), 1 / 2.5, 1 / 2.5), TM.brick); moon.position.set(x, spring, zS); moon.rotation.y = Math.PI; room.add(moon);
-  const door = new THREE.Mesh(uvMetres(new THREE.BoxGeometry(.78, 1.72, .06), 1.6, 3.4), TM.wood); door.position.set(x, floor + .87, zS - .04); room.add(door);
-  for (const y of [floor + .35, floor + 1.45]) tbox(.8, .06, .02, TM.iron, x, y, zS - .08);
-  const gap = new THREE.Mesh(new THREE.PlaneGeometry(.74, .014), new THREE.MeshBasicMaterial({ color: 0x9fb4c8 })); gap.position.set(x, floor + .008, zS - .072); gap.rotation.y = Math.PI; room.add(gap);
+  // the far end: a stone wall under a brick half-moon with a doorway in it, framed in old timber; the plank door in it
+  // opens outwards (see TDOOR)
+  const dw = TDOOR.w / 2, dh = TDOOR.h, deep = .35;
+  for (const s of [-1, 1]) tplane(r - dw, spring - floor, TM.stone, 2.5, x + s * (r + dw) / 2, (spring + floor) / 2, zS, 0, Math.PI);
+  const arch = new THREE.Shape(); arch.moveTo(-r, 0); arch.lineTo(-dw, 0); arch.lineTo(-dw, floor + dh - spring); arch.lineTo(dw, floor + dh - spring); arch.lineTo(dw, 0); arch.lineTo(r, 0); arch.absarc(0, 0, r, 0, Math.PI, false);
+  const moon = new THREE.Mesh(uvMetres(new THREE.ShapeGeometry(arch, 18), 1 / 2.5, 1 / 2.5), TM.brick); moon.position.set(x, spring, zS); moon.rotation.y = Math.PI; room.add(moon);
+  // the doorway runs through the thick wall: stone sides, a brick lintel, and the pavers go on out into the garage
+  for (const s of [-1, 1]) tplane(deep + .9, dh, TM.stone, 2.5, x + s * dw, floor + dh / 2, zS + (deep + .9) / 2, 0, -s * Math.PI / 2);
+  tplane(TDOOR.w, deep, TM.brick, 2.5, x, floor + dh, zS + deep / 2, Math.PI / 2);
+  tplane(3, 3.5, TM.floor, 2, x, floor + .001, zS + 1.75, -Math.PI / 2);
+  for (const s of [-1, 1]) tbox(.07, dh + .08, .07, TM.wood, x + s * (dw + .035), floor + (dh + .08) / 2, zS - .03);
+  tbox(TDOOR.w + .2, .08, .07, TM.wood, x, floor + dh + .04, zS - .03);
+  // outside, a few metres on: the lock-up garage at night, where the car waits with its headlights on, shining at the
+  // door. A picture (fog does not dim it) that the door hides, apart from a glint round its edges, until it swings open.
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ fog: false, map: canvasTex(512, 512, paintGarage) }));
+  glow.position.set(x, floor + 1.4, zS + 3.5); glow.rotation.y = Math.PI; room.add(glow); TDOOR.out = glow; TDOOR.glow = glow.material; glow.material.color.setScalar(.25);
+  // the door: rough planks on two iron straps that run out to the hinges on the left, a ring to pull it by on the right
+  const pivot = new THREE.Group(); pivot.position.set(x + dw, floor + .012 + TDOOR.leafH / 2, zS + .04); room.add(pivot); TDOOR.pivot = pivot;
+  const leaf = new THREE.Mesh(uvMetres(new THREE.BoxGeometry(TDOOR.w - .04, TDOOR.leafH, .05), 1.6, 3.4), TM.wood); leaf.position.x = -dw; pivot.add(leaf); hot('open:door', leaf);
+  for (const y of [-.52, .58]){
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(TDOOR.w - .02, .055, .012), TM.iron); strap.position.set(-dw + .01, y, -.031); pivot.add(strap);
+    const pin = new THREE.Mesh(new THREE.CylinderGeometry(.014, .014, .1, 8), TM.iron); pin.position.set(.004, y, -.02); pivot.add(pin);
+  }
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(.045, .007, 6, 18), TM.iron); ring.position.set(-TDOOR.w + .13, .02, -.04); pivot.add(ring);
+  const boss = new THREE.Mesh(new THREE.CylinderGeometry(.022, .026, .02, 10).rotateX(Math.PI / 2), TM.iron); boss.position.set(-TDOOR.w + .13, .065, -.035); pivot.add(boss);
+  const gap = new THREE.Mesh(new THREE.PlaneGeometry(TDOOR.w - .06, .014), new THREE.MeshBasicMaterial({ color: 0x9fb4c8 })); gap.position.set(x, floor + .008, zS - .002); gap.rotation.y = Math.PI; room.add(gap); TDOOR.gap = gap;
   // rubble and broken bricks along the walls
   for (let i = 0; i < 26; i++){
     const s = .04 + trnd() * .09, side = trnd() < .5 ? -1 : 1;
@@ -2124,12 +2466,13 @@ const tbox = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.Box
   const top = -.03, len = top - floor;
   for (const s of [-1, 1]){
     const rail = new THREE.Mesh(uvMetres(new THREE.BoxGeometry(.055, len, .045), .11, len / .5), TM.wood);
-    rail.position.set(x + s * .21, (top + floor) / 2, TUN.ladderZ); rail.rotation.z = s * .004; room.add(rail);
+    rail.position.set(x + s * .21, (top + floor) / 2, TUN.ladderZ); rail.rotation.z = s * .004; room.add(rail); gripMask(rail);
     for (const y of [-.55, -1.95, -3.2]){ tbox(.07, .045, .15, TM.iron, x + s * .21, y, zN + .075); }
   }
   for (let i = 1; i <= 11; i++){
     const g = uvMetres(new THREE.CylinderGeometry(.019, .021, .47, 10), .12 / .5, .47 / .5).rotateZ(Math.PI / 2);
     const rung = new THREE.Mesh(g, TM.wood); rung.position.set(x + (trnd() - .5) * .01, -i * .3 + (trnd() - .5) * .012, TUN.ladderZ); rung.rotation.set(trnd() * 3, (trnd() - .5) * .03, (trnd() - .5) * .025); room.add(rung);
+    RUNG_AT[i] = rung.position.clone(); gripMask(rung);
   }
   // Hale's note, taped to the left rail where you pass it on the way down
   const note = new THREE.Mesh(new THREE.PlaneGeometry(.15, .11), new THREE.MeshStandardMaterial({ roughness: .9, map: canvasTex(384, 280, (g, w, h) => {
@@ -2151,6 +2494,9 @@ const tbox = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.Box
 }
 const tunnelLight = new THREE.PointLight(0xffb066, 0, 7, 2); tunnelLight.position.set(TUN.x + TUN.r - .15, -1.95, .15); tunnelLight.visible = false; room.add(tunnelLight);
 const tunnelLight2 = new THREE.PointLight(0xffa458, 0, 4.5, 2); tunnelLight2.position.set(TUN.x - TUN.r + .15, -1.95, 4.6); tunnelLight2.visible = false; room.add(tunnelLight2);
+// the car's headlights behind the door, dark until it opens (it is switched on with the bulbs, so the room's materials
+// are set up for it once, when the hatch opens, and opening the door makes no hitch)
+const nightLight = new THREE.PointLight(0xd2deef, 0, 7, 2); nightLight.position.set(TUN.x, TUN.floor + .9, TUN.zS + .6); nightLight.visible = false; room.add(nightLight);
 
 // ### Cobwebs, painted on canvases: a web across a corner (threads anchored on the walls, radial threads from a hub, a
 // ### sagging spiral that is torn in places, grey dust caught in it) and long single strands that hang from the vault.
@@ -2227,8 +2573,8 @@ function web(mat, w, h, x, y, z, nx, ny, nz){
     web(WEB.web, .3, .34, x + s * (r - .1), floor + .5, zN + .1, -s, 0, 1);
   }
   // big webs spanning the vault further down the tunnel, the corners by the far door, and strands from the vault
-  web(WEB.web, 1.2, .62, x, crown - .3, 1.7, 0, 0, -1);
-  web(WEB.web, 1.1, .55, x + .05, crown - .27, 3.9, 0, 0, -1);
+  // (the two across the vault hang down to the height of your eyes: walking through, you tear them, see updateTunnelWalk)
+  for (const m of [web(WEB.web, 1.2, .62, x, crown - .3, 1.7, 0, 0, -1), web(WEB.web, 1.1, .55, x + .05, crown - .27, 3.9, 0, 0, -1)]){ m.material = WEB.web.clone(); TUN.webs.push(m); }
   for (const s of [-1, 1]) web(WEB.web, .4, .55, x + s * (r - .14), spring - .1, TUN.zS - .14, -s, 0, -1);
   // along the top of the side walls, where the vault curves away, webs sag between the stones and the bricks
   for (const [s, z, w] of [[1, .7, .7], [-1, 1.3, .5], [-1, 2.5, .8], [1, 3.3, .6], [-1, 4.2, .5], [1, 5.3, .7]]) web(WEB.web, w, .34, x + s * (r - .1), spring + .2, z, -s, -.8, 0);
@@ -2439,14 +2785,63 @@ function buildBin(x, z){
   for (const sx of [-1, 1]) aoEdge(1.9, .22, v3(SX0 + sx * .02, 1.1, -D / 2 + .002), v3(sx, 0, 0), v3(0, 0, 1));
   flat(.9, 2.9, M.blob, -3.7, 0); flat(.7, .7, M.blob, 3.35, 2.45); flat(.8, .8, M.stain, 0, .3); WATER.puddle(1.15, .75, -3.2, .55);
   WATER.puddle(1.6, 1.3, -.25, .75);   // round the floor drain in the middle
-  // the security camera high in the north-west corner, its red light blinking
+  // ### The security cameras. High in the north-west corner a bullet camera on a wall bracket: a rounded housing of
+  // ### off-white powder-coated aluminium under a sunshield, dark glass in front with the lens and a ring of infrared
+  // ### LEDs glowing faintly red, a status light that blinks, and its cable looping from the back into a grey conduit
+  // ### that runs up the wall to the ceiling. Over the stall a vandal-proof dome camera hangs from the ceiling: a smoked
+  // ### dome on a white base, the camera inside only just visible.
+  const camWhite = new THREE.MeshStandardMaterial({ color: 0xd2d2c8, roughness: .55, map: canvasTex(64, 64, (g, w, h) => {
+    g.fillStyle = '#e8e8e2'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 400; i++){ g.fillStyle = `rgba(90,80,60,${rnd() * .08})`; g.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1); }   // dust and grime
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(110,95,70,.18)'); gr.addColorStop(.4, 'rgba(110,95,70,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  }) });
+  const glassDark = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: .04, metalness: .6, envMapIntensity: 1.4 });
+  const lensCoat = new THREE.MeshStandardMaterial({ color: 0x241a52, roughness: .08, metalness: 1, envMapIntensity: 1.6 });
+  const irLed = new THREE.MeshStandardMaterial({ color: 0x1a0505, emissive: 0x6a0a06, emissiveIntensity: .9, roughness: .3 });
+  const cableMat = new THREE.MeshStandardMaterial({ color: 0x141516, roughness: .6 });
+  const conduitMat = new THREE.MeshStandardMaterial({ color: 0x8e9290, roughness: .5 });
   const cctv = new THREE.Group(); cctv.position.set(-3.72, 2.66, -2.72); cctv.rotation.set(-.42, -Math.PI * .75, 0, 'YXZ'); room.add(cctv);
   const part = (geo, mat, x, y, z, rx = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.x = rx; m.castShadow = m.receiveShadow = true; cctv.add(m); return m; };
-  part(new THREE.BoxGeometry(.13, .12, .3), M.plastic, 0, 0, 0); part(new THREE.BoxGeometry(.17, .015, .34), M.plastic, 0, .07, -.02);
-  part(new THREE.CylinderGeometry(.045, .045, .03, 18), M.dark, 0, 0, -.16, Math.PI / 2); part(new THREE.CylinderGeometry(.03, .03, .005, 18), M.mirror, 0, 0, -.176, Math.PI / 2);
-  part(new THREE.SphereGeometry(.008, 8, 6), M.led, .045, -.04, -.152);
-  box(.06, .06, .02, M.dullSteel, -3.88, 2.74, -2.99); box(.02, .06, .06, M.dullSteel, -3.99, 2.74, -2.88);
-  { const arm = cyl(.014, .014, .25, M.dullSteel, -3.8, 2.73, -2.8, 8); arm.rotation.set(Math.PI / 2, 0, Math.PI / 4); }
+  // the housing: a rounded section drawn out along the camera's axis (its front is towards -z)
+  { const s = new THREE.Shape(); roundedRect(s, -.05, -.045, .05, .045, .03);
+    const g = new THREE.ExtrudeGeometry(s, { depth: .24, bevelEnabled: true, bevelThickness: .008, bevelSize: .006, bevelSegments: 3, curveSegments: 8 }); g.translate(0, 0, -.12); part(g, camWhite, 0, 0, 0); }
+  // the sunshield: a thin curved hood over the top that reaches out past the glass
+  { const g = new THREE.CylinderGeometry(.066, .066, .3, 24, 1, true, -Math.PI * .42, Math.PI * .84); g.rotateX(-Math.PI / 2); const m = part(g, camWhite, 0, .012, -.03); m.material = camWhite.clone(); m.material.side = THREE.DoubleSide; }
+  // the front: a dark bezel, smoked glass, the lens barrel and its coated glass, the infrared ring and the status light
+  part(new THREE.CylinderGeometry(.047, .047, .012, 28), M.dark, 0, 0, -.13, Math.PI / 2);
+  part(new THREE.CylinderGeometry(.043, .043, .002, 28), glassDark, 0, 0, -.137, Math.PI / 2);
+  part(new THREE.CylinderGeometry(.017, .019, .01, 20), M.black, 0, 0, -.132, Math.PI / 2);
+  part(new THREE.SphereGeometry(.012, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, .45, 1), lensCoat, 0, 0, -.136, -Math.PI / 2);
+  for (let i = 0; i < 10; i++){ const a = i / 10 * Math.PI * 2; part(new THREE.CylinderGeometry(.0042, .0042, .002, 10), irLed, Math.cos(a) * .031, Math.sin(a) * .031, -.1365, Math.PI / 2); }
+  part(new THREE.SphereGeometry(.004, 8, 6), M.led, .034, -.034, -.128);
+  // the back: an end cap and the cable gland
+  part(new THREE.CylinderGeometry(.04, .044, .012, 24), camWhite, 0, 0, .128, Math.PI / 2);
+  part(new THREE.CylinderGeometry(.007, .009, .02, 10), M.black, 0, -.02, .14, Math.PI / 2);
+  // the mount on top: a plate on the housing and a ball joint
+  part(new THREE.BoxGeometry(.05, .008, .06), camWhite, 0, .052, .04);
+  part(new THREE.SphereGeometry(.016, 14, 10), M.dullSteel, 0, .07, .04);
+  cctv.updateMatrixWorld(true);
+  const ball = cctv.localToWorld(v3(0, .07, .04)), gland = cctv.localToWorld(v3(0, -.02, .15));
+  // the bracket: a plate screwed to the west wall and an arm from it to the ball joint
+  const WP = v3(-3.985, ball.y + .02, ball.z - .04);
+  box(.012, .1, .1, camWhite, WP.x, WP.y, WP.z);
+  for (const dy of [-.035, .035]) for (const dz of [-.035, .035]){ const sc = cyl(.005, .005, .003, M.chrome, WP.x + .008, WP.y + dy, WP.z + dz, 6); sc.rotation.z = Math.PI / 2; }
+  { const from = v3(WP.x + .006, WP.y, WP.z), len = from.distanceTo(ball), arm = add(new THREE.Mesh(new THREE.CylinderGeometry(.013, .016, len, 12), camWhite));
+    arm.position.copy(from).add(ball).multiplyScalar(.5); arm.quaternion.setFromUnitVectors(v3(0, 1, 0), ball.clone().sub(from).normalize()); }
+  // the cable: from the gland it sags in a loop and goes into the bracket, then a conduit runs up the wall to the ceiling
+  { const pts = [gland, v3(gland.x - .02, gland.y - .09, gland.z - .02), v3(WP.x + .04, WP.y - .1, WP.z + .02), v3(WP.x + .01, WP.y - .045, WP.z)];
+    add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, .0035, 6), cableMat)); }
+  cyl(.012, .012, H - WP.y - .05, conduitMat, -3.982, (H + WP.y + .05) / 2, WP.z - .07, 10);
+  for (const y of [WP.y + .2, H - .08]) box(.01, .02, .035, M.dullSteel, -3.99, y, WP.z - .07);   // its clips
+  box(.03, .05, .03, conduitMat, -3.982, WP.y + .055, WP.z - .07);   // the junction where the cable enters it
+  // the dome camera over the stall: a base ring on the ceiling, a smoked dome and the camera module dim inside it
+  const DOME = v3(2.0, H, -.4);
+  cyl(.085, .09, .03, camWhite, DOME.x, H - .015, DOME.z, 32);
+  cyl(.075, .075, .008, M.dark, DOME.x, H - .033, DOME.z, 32);
+  { const inner = add(new THREE.Mesh(new THREE.SphereGeometry(.035, 16, 12), M.black)); inner.position.set(DOME.x, H - .07, DOME.z);
+    const lens = add(new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, .02, 16), lensCoat)); lens.position.set(DOME.x - .02, H - .085, DOME.z + .02); lens.rotation.set(.7, 0, .6);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(.07, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x0b0c0e, roughness: .03, metalness: .2, transparent: true, opacity: .72, envMapIntensity: 1.5 }));
+    dome.position.set(DOME.x, H - .036, DOME.z); dome.renderOrder = 2; room.add(dome); }
   // a ventilation grille in the ceiling and one high on the wall above the toilet
   box(.52, .02, .42, M.grille, 1.1, H - .01, 1.5); box(.56, .012, .46, M.dullSteel, 1.1, H - .003, 1.5);
   box(.4, .25, .02, M.grille, 3.3, 2.5, -D / 2 + .012); box(.44, .29, .01, M.dullSteel, 3.3, 2.5, -D / 2 + .004);
@@ -2856,7 +3251,7 @@ function loadExtinguisher(){
 // ### of several hundred (and each shadow-casting light draws every caster once more). Objects that move or can be clicked
 // ### stay separate. Runs once, after the room is built.
 function mergeStatic(){
-  const keep = new Set([mop, carKey, doorPivot, lidPivot, hale.g, hall, haleShadow, extinguisher]), groups = new Map();
+  const keep = new Set([mop, carKey, doorPivot, lidPivot, TDOOR.pivot, hale.g, hall, haleShadow, extinguisher]), groups = new Map();
   room.updateMatrixWorld(true);
   (function walk(o){
     for (const c of o.children){
@@ -2902,7 +3297,8 @@ mergeStatic();
 // ### You walk freely through the washroom in the first person: the arrow keys (or W A S D) walk, dragging the mouse or a
 // ### finger turns your head. Where you stand decides which part of the room the rules see you in (the door, the sinks or
 // ### the stall), so the markers of that part appear as you walk in. A touch screen has no arrow keys, so there the "Walk
-// ### to" buttons glide you to a spot instead; the hatch, the briefing and the endings use the same glide.
+// ### to" buttons glide you to a spot instead; the hatch, the briefing and the endings use the same glide. After Ending A
+// ### you walk on through the tunnel the same way, down to the door at its far end.
 const VIEWS = {
   intro: { pos: [0, 1.62, 2.2], look: [0, 1.4, -3] },
   door: { pos: [-.9, 1.62, 1.2], look: [1.25, .95, 3] },
@@ -2910,6 +3306,8 @@ const VIEWS = {
   stall: { pos: [3.25, 1.62, -.95], look: [2.4, .55, -2.6] },
   hatch: { pos: [2.3, 1.02, -.86], look: [2.22, .05, -1.55] },
   tunnel: { pos: [2.2, -1.98, -1.1], look: [2.2, -2.12, 5] },
+  tunnelDoor: { pos: [TUN.x, TUN.floor + 1.62, TUN.zS - .95], look: [TUN.x, TUN.floor + .9, TUN.zS] },
+  tunnelOut: { pos: [TUN.x, TUN.floor + 1.62, TUN.zS - .3], look: [TUN.x, TUN.floor + 1.45, TUN.zS + 3] },
   cell: { pos: [0, 1.62, 1.1], look: [0, 1.45, 3] },
   closing: { pos: [.5, 1.5, -.3], look: [-.05, 1.05, 3] }
 };
@@ -2959,6 +3357,10 @@ function collide(p){
     p.x = clamp(p.x, -W / 2 + BODY, W / 2 - BODY); p.z = clamp(p.z, -D / 2 + BODY, D / 2 - BODY);
   }
 }
+// ### Down in the tunnel: between its side walls, from the foot of the ladder to just before the door.
+function collideTunnel(p){
+  p.x = clamp(p.x, TUN.x - TUN.r + BODY, TUN.x + TUN.r - BODY); p.z = clamp(p.z, TUN.ladderZ + .4, TUN.zS - .75);
+}
 // ### Which part of the room a spot belongs to. You have to be well inside a new part before it counts, so walking along
 // ### a border never switches back and forth.
 function zoneAt(x, z, now){
@@ -2969,7 +3371,7 @@ function zoneAt(x, z, now){
 }
 const MOVE_KEYS = { ArrowUp: [0, 1], KeyW: [0, 1], ArrowDown: [0, -1], KeyS: [0, -1], ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0] };
 const held = new Set();
-const canWalk = () => overlay.hidden && !paused && !S.ending && S.scene !== 'intro' && cam.t >= 1;
+const canWalk = () => overlay.hidden && !paused && S.scene !== 'intro' && cam.t >= 1 && (!S.ending || (tunnelWalk && tunnelWalk.door < 0));
 // ### Walking into another part of the room tells the rules, quietly after the first visit. From the hatch you stand up first.
 const seenScenes = new Set();
 function walkInto(zone){
@@ -2994,7 +3396,7 @@ function walk(dt){
   const speed = Math.hypot(cam.vel.x, cam.vel.z);
   if (speed > .002){
     cam.pos.x += cam.vel.x * dt; cam.pos.z += cam.vel.z * dt;
-    collide(cam.pos);
+    if (tunnelWalk) collideTunnel(cam.pos); else collide(cam.pos);
     const before = Math.floor(cam.stride / .8);
     cam.stride += speed * dt;
     if (Math.floor(cam.stride / .8) !== before){
@@ -3003,11 +3405,13 @@ function walk(dt){
       if (speed > .5) step(speed);
     }
     if (len) $('lookHint').classList.add('gone');
-    const z = zoneAt(cam.pos.x, cam.pos.z, S.scene === 'hatch' ? 'stall' : S.scene);
-    if (z !== (S.scene === 'hatch' ? 'stall' : S.scene)) walkInto(z);
+    if (!tunnelWalk){
+      const z = zoneAt(cam.pos.x, cam.pos.z, S.scene === 'hatch' ? 'stall' : S.scene);
+      if (z !== (S.scene === 'hatch' ? 'stall' : S.scene)) walkInto(z);
+    }
   } else cam.vel.set(0, 0, 0);
   // stand up again after the hatch, and a gentle bob that fades in and out with the speed
-  if (S.scene !== 'hatch') cam.pos.y += (EYE - cam.pos.y) * (1 - Math.exp(-dt * 6));
+  if (S.scene !== 'hatch') cam.pos.y += (EYE + (tunnelWalk ? TUN.floor : 0) - cam.pos.y) * (1 - Math.exp(-dt * 6));
   const gait = REDUCED ? 0 : Math.min(1, speed / WALK_SPEED), steps = cam.stride / .8, kb = 1 - Math.exp(-dt * 12);
   // lowest at each footfall (when the footstep sounds), highest halfway through the step
   cam.bob += ((Math.abs(Math.sin(Math.PI * steps)) - .64) * .026 * gait * cam.stepAmp - cam.bob) * kb;
@@ -3027,7 +3431,7 @@ function updateCamera(dt){
     cam.pos.lerpVectors(cam.from.pos, camTarget.pos, e);
     // walking there with the buttons or a marker: the same footsteps, one every stride
     const moved = Math.hypot(cam.pos.x - px, cam.pos.z - pz);
-    if (dt > 0 && moved / dt > .3 && S.scene !== 'intro' && !S.ending){
+    if (dt > 0 && moved / dt > .3 && S.scene !== 'intro' && (!S.ending || tunnelWalk)){
       const before = Math.floor(cam.stride / .8); cam.stride += moved;
       if (Math.floor(cam.stride / .8) !== before) step(Math.min(WALK_SPEED, moved / dt));
     }
@@ -3293,7 +3697,7 @@ function spring(x, v, target, k, damping, dt){
 function updateHands(dt){
   if (climb && climb.hands){ climbHands(dt); return; }
   leaveLadder();
-  const show = !S.ending && hatchAnim < 0 && camera.position.y > 0;
+  const show = tunnelWalk ? !endingShown : !S.ending && hatchAnim < 0 && camera.position.y > 0;
   HANDS.down += ((show ? 0 : 1) - HANDS.down) * (1 - Math.exp(-dt * 5));
   const still = REDUCED ? 0 : 1, t = clock;
   HANDS.reach = Math.max(0, HANDS.reach - dt / .55);
@@ -3361,11 +3765,13 @@ function poseFingers(h, side, spread){
 function drawHands(){
   if (!HANDS.r.arm.visible) return;
   handScene.environment = scene.environment;
-  // down in the tunnel only the bulbs light your hands
-  const lit = 1 - clamp(-camera.position.y / 1.5, 0, 1) * .6;
+  // down in the tunnel only the bulbs light your hands, until the door lets the night in
+  const lit = 1 - clamp(-camera.position.y / 1.5, 0, 1) * .6 + nightLight.intensity * .08;
   handScene.traverse(l => { if (l.isLight){ if (l.userData.i0 === undefined) l.userData.i0 = l.intensity; l.intensity = l.userData.i0 * lit; } });
   handCam.projectionMatrix.copy(camera.projectionMatrix); handCam.projectionMatrixInverse.copy(camera.projectionMatrixInverse);
-  renderer.autoClear = false; renderer.clearDepth(); renderer.render(handScene, handCam); renderer.autoClear = true;
+  renderer.autoClear = false; renderer.clearDepth();
+  if (climb && climb.hands) renderer.render(GRIP_MASK, camera);   // on the ladder the rungs hide what wraps round behind them
+  renderer.render(handScene, handCam); renderer.autoClear = true;
 }
 
 // ---------- Hotspots: markers and clicking objects ----------
@@ -3377,21 +3783,29 @@ const ANCHORS = {
   'take:mop': [3.6, .66, 2.66], 'wedge': [.38, 1.02, 2.86], 'tap': [-3.95, 1.07, -.53],
   'read:mirror': [-3.97, 1.75, .45], 'play:mirror': [-3.97, 1.75, .45], 'read:graffiti': [1.53, 1.5, -1.9], 'play:tile': [2.62, .58, -2.97], 'take:carkey': [2.62, .58, -2.97],
   'read:scratches': [1.75, 1.3, 2.95], 'play:scratches': [1.75, 1.3, 2.95],
-  'lock': [2.2, .1, -1.1], 'go:hatch': [2.2, .06, -1.75]
+  'lock': [2.2, .1, -1.1], 'go:hatch': [2.2, .06, -1.75],
+  'open:door': [TUN.x - TDOOR.w / 2 + .2, TUN.floor + 1.3, TUN.zS - .03]
 };
 const keyOf = h => h.target ? `${h.action}:${h.target}` : h.action;
 let markerEls = [];
 const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2(), tmp = new THREE.Vector3();
-// ### Shows the markers for what can be used from here; Rules decides which those are.
+// ### What can be used down in the tunnel after Ending A: the door at its far end once you stand in front of it, and
+// ### from further away, on a touch screen, a button that walks you there.
+const nearDoor = () => cam.pos.z > TUN.zS - 1.7;
+function tunnelHotspots(){
+  if (!tunnelWalk || tunnelWalk.door >= 0) return [];
+  return [nearDoor() ? { action: 'open', target: 'door', label: 'Open the door' } : { action: 'walk', target: 'door', label: 'Walk to the door' }];
+}
+// ### Shows the markers for what can be used from here; Rules decides which those are (in the tunnel, the door does).
 function renderHotspots(){
-  const list = R.visibleHotspots(S);
+  const list = tunnelWalk ? tunnelHotspots() : R.visibleHotspots(S);
   const mk = $('markers'); mk.textContent = ''; markerEls = [];
   const go = $('goBtns'); go.textContent = '';
   for (const h of list){
     const b = document.createElement('button');
     b.type = 'button'; b.dataset.hotspot = keyOf(h); b.setAttribute('aria-label', h.label);
     b.addEventListener('click', () => { initAudio(); use(h.action, h.target); });
-    if (h.action === 'go' && h.target !== 'hatch'){ b.textContent = h.label; go.appendChild(b); continue; }
+    if ((h.action === 'go' && h.target !== 'hatch') || h.action === 'walk'){ b.textContent = h.label; go.appendChild(b); continue; }
     b.className = h.action === 'go' ? 'mk go' : 'mk'; b.innerHTML = '<i></i><span></span>'; b.querySelector('span').textContent = h.label;
     mk.appendChild(b); markerEls.push({ el: b, at: new THREE.Vector3(...(ANCHORS[keyOf(h)] || [0, 1, 0])) });
   }
@@ -3413,7 +3827,7 @@ function updateMarkers(){
 function pick(e){
   ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
-  const live = new Set(R.visibleHotspots(S).map(keyOf));
+  const live = new Set(tunnelWalk ? (tunnelWalk.door < 0 ? ['open:door'] : []) : R.visibleHotspots(S).map(keyOf));
   const meshes = Object.entries(HOT).filter(([k]) => live.has(k)).flatMap(([, ms]) => ms).filter(m => m.visible);
   const hit = raycaster.intersectObjects(meshes, false)[0];
   // a mesh can stand for more than one hotspot (the hatch lid: kneel down at it, then open the lock); the live one counts
@@ -3434,6 +3848,7 @@ function clickAt(e){
   if (!overlay.hidden || S.scene === 'intro') return;
   const k = pick(e);
   if (!k) return;
+  if (tunnelWalk){ use('open', 'door'); return; }
   const h = R.visibleHotspots(S).find(x => keyOf(x) === k);
   if (h) use(h.action, h.target);
 }
@@ -3443,6 +3858,7 @@ function clickAt(e){
 // ### rules.perform(). Accepted: the new state is kept, saved and shown. Refused: the state stays as it was, and the
 // ### player sees why.
 function use(action, target){
+  if (tunnelWalk){ if (action === 'walk') walkToDoor(); else if (action === 'open') openDoor(); return; }
   if (paused || S.ending) return;
   reachHand();
   if (action === 'lock'){ if (S.scene === 'hatch') showLock(); return; }
@@ -3451,7 +3867,7 @@ function use(action, target){
 // ### Sends an action to Rules, and shows the answer. Refused actions return the state unchanged, with a reason.
 function act(action, target, quiet){
   const before = S, r = R.perform(S, action, target);
-  cue(r.cue);
+  if (r.ok && r.cue === 'open' && r.state.ending === 'A') hatchCreak(); else cue(r.cue);
   if (!r.ok){ say(r.message, 'warn'); return r; }
   S = r.state;
   if (action !== 'new') save();
@@ -3480,7 +3896,9 @@ function syncWorld(){
   repaint(scratchesTex, paintScratches, S.clues.includes('scratches'));
   S.lock.forEach((d, i) => { if (wheelTex[i].userData !== d){ drawDigit(wheelTex[i], d); wheelTex[i].userData = d; } });
   if (!S.ending){
-    lidPivot.rotation.x = 0; tunnelLight.intensity = tunnelLight2.intensity = 0; tunnelLight.visible = tunnelLight2.visible = dust.pts.visible = false;
+    lidPivot.rotation.x = 0; tunnelLight.intensity = tunnelLight2.intensity = nightLight.intensity = 0; tunnelLight.visible = tunnelLight2.visible = nightLight.visible = dust.pts.visible = false;
+    TDOOR.pivot.rotation.y = 0; TDOOR.glow.color.setScalar(.25); TDOOR.gap.visible = true; tunnelEnd(false);
+    for (const m of TUN.webs) m.userData.torn = 0;
     for (let i = DUST_FREE; i < DUST_N; i++) dust.pos[i * 3 + 1] = -100;
     scene.fog.density = .03; scene.fog.color.copy(FOG_ROOM);
   }
@@ -3641,6 +4059,7 @@ function showMini(spot, id){
   miniSpot = spot;
   mini = MiniGames.open(card.querySelector('#miniHost'), id, {
     sound: miniSound,
+    audio: ac ? { ctx: ac, out: master, music: bandBuf } : null,
     onEnd: (won, reason) => { mini = null; if (S.ending) return; if (won) act('win', spot); else showMiniLost(spot, id, reason); }
   });
 }
@@ -3715,7 +4134,7 @@ card.addEventListener('click', e => {
   else if (d === 'resume') resumeRoom();
   else if (d === 'pause') showPause();
   else if (d === 'ask-new') showAskNew();
-  else if (d === 'new'){ paused = false; seenScenes.clear(); rulesSeen.clear(); held.clear(); hatchAnim = -1; climb = null; tileVel = 0; endingShown = false; act('new'); writeStore(R.SAVE_KEY, ''); hud.classList.add('off'); goView('intro', .8); doorFlash = 0; windowLight.intensity = .9; showBrief(0); }
+  else if (d === 'new'){ paused = false; seenScenes.clear(); rulesSeen.clear(); held.clear(); hatchAnim = -1; climb = null; tunnelWalk = null; tileVel = 0; endingShown = false; act('new'); writeStore(R.SAVE_KEY, ''); hud.classList.add('off'); goView('intro', .8); doorFlash = 0; windowLight.intensity = .9; showBrief(0); }
   else if (d === 'close') hideCard();
   else if (d === 'replay' && miniSpot) use('play', miniSpot);
   else if (d === 'mini-start' && miniSpot && miniRules){ rulesSeen.add(miniRules); use('play', miniSpot); }   // asks Rules again: the spot may have changed while you read
@@ -3769,10 +4188,15 @@ let ac = null, master = null, waterGain = null, noiseBuf = null, dripIn = 3;
 const TAP = { file: 'sounds/tap-water.mp3', loopStart: 1.08, loopEnd: 8.28, vol: .45 };
 const VENT = { file: 'sounds/air-vent.mp3', loopStart: .25, loopEnd: 9.25, vol: .12 };
 // ### The climb down the ladder: one file of short CC0 recordings (see sounds/CREDITS.md), each [start, length] in seconds:
-// ### two creaks of old wood, two knocks of a boot on a rung, a hand gripping, clothes rustling, a boot on stone.
+// ### two creaks of old wood, two knocks of a boot on a rung, a hand gripping, clothes rustling, a boot on stone. Only the
+// ### creaks are played now: the ladder under your weight and, slowed down, the hatch's hinges.
 const LADDER = { file: 'sounds/ladder.mp3', creak1: [.35, .478], creak2: [1.178, .386], rung1: [1.914, .248], rung2: [2.512, .281],
   grab: [3.143, .3], cloth: [3.793, .95], floor: [5.093, .58] };
 let ladderBuf = null, ladderBus = null;
+// ### The music of the conducting mini game: the band's recording (Bach, CC0, see sounds/CREDITS.md), loaded with the rest;
+// ### the beats in it are listed in MiniGames.COND. Until it has arrived the game plays a plain beat of its own.
+const BAND_FILE = 'sounds/orchestra.mp3';
+let bandBuf = null;
 // ### Plays one of the ladder's recordings, with the echo of the brick shaft; false while the file has not arrived.
 function ladderSound(name, vol, rate, delay){
   if (!ac || !ladderBuf) return false;
@@ -3809,6 +4233,7 @@ function initAudio(){
   loadSound(TAP.file, b => { tapBuf = b; });
   loadSound(VENT.file, startVent);
   loadSound(LADDER.file, b => { ladderBuf = b; });
+  loadSound(BAND_FILE, b => { bandBuf = b; });
   findApiVent();
   stepBus = ac.createGain(); stepBus.connect(master);
   const echo = ac.createConvolver(), echoGain = ac.createGain(); echo.buffer = washroomEcho(); echoGain.gain.value = STEP_VOL.echo;
@@ -3916,10 +4341,11 @@ function footstep(kind, vol, rate = 1){
   s.start();
   return true;
 }
-// ### One footfall where you stand: a wet one in a puddle, otherwise the concrete floor; a slow step is softer than a brisk one.
+// ### One footfall where you stand: a wet one in a puddle, otherwise the concrete floor (a little deeper on the old pavers
+// ### of the tunnel); a slow step is softer than a brisk one.
 function step(speed){
-  const brisk = .55 + .45 * Math.min(1, speed / WALK_SPEED), wet = WATER.wetAt(cam.pos.x, cam.pos.z);
-  if (!footstep(wet ? 'wet' : 'floor', STEP_VOL[wet ? 'wet' : 'floor'] * brisk)) noise(.09, .06, 'lowpass', 240);
+  const brisk = .55 + .45 * Math.min(1, speed / WALK_SPEED), wet = !tunnelWalk && WATER.wetAt(cam.pos.x, cam.pos.z);
+  if (!footstep(wet ? 'wet' : 'floor', STEP_VOL[wet ? 'wet' : 'floor'] * brisk, tunnelWalk ? .88 : 1)) noise(.09, .06, 'lowpass', 240);
 }
 // ### The washroom's echo for the footsteps: stereo noise that dies away 60 dB in 0.8 s and only slowly gets darker,
 // ### after early reflections off the concrete and tiles (7 to 31 ms).
@@ -3957,6 +4383,8 @@ function cue(name){
   if (!ac || !name) return;
   switch (name){
     case 'tick': tone(2400, .03, 'square', .03); noise(.03, .05, 'highpass', 3000); break;
+    case 'flicker': noise(.045, .07, 'highpass', 3200); tone(100, .09, 'sawtooth', .022); break;   // the tube's starter ticks
+    case 'flickerFar': noise(.04, .03, 'highpass', 3500); break;
     case 'clunk': noise(.25, .5, 'lowpass', 260); tone(90, .3, 'sine', .3, 50); break;
     case 'scrape': for (let i = 0; i < 4; i++) noise(.12, .18, 'bandpass', 2600, i * .11); break;
     case 'take': tone(660, .12, 'triangle', .12); tone(990, .16, 'triangle', .1, null, .08); break;
@@ -4024,26 +4452,94 @@ function updateCine(dt){
 // ### then go down rung by rung: one hand lets go and grabs a lower rung while the other holds on, one boot steps down
 // ### to a lower rung, then your body sinks one rung, then the other hand and the other boot. Your whole body is there:
 // ### the hands close round the rungs, the forearms run to bent elbows and up to your shoulders, and when you glance
-// ### down you see your chest, your legs and your boots on the rungs. The wood creaks under your weight, hands and boots
-// ### knock on the rungs, your clothes rustle, all with the echo of the shaft (recorded sounds, sounds/ladder.mp3). Every
+// ### down you see your chest, your legs and your boots on the rungs. The only sound is the old wood creaking under your
+// ### weight, with the echo of the shaft (recorded, sounds/ladder.mp3); the hatch creaks open on its hinges. Every
 // ### grab shakes dust off the wood, and on the way you pass Hale's note. At the bottom you let go, step onto the stone
-// ### floor and turn round to face the tunnel, then the ending card. With reduced motion you are simply down there.
+// ### floor and turn round to face the tunnel (with reduced motion you are simply down there). Then you walk through
+// ### the tunnel yourself, as in the washroom, tearing through the cobwebs across the vault, to the old plank door at
+// ### its far end; on a touch screen a button walks you there. Click the door (or its marker) when you stand in front
+// ### of it: the latch clacks, the door creaks open on its old hinges and swings out, the headlights of the car waiting
+// ### in the garage behind it shine in, and only then comes the ending card.
 // ### Ending B: the door is flung open, white corridor light floods in, then the card.
-let hatchAnim = -1, doorFlash = 0, endingShown = false, climb = null, endStep = 0;
-const CLIMB = { mount: 1.4, step: .74, steps: 8, off: 2.2, rest: .5, eye: .55 };
+let hatchAnim = -1, doorFlash = 0, endingShown = false, climb = null, endStep = 0, tunnelWalk = null;
+const CLIMB = { mount: 1.4, step: .74, steps: 8, off: 2.2, eye: .55 };
 CLIMB.eyeZ = TUN.ladderZ + .42;
 CLIMB.end = CLIMB.mount + CLIMB.steps * CLIMB.step + CLIMB.off;
-const FOG_ROOM = scene.fog.color.clone(), FOG_TUNNEL = new THREE.Color(0x15110c);
+const FOG_ROOM = scene.fog.color.clone(), FOG_TUNNEL = new THREE.Color(0x15110c), FOG_NIGHT = new THREE.Color(0x46536a);
 const easeIO = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const bump = (t, a, b) => Math.sin(Math.PI * clamp((t - a) / (b - a), 0, 1));
 // ### Where a hand holds on: the edge of the hatch frame at the top, a rung (at height y) below it.
-const gripAt = (side, y) => y > -.1 ? new THREE.Vector3(TUN.x + side * .2, .035, TUN.zN + .015) : new THREE.Vector3(TUN.x + side * .14, y, TUN.ladderZ);
+const gripAt = (side, y) => {
+  if (y > -.1) return new THREE.Vector3(TUN.x + side * .2, .035, TUN.zN + .015);
+  const r = RUNG_AT[Math.round(-y / .3)];
+  return r ? new THREE.Vector3(r.x + side * .14, r.y, r.z) : new THREE.Vector3(TUN.x + side * .14, y, TUN.ladderZ);
+};
+// ### How a hand holds on, in the world: the way the fingers point before they bend and the way the back of the hand
+// ### faces. On a rung this turns with the forearm (see climbHands); on the hatch frame the hand lies flat, fingers forward.
+const GRIP = { rung: { F: new THREE.Vector3(0, -.35, -1).normalize(), B: new THREE.Vector3(0, 1, -.35).normalize(), up: .033, back: .075, curl: .95 },
+  edge: { F: new THREE.Vector3(0, -.12, -1).normalize(), B: new THREE.Vector3(0, 1, -.12).normalize(), up: .02, back: .07, curl: .45 } };
 // ### Where a boot stands: the ankle above the rung at height y, so the sole rests on it under the ball of the foot.
 const footAt = (side, y) => new THREE.Vector3(TUN.x + side * .1, y + .113, TUN.ladderZ + .1);
 function endingA(){
-  hatchAnim = 0; endingShown = false; climb = null; $('lookHint').classList.add('gone');
-  tunnelLight.visible = tunnelLight2.visible = dust.pts.visible = true;
+  hatchAnim = 0; endingShown = false; climb = null; tunnelWalk = null; $('lookHint').classList.add('gone');
+  tunnelLight.visible = tunnelLight2.visible = nightLight.visible = dust.pts.visible = true; tunnelEnd(true);
   dustFall(70, HATCH.x, -.01, HATCH.z, HS * .9);
+}
+// ### The hatch swings open on its old hinges: a long, slow creak from the ladder's recordings played slowed down, with
+// ### the echo of the shaft below (a drawn creak until the recording has arrived).
+function hatchCreak(){
+  if (ladderSound('creak1', .6, .5)){ ladderSound('creak2', .5, .42, .55); ladderSound('creak1', .4, .62, 1.05); return; }
+  tone(105, .9, 'sawtooth', .04, 72); tone(140, .7, 'sawtooth', .025, 96, .6);
+}
+// ### The door, the garage behind it and the two webs across the vault (each its own draw call) are only drawn from the
+// ### moment the hatch opens, so while you play in the washroom they cost nothing.
+function tunnelEnd(on){
+  TDOOR.pivot.visible = TDOOR.out.visible = on;
+  for (const m of TUN.webs){ m.material.opacity = 1 - (m.userData.torn || 0); m.visible = on && !(m.userData.torn > .99); }
+}
+// ### At the foot of the ladder you are on your own feet again: the walk through the tunnel begins.
+function startTunnelWalk(){
+  climb = null; tunnelWalk = { door: -1, near: false };
+  cam.vel.set(0, 0, 0); cam.t = 1;
+  say(COARSE ? 'Down at last. The door at the far end of the tunnel: tap “Walk to the door”.' : 'Down at last. Walk through the tunnel to the door at the far end.');
+  renderHotspots();
+}
+// ### On a touch screen: walks you down the tunnel to stand in front of the door.
+function walkToDoor(){
+  if (!tunnelWalk || tunnelWalk.door >= 0 || cam.t < 1) return;
+  goView('tunnelDoor', Math.max(.8, cam.pos.distanceTo(new THREE.Vector3(...VIEWS.tunnelDoor.pos)) / 1.5));
+}
+// ### Opens the door at the end of the tunnel, but only from right in front of it.
+function openDoor(){
+  const w = tunnelWalk;
+  if (!w || w.door >= 0 || endingShown) return;
+  if (!nearDoor()){ say('The door is at the far end of the tunnel. Walk up to it first.', 'warn'); cue('nope'); return; }
+  w.door = 0; held.clear(); reachHand(); doorCreak(); renderHotspots();
+  goView('tunnelOut', 2.4);
+}
+// ### The latch clacks, then the old hinges creak long and slow as the door swings out (the ladder's creak recordings,
+// ### played slower still, with the echo of the tunnel; a drawn creak until the recording has arrived).
+function doorCreak(){
+  noise(.08, .3, 'bandpass', 1400); tone(240, .07, 'square', .025, 150);
+  if (ladderSound('creak2', .6, .56, .22)){ ladderSound('creak1', .5, .45, .75); ladderSound('creak2', .32, .5, 1.35); return; }
+  tone(118, 1.1, 'sawtooth', .04, 80, .22); tone(160, .8, 'sawtooth', .025, 104, .8);
+}
+// ### The door swings open and the car's headlights shine in, then the ending card; the cobwebs across the vault tear as you
+// ### walk through them.
+function updateTunnelWalk(){
+  const w = tunnelWalk, near = w.door < 0 && nearDoor();
+  if (near !== w.near){ w.near = near; renderHotspots(); }
+  for (const m of TUN.webs){
+    const torn = Math.max(m.userData.torn || 0, 1 - smoothStep(.2, .8, Math.abs(camera.position.z - m.position.z)));
+    if (torn !== m.userData.torn){ m.userData.torn = torn; m.material.opacity = 1 - torn; m.visible = torn < .99; }
+  }
+  if (w.door < 0) return;
+  w.door += endStep;
+  // first the latch gives with a little jolt, then the door swings out and slows as it opens
+  const o = REDUCED ? 1 : 1 - Math.pow(1 - clamp((w.door - .3) / 1.7, 0, 1), 3), jolt = REDUCED ? 0 : .02 * bump(w.door, 0, .3);
+  TDOOR.pivot.rotation.y = 1.7 * o + jolt;
+  nightLight.intensity = 3.4 * o; TDOOR.glow.color.setScalar(.25 + .75 * o); TDOOR.gap.visible = o < .05;
+  if (w.door > 2.5 && !endingShown){ endingShown = true; showEnding(); }
 }
 function endingB(){ doorFlash = 1; goView('cell', .6); setTimeout(() => { if (S.ending === 'B'){ showEnding(); } }, 1400); }
 // ### Plans the climb: at each step one hand (right, left, right ...) moves from the rung it holds to a lower one, a
@@ -4061,7 +4557,7 @@ function startClimb(){
   climb = { t: REDUCED ? CLIMB.end : 0, moves, from: { pos: cam.pos.clone(), yaw: wrapAngle(cam.yaw), pitch: cam.pitch }, hands: !REDUCED,
     grabbed: -1, landed: -1, stepped: -1, let: -1, off: 0, bodyYaw: 0, release: 0,
     hand: { r: hand(1), l: hand(-1) }, foot: { r: footAt(1, -.6), l: footAt(-1, -.9) } };
-  ladderSound('cloth', .35); ladderSound('creak2', .3, .85, .5);
+  ladderSound('creak2', .3, .85, .5);
 }
 // ### One frame of the climb: where the eye is and where it looks, where each hand and boot is, sounds and dust.
 function updateClimb(dt){
@@ -4097,16 +4593,11 @@ function updateClimb(dt){
     pose.pitch = -.5 - .22 * clamp(1 - tt / 2, 0, 1) + .05 * sw - .6 * down + .32 * note;
     pose.yaw = -s * .03 * sw - .42 * note;
     c.bodyYaw = -s * .03 * sw;
-    if (uh > .05 && c.let !== k){ c.let = k; ladderSound('cloth', .16, 1.1 + Math.random() * .2); }
     if (uh >= 1 && c.grabbed !== k){
       c.grabbed = k; dustFall(10, mover.pos.x, mover.pos.y, mover.pos.z, .1);
-      if (!ladderSound('grab', .5, .9 + Math.random() * .2)) noise(.05, .05, 'bandpass', 1500);
-      ladderSound(k % 2 ? 'rung1' : 'rung2', .1, 1.5 + Math.random() * .2, .02);   // the palm slaps the wood
     }
     if (uf >= 1 && c.stepped !== k){
       c.stepped = k; dustFall(8, x + fs * .1, m.footTo, TUN.ladderZ, .15);
-      // the boot lands on the rung: a boot on wood from the footsteps, else a knock from the ladder's own recordings
-      if (!footstep('rung', STEP_VOL.rung * 1.3, .9) && !ladderSound(k % 2 ? 'rung1' : 'rung2', .55, .8 + Math.random() * .15)) noise(.1, .1, 'lowpass', 320);
     }
     if (ed >= .6 && c.landed !== k){
       c.landed = k;
@@ -4119,9 +4610,7 @@ function updateClimb(dt){
     pose.yaw = Math.PI * easeIO(clamp((v - .2) / .8, 0, 1)); pose.pitch = -.5 + .4 * e;
     c.bodyYaw = pose.yaw;
     c.release = smoothStep(.05, .4, v);   // the hands let go and the boots step down onto the stone
-    if (c.off === 0){ c.off = 1; ladderSound('creak1', .3, .7); if (!ladderSound('floor', .6, .9)) noise(.16, .16, 'lowpass', 220); dustFall(14, x, TUN.floor + .3, C.eyeZ - .1, .4); }
-    if (c.off === 1 && v > .3){ c.off = 2; ladderSound('floor', .45, 1.05); ladderSound('cloth', .14, 1.2); }
-    if (c.off === 2 && v > .62){ c.off = 3; ladderSound('floor', .35, .95); }
+    if (c.off === 0){ c.off = 1; ladderSound('creak1', .3, .7); dustFall(14, x, TUN.floor + .3, C.eyeZ - .1, .4); }
   }
   if (REDUCED){ const v = VIEWS.tunnel, a = anglesTo(v.pos, v.look); pose.pos.fromArray(v.pos); pose.yaw = a.yaw; pose.pitch = a.pitch; pose.roll = 0; c.hands = false; }
   return pose;
@@ -4292,7 +4781,7 @@ function twoBone(root, end, a, b, pole){
   const p = pole.clone().sub(d.clone().multiplyScalar(pole.dot(d))).normalize();
   return root.clone().add(d.multiplyScalar(along)).add(p.multiplyScalar(h));
 }
-const _inv = new THREE.Matrix4(), _m4 = new THREE.Matrix4(), _qw = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _qy = new THREE.Quaternion();
+const _q2 = new THREE.Quaternion(), _inv = new THREE.Matrix4(), _m4 = new THREE.Matrix4(), _qw = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _qy = new THREE.Quaternion();
 const _hv = new THREE.Vector3(), _up = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _ax = new THREE.Vector3();
 const AXIS_X = new THREE.Vector3(1, 0, 0), AXIS_Y = new THREE.Vector3(0, 1, 0), AXIS_Z = new THREE.Vector3(0, 0, 1);
 const toCam = v => v.clone().applyMatrix4(_inv);
@@ -4329,6 +4818,16 @@ function climbHands(dt){
     // the rung sits across the palm: the wrist is a hand's breadth back along the forearm and a little to the back of the hand
     const zl = _a.copy(AXIS_Z).applyQuaternion(h.arm.quaternion), yl = _b.copy(AXIS_Y).applyQuaternion(h.arm.quaternion);
     _hv.copy(g.pos).applyMatrix4(_inv).addScaledVector(zl, .075).addScaledVector(yl, .032); _hv.y -= HANDS.down * .35;
+    // holding on, the hand is set by the rung itself: the rung across the palm at the base of the fingers, the
+    // fingers over the top and down round its far side, the knuckles along it; the wrist bends to meet the forearm
+    const grip = g.pos.y > -.1 ? GRIP.edge : GRIP.rung;
+    if (grip === GRIP.rung){
+      // a hand can turn round a rung: it lines up with the forearm (as it was a moment ago), so the wrist hardly bends
+      const d = h.toElbow || _b.set(0, -.4, 1), dyz = _a.set(0, d.y, d.z);
+      if (dyz.lengthSq() > .04){ grip.F.copy(dyz).normalize().negate(); grip.B.copy(grip.F).negate().cross(AXIS_X); }
+    }
+    h.hold = (h.hold || 0) + ((g.moving || climb.release ? 0 : 1) - (h.hold || 0)) * (1 - Math.exp(-dt * 16));
+    if (h.hold > .001) _hv.lerp(g.pos.clone().addScaledVector(grip.F, -grip.back).addScaledVector(grip.B, grip.up).applyMatrix4(_inv), h.hold);
     if (climb.release){   // at the bottom the hands let go and hang at your sides
       const hang = neck.clone().addScaledVector(right, side * .24).addScaledVector(fwd, .06).add(new THREE.Vector3(0, -.62, 0)).applyMatrix4(_inv);
       _hv.lerp(hang, climb.release); g.moving = climb.release < 1; g.curl = .35;
@@ -4346,6 +4845,7 @@ function climbHands(dt){
     const elbow = twoBone(shoulder, wristW, UPPER_ARM, FOREARM, right.clone().multiplyScalar(side * .8).add(new THREE.Vector3(0, -1, 0)).addScaledVector(fwd, -.3));
     // the forearm points to the elbow, the back of the hand faces up and towards you, the thumb a little inwards
     const elbowC = toCam(elbow);
+    h.toElbow = (h.toElbow || new THREE.Vector3()).copy(elbow).sub(wristW).normalize();
     _up.set(0, 1, 0).transformDirection(_inv).add(_ax.copy(h.p).normalize().negate());
     _m4.lookAt(elbowC, h.p, _up);
     _qw.setFromRotationMatrix(_m4).multiply(new THREE.Quaternion().setFromAxisAngle(AXIS_Z, -side * (g.moving ? .5 : .25)));
@@ -4362,7 +4862,13 @@ function climbHands(dt){
     aimJoint(ME.elbow[i], shoulder.clone().sub(elbow).cross(wristW.clone().sub(elbow)));
     if (h.wrist){
       h.wrist.rotation.set(g.moving ? .1 : -.35, 0, 0); h.wr.set(0, 0); h.wv.set(0, 0);
-      for (let f = 0; f < 5; f++) h.curl[f] += ((f === 4 ? g.curl * .75 : g.curl) - h.curl[f]) * (1 - Math.exp(-dt * 14));
+      if (h.hold > .001){
+        const z = grip.F.clone().negate(), x = grip.B.clone().cross(z);
+        _qw.setFromRotationMatrix(_m4.makeBasis(x, grip.B, z)).premultiply(_qc).premultiply(_q2.copy(h.arm.quaternion).invert());
+        h.wrist.quaternion.slerp(_qw, h.hold);
+      }
+      const curl = g.moving ? g.curl : grip.curl;
+      for (let f = 0; f < 5; f++) h.curl[f] += ((f === 4 ? curl * .75 : curl) - h.curl[f]) * (1 - Math.exp(-dt * 14));
       poseFingers(h, side, g.moving ? .12 : 0);
     }
     // the leg on this side: hip, knee bent towards the ladder, boot on its rung
@@ -4441,13 +4947,15 @@ function frame(now){
     if (hatchAnim < 1.3) shadowsMoved();
     const flick = .92 + .08 * Math.sin(clock * 23) * Math.sin(clock * 7.3);
     tunnelLight.intensity = Math.min(2.6, hatchAnim * 1.6) * flick; tunnelLight2.intensity = Math.min(1.2, hatchAnim * .7);
-    if (hatchAnim > 1.1 && !climb && cam.t >= 1) startClimb();
-    if (climb && climb.t > CLIMB.end + CLIMB.rest && !endingShown){ endingShown = true; showEnding(); }
-    // the air down there is thick with dust
+    if (hatchAnim > 1.1 && !climb && !tunnelWalk && cam.t >= 1) startClimb();
+    if (climb && climb.t >= CLIMB.end) startTunnelWalk();   // down: from here on you walk yourself
+    if (tunnelWalk) updateTunnelWalk();
+    // the air down there is thick with dust, and the night outside the door tints it cold
     const under = clamp(-camera.position.y / 1.5, 0, 1);
-    scene.fog.density = .03 + under * .07; scene.fog.color.copy(FOG_ROOM).lerp(FOG_TUNNEL, under);
+    scene.fog.density = .03 + under * .07; scene.fog.color.copy(FOG_ROOM).lerp(FOG_TUNNEL, under).lerp(FOG_NIGHT, nightLight.intensity * .1);
   }
   updateDust(dt, clock);
+  updateLights(dt);
   if (doorFlash > 0){ doorFlash = Math.max(0, doorFlash - dt * .5); windowLight.intensity = .9 + doorFlash * 8; }
   // dripping tap
   if (ac && !paused && (dripIn -= dt) < 0){ dripIn = 2.5 + Math.random() * 5; tone(1200 + Math.random() * 500, .08, 'sine', .025, 500); }

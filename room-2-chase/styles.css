@@ -586,3 +586,14 @@ body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:
 .card.result .lb-ask{font-size:16px}
 .card.result .btn{font-size:23px;padding:17px 28px;border-radius:14px}
 @media (max-width:640px){.card.result{padding:22px;gap:16px}.res-hero{grid-template-columns:1fr}.card.result p{font-size:17px}.card.result .stars svg{width:40px;height:40px}}
+
+/* ### THE GARAGE: the card to choose a vehicle sits at the top (right on a wide screen), so the vehicles and your own hands at
+   the bottom of the picture stay in view. Only the card takes clicks: everywhere else you drag to look around. */
+#overlay.garage{pointer-events:none;place-items:start end;background:none;padding-top:max(18px,env(safe-area-inset-top,0px))}
+.card.garage{pointer-events:auto;width:min(380px,100%);gap:10px;padding:16px 18px}
+.card.garage h2{font-size:22px}
+.card.garage .vtab{padding:6px 4px;font-size:12px}
+.card.garage .vtab img{max-width:96px}
+.card.garage .btn{padding:10px 14px}
+.gar-note{margin:0;color:var(--muted);font-size:13.5px;line-height:1.4;min-height:2.8em}
+@media (max-width:820px){#overlay.garage{place-items:start center}.card.garage{width:min(520px,100%);padding:12px 14px;gap:7px}.card.garage h2{font-size:18px}.card.garage .vtab img{max-width:72px}.gar-note{font-size:12.5px;min-height:0}}

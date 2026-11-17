@@ -1,4 +1,4 @@
-// Room 1: the seven Titanic mini games behind the three clue spots (the crooked tile, the mirror and the scratches).
+// Room 1: the nine Titanic mini games behind the three clue spots (the crooked tile, the mirror and the scratches).
 // ### Each game lasts at most 30 seconds and is drawn on its own (DOM buttons or a 2D canvas), with no image files.
 // ### The top of the file holds the pure helpers (dealing the games, the bots, the fleets, the differences), which the Node
 // ### tests load with require(). open() below them builds a game inside the card and reports the result through onEnd.
@@ -9,7 +9,7 @@
   'use strict';
 
   const TIME = 30;
-  // ### The seven games, in the order rules.js lists them. title and how are the words on the card above each game; goal,
+  // ### The nine games, in the order rules.js lists them. title and how are the words on the card above each game; goal,
   // ### steps, keys (mouse and keyboard) and touch (touch screen) fill the card that explains a game the first time it
   // ### comes up, before its 30 seconds start.
   const INFO = {
@@ -33,19 +33,27 @@
       goal: 'Bounce up through the ship and land on the boat deck.',
       steps: ['The sailor bounces by himself on every platform he lands on.', 'Steer him up from the engine room past the crew quarters, second class and the long first class.', 'Lifebuoys bounce you higher. Miss the platforms and fall, and you lose.'],
       keys: '← → (A D) to steer, or move the mouse.', touch: 'Slide your finger left and right.' },
-    seagull: { title: 'The <em>seagull</em>', name: 'Seagull', how: 'Fly between the icebergs and the storm clouds. Flap with Space, ↑ or a click. Pass ten gaps.',
-      goal: 'Fly the seagull through ten gaps.',
-      steps: ['The seagull flies on by itself and sinks unless you flap.', 'Fly through the gaps between the icebergs below and the storm clouds above.', 'An iceberg, a cloud or the sea ends the flight.'],
-      keys: 'Space, ↑ or W to flap, or click.', touch: 'Tap to flap.' },
+    lifeboat: { title: 'Jump for the <em>lifeboats</em>', name: 'Lifeboat jump', how: 'Jump from the stern of the sinking Titanic onto three boats, each smaller than the last. Stop the power meter with Space, ↑ or a click, steer in the air with ← →, and land as close to the lantern in the middle as you can. 180 points win.',
+      goal: 'Score 180 points in three jumps from the sinking Titanic onto the boats below.',
+      steps: ['You stand on the stern of the sinking ship. The power meter swings up and down: jump to stop it. More power flies further.', 'In the air, steer a little left or right. The lantern on its pole marks the middle of the boat.', 'Landing in the middle scores 100, on the edge 30, in the sea 0. A lifeboat, a collapsible boat and a cork raft, each smaller, and the stern rises higher every jump.'],
+      keys: 'Space, ↑ or W to jump, ← → (A D) to steer in the air.', touch: 'Tap to jump, then press the left or right half of the picture to steer.' },
     pinball: { title: 'Vintage <em>pinball</em>', name: 'Pinball', how: 'Score 1,500 points with three balls. Flippers: ← and → (A and D), Space for both, or press the left or right half of the table. The ball shoots by itself, or press Space.',
       goal: 'Score 1,500 points with three balls.',
       steps: ['The ball shoots by itself, or press Space to shoot it.', 'The pop bumpers, the slingshots, the two lifebuoy targets and the R-M-S lanes at the top all score.', 'Keep the ball from falling between the flippers.'],
-      keys: '← and → (A and D) for the flippers, Space for both.', touch: 'Press the left or right half of the table.' }
+      keys: '← and → (A and D) for the flippers, Space for both.', touch: 'Press the left or right half of the table.' },
+    hacking: { title: 'Hack the <em>engine</em>', name: 'Hacking', how: 'Break into an old control machine in the Titanic’s engine room in two parts before the firewall in its furnace locks you out. First match the engine’s wave on the indicator card, then pick the key plate that matches the master peg for peg. Every wrong guess stokes the firewall.',
+      goal: 'Finish both parts of the engine-room machine before the firewall burns up.',
+      steps: ['Part 1, the wave: change the frequency and the amplitude of your red ink line on the indicator card until it lies exactly on the dashed blue master line, then lock it.', 'Part 2, the key plate: find the one of the four brass plates whose pegs match the master key plate peg for peg, and set it.', 'The firewall burns up by itself in 16 seconds, and every wrong lock or wrong plate adds 15 %. Full means you are locked out.'],
+      keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For the key plate, ← → and Space, or click one.', touch: 'Tap the brass buttons under the wave, or tap a key plate.' },
+    conduct: { title: 'Conduct the <em>band</em>', name: 'Conducting', how: 'The Titanic is sinking and her band plays on in the first-class dining saloon. You conduct: bring the baton down on every beat of the music with Space, ↑ or a click, just as the golden ring closes. 32 beats in time win; ten beats missed or off the music and the band falls apart.',
+      goal: 'Keep the Titanic’s band in time for 32 beats.',
+      steps: ['The band plays Bach’s Brandenburg Concerto No. 3 in the tilting first-class dining saloon. The first four beats are counted in for you.', 'Bring the baton down on every beat, just as the golden ring closes on its tip. About a seventh of a second early or late still counts.', 'A beat you miss, or a beat off the music, puts the band out of time. Ten of them and it falls apart.'],
+      keys: 'Space, ↑ or W on every beat, or click.', touch: 'Tap the screen on every beat.' }
   };
   const GAMES = Object.keys(INFO);
 
   // ---------- Pure helpers ----------
-  // ### Deals three different games out of the seven. rand() returns a number from 0 (inclusive) to 1, like Math.random.
+  // ### Deals three different games out of the nine. rand() returns a number from 0 (inclusive) to 1, like Math.random.
   function pickGames(rand){
     const a = GAMES.slice();
     for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
@@ -184,7 +192,7 @@
     g.beginPath(); g.moveTo(x - 10 * s, y - up); g.quadraticCurveTo(x - 5 * s, y - 6 * s - up * .4, x, y); g.quadraticCurveTo(x + 5 * s, y - 6 * s - up * .4, x + 10 * s, y - up); g.stroke();
   }
   // ### An iceberg: a jagged white lump, darker on its shaded side. Its base sits at y. icebergPoly gives its outline, which
-  // ### is also exactly what the seagull can hit, so what you see is what counts.
+  // ### is also what the tests check the drawing against.
   function icebergPoly(x, y, w, h){
     return [[x, y], [x + w * .12, y - h * .55], [x + w * .3, y - h * .7], [x + w * .45, y - h], [x + w * .62, y - h * .62], [x + w * .8, y - h * .72], [x + w, y]];
   }
@@ -203,29 +211,6 @@
       if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
     }
     return inside;
-  }
-  // ### A stack of separate, slightly overlapping clouds above a gap whose top edge is at y = bottom. Each cloud is a few
-  // ### round puffs ({ dx, dy, r } around the cloud's centre); the lowest cloud ends exactly at bottom, the highest reaches
-  // ### past the top of the screen, and neighbouring clouds overlap, so no bird fits between them.
-  function cloudStack(bottom, rand){
-    const clouds = [];
-    let cy = bottom - 18, k = 0;
-    while (cy > -24 && k++ < 20){
-      const cx = (k % 2 ? -6 : 6) + (rand() - .5) * 8;
-      const puffs = [{ dx: 0, dy: 0, r: 18 + rand() * 3 }];
-      const n = 3 + Math.floor(rand() * 3);
-      for (let i = 0; i < n; i++){ const a = i / n * Math.PI * 2 + rand(); puffs.push({ dx: Math.cos(a) * (14 + rand() * 10), dy: Math.sin(a) * 6, r: 11 + rand() * 6 }); }
-      // shift the cloud so its lowest puff touches bottom (the first cloud) or overlaps the cloud below it a little
-      const low = Math.max(...puffs.map(p => p.dy + p.r));
-      if (!clouds.length) cy = bottom - low;
-      clouds.push({ dx: cx, dy: cy, puffs });
-      cy -= 24 + rand() * 6;
-    }
-    return clouds;
-  }
-  // ### Whether a circle (x, y, r) touches any puff of a cloud stack drawn at column x0.
-  function hitsClouds(clouds, x0, x, y, r){
-    return clouds.some(c => c.puffs.some(p => Math.hypot(x0 + c.dx + p.dx - x, c.dy + p.dy - y) < p.r * .92 + r));
   }
   // ### The night of 14 April 1912 in the North Atlantic: clear, moonless and icy cold. A sky full of stars over a black,
   // ### glassy sea, the faint northern lights that survivors remembered, and ice on the horizon. Painted once per game.
@@ -274,6 +259,8 @@
   // ---------- The games ----------
   // ### Each game is a function that gets the shell (api) and returns { update(dt), draw(), key(code, down), point(x, y, type) },
   // ### all optional. It calls api.win() or api.lose(reason) when it is decided; the shell ends it when the 30 s are up.
+  // ### A game with sound of its own may also return end() (called when it is decided) and stop() (called when it is put
+  // ### away); api.audio is the room's { ctx, out, music } or null.
   const BUILD = {};
 
   // ### 1. Battleship on two 6 x 6 grids: your liner fleet on the left, the enemy waters on the right.
@@ -1199,73 +1186,233 @@
     };
   };
 
-  // ### 6. Seagull: fly over the black, icy sea where the Titanic sank, between icebergs and clouds; the ship sails in the
-  // ### distance with all her lights on. What you can hit is what you see: the outline of each iceberg and the round puffs
-  // ### of each cloud.
-  BUILD.seagull = api => {
-    const W = 640, H = 360, SEA = 300, GAP = 128, SPEED = 175, NEED = 10, TOP = 16;
-    const c = api.canvas(W, H), g = c.getContext('2d');
-    const night = paintNight(W, H, SEA, 1415);
-    const b = { x: 150, y: 160, vy: 0, f: 0 };
-    let started = false, passed = 0, scroll = 0;
-    const pipes = [];
-    for (let i = 0; i < NEED + 2; i++){
-      const gap = 95 + api.rand() * (SEA - 95 - GAP - 30);
-      pipes.push({ x: 520 + i * 230, gap, clouds: cloudStack(gap, api.rand) });
+  // ### 6. Lifeboat jump: the Titanic goes down by the bow and her stern rises out of the sea. The player jumps from the
+  // ### stern three times, onto a lifeboat, a collapsible boat and a cork raft, each smaller and further away, and should
+  // ### land as close to the middle (the lantern) as possible. A power meter swings up and down; the jump stops it and
+  // ### sets how far you fly. In the air ← → steer a little. jumpNew(), jumpAct() and jumpStep() hold all the rules and
+  // ### are tested in Node; the build below only draws them.
+  const JUMP = { W: 640, H: 360, SEA: 292, DECK: 8, G: 430, VY: -190, VMIN: 120, VMAX: 420, STEER: 80, METER: 1.6,
+    JUMPS: 3, GOAL: 180, BEST: 100, EDGE: 30, PAUSE: 1.1, LEFT: 360, RIGHT: 620,
+    // the ship at each jump: its tilt (degrees, bow down) and how much of it is still above the sea (from the stern)
+    SHIP: { s: 1.1, x: 250, tilt: [20, 30, 40, 48], afloat: [210, 200, 190, 182] },
+    BOATS: [{ kind: 'lifeboat', name: 'Lifeboat', w: 116 }, { kind: 'collapsible', name: 'Collapsible boat', w: 80 }, { kind: 'raft', name: 'Cork raft', w: 52 }] };
+  // ### Where the ship lies at jump k (k may be a fraction while she sinks between two jumps): the angle a, the point
+  // ### (tx, ty) where her stern keel is drawn from, and the stern deck where the player stands (sx, sy). The point
+  // ### `afloat` pixels along her keel from the stern lies exactly on the sea at x = SHIP.x.
+  function jumpShip(k){
+    const { s, x, tilt, afloat } = JUMP.SHIP, i = Math.max(0, Math.min(tilt.length - 2, Math.floor(k))), f = Math.max(0, Math.min(1, k - i));
+    const a = (tilt[i] + (tilt[i + 1] - tilt[i]) * f) * Math.PI / 180, w = afloat[i] + (afloat[i + 1] - afloat[i]) * f;
+    const c = Math.cos(a), n = Math.sin(a), tx = x - s * w * c, ty = JUMP.SEA - s * w * n;
+    return { a, tx, ty, sx: tx + s * (8 * c + 41 * n), sy: ty + s * (8 * n - 41 * c) };
+  }
+  // ### The points for a landing dx from the middle of a boat w wide: 100 in the middle down to 30 on the edge, 0 in the sea.
+  function jumpPoints(dx, w){
+    const r = Math.abs(dx) / (w / 2);
+    return r > 1 ? 0 : Math.round(JUMP.EDGE + (JUMP.BEST - JUMP.EDGE) * (1 - r));
+  }
+  // ### The power meter swings from 0 to 1 and back in METER seconds.
+  function jumpPower(t){ const p = (t % JUMP.METER) / JUMP.METER; return p < .5 ? p * 2 : 2 - p * 2; }
+  function jumpNew(rand){
+    const boats = JUMP.BOATS.map((b, i) => ({ ...b, x: 380 + 20 * i + rand() * 170, vx: (rand() < .5 ? -1 : 1) * (5 + 6 * i + rand() * 6) }));
+    const st = jumpShip(0);
+    return { n: 0, total: 0, scores: [], phase: 'aim', t: 0, power: 0, boats, p: { x: st.sx, y: st.sy, vx: 0, vy: 0, dx: 0 }, wait: 0, done: null, events: [] };
+  }
+  // ### The one action: jump. Refused (false) unless the player is standing on the stern.
+  function jumpAct(s, action){
+    if (action !== 'jump' || s.phase !== 'aim' || s.done) return false;
+    const st = jumpShip(s.n);
+    s.phase = 'fly';
+    s.p = { x: st.sx, y: st.sy, vx: JUMP.VMIN + s.power * (JUMP.VMAX - JUMP.VMIN), vy: JUMP.VY, dx: 0 };
+    s.events.push('jump');
+    return true;
+  }
+  // ### Moves the game on by dt seconds. input.left / input.right steer in the air. The boats drift slowly between LEFT and
+  // ### RIGHT. The player lands when the feet come down through the top of the boat inside its width, else falls in the sea.
+  function jumpStep(s, dt, input){
+    s.events = [];
+    if (s.done) return s;
+    input = input || {};
+    for (const b of s.boats){
+      b.x += b.vx * dt;
+      if (b.x < JUMP.LEFT + b.w / 2){ b.x = JUMP.LEFT + b.w / 2; b.vx = Math.abs(b.vx); }
+      if (b.x > JUMP.RIGHT - b.w / 2){ b.x = JUMP.RIGHT - b.w / 2; b.vx = -Math.abs(b.vx); }
     }
-    const floes = Array.from({ length: 10 }, (_, i) => ({ x: i * 70 + api.rand() * 40, y: SEA + 10 + api.rand() * 50, w: 10 + api.rand() * 22 }));
-    const flap = () => { if (api.over) return; started = true; b.vy = -330; api.sound('jump'); };
-    const bergOf = (pp, x) => icebergPoly(x + 2, SEA + 6, 54, SEA + 6 - (pp.gap + GAP));
-    function drawClouds(clouds, x0){
-      for (const cl of clouds){
-        const cx = x0 + cl.dx, cy = cl.dy;
-        // the shaded underside first, then the moonless-night grey of the cloud, then a cold rim of starlight on top
-        g.fillStyle = '#3c4a5c'; for (const p of cl.puffs){ g.beginPath(); g.arc(cx + p.dx, cy + p.dy + 2, p.r, 0, 7); g.fill(); }
-        g.fillStyle = '#6a7b8f'; for (const p of cl.puffs){ g.beginPath(); g.arc(cx + p.dx, cy + p.dy, p.r - 1, 0, 7); g.fill(); }
-        g.fillStyle = 'rgba(190,210,230,.35)'; for (const p of cl.puffs){ g.beginPath(); g.arc(cx + p.dx - 2, cy + p.dy - 3, p.r * .6, 0, 7); g.fill(); }
+    const boat = s.boats[s.n], p = s.p, top = JUMP.SEA - JUMP.DECK;
+    if (s.phase === 'aim'){ s.t += dt; s.power = jumpPower(s.t); return s; }
+    if (s.phase === 'fly'){
+      p.vx += ((input.right ? 1 : 0) - (input.left ? 1 : 0)) * JUMP.STEER * dt;
+      p.vy += JUMP.G * dt;
+      const before = p.y;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (before < top && p.y >= top && Math.abs(p.x - boat.x) <= boat.w / 2){
+        const pts = jumpPoints(p.x - boat.x, boat.w);
+        p.y = top; p.dx = p.x - boat.x; s.scores.push(pts); s.total += pts; s.phase = 'landed'; s.wait = JUMP.PAUSE; s.events.push('land');
+      } else if (p.y >= JUMP.SEA + 4){
+        p.y = JUMP.SEA + 4; s.scores.push(0); s.phase = 'splash'; s.wait = JUMP.PAUSE; s.events.push('splash');
       }
+      return s;
+    }
+    // landed or in the sea: a short pause to see the result, then the next jump (or the end)
+    if (s.phase === 'landed') p.x = boat.x + p.dx;
+    s.wait -= dt;
+    if (s.wait <= 0){
+      s.n++;
+      // the end once all jumps are done, or as soon as the points can no longer be reached
+      if (s.n >= JUMP.JUMPS || s.total + JUMP.BEST * (JUMP.JUMPS - s.n) < JUMP.GOAL){ s.done = s.total >= JUMP.GOAL ? 'win' : 'lose'; return s; }
+      const st = jumpShip(s.n);
+      s.phase = 'aim'; s.t = 0; s.power = 0; s.p = { x: st.sx, y: st.sy, vx: 0, vy: 0, dx: 0 };
+      s.events.push('next');
+    }
+    return s;
+  }
+  // ### How a landing is called out above the boat.
+  const jumpWord = pts => pts >= 90 ? 'Bullseye!' : pts >= 65 ? 'Good landing' : pts > 0 ? 'On board' : 'Splash!';
+
+  BUILD.lifeboat = api => {
+    const { W, H, SEA, DECK } = JUMP, MONO = '"JetBrains Mono", monospace';
+    const c = api.canvas(W, H), g = c.getContext('2d');
+    const night = paintNight(W, H, 236, 1415);
+    const s = jumpNew(api.rand), keys = { left: false, right: false };
+    let clock = 0, shown = 0, popup = null;
+    const drops = [], ripples = [];
+    const status = () => api.status(`Jump ${Math.min(s.n + 1, JUMP.JUMPS)} of ${JUMP.JUMPS} · ${s.total} of ${JUMP.GOAL} points`);
+    const jump = () => { if (!api.over && jumpAct(s, 'jump')) api.sound('jump'); };
+    // a wooden lifeboat (white hull, varnished rail, survivors and oars), a collapsible (low, with grey canvas sides) or a
+    // cork raft (ochre blocks lashed with rope). Each has a lantern on a pole in its middle, the spot to aim for.
+    function drawBoat(b, bob){
+      const x = b.x, y = SEA + bob, hw = b.w / 2;
+      g.save();
+      g.fillStyle = 'rgba(255,214,140,.10)'; g.beginPath(); g.ellipse(x, y + 3, hw + 16, 5, 0, 0, 7); g.fill();
+      if (b.kind === 'lifeboat'){
+        g.fillStyle = '#e9e4d6'; g.beginPath(); g.moveTo(x - hw - 6, y - DECK - 2); g.lineTo(x + hw + 6, y - DECK - 2); g.quadraticCurveTo(x + hw, y + 6, x + hw - 14, y + 6); g.lineTo(x - hw + 14, y + 6); g.quadraticCurveTo(x - hw, y + 6, x - hw - 6, y - DECK - 2); g.fill();
+        g.fillStyle = '#6b3d1e'; g.fillRect(x - hw - 6, y - DECK - 3, b.w + 12, 3);
+        g.fillStyle = '#2b2f36'; for (const k of [-.7, -.45, .4, .68]){ g.beginPath(); g.arc(x + hw * k, y - DECK - 8, 4, 0, 7); g.fill(); g.fillRect(x + hw * k - 4, y - DECK - 6, 8, 4); }
+        g.strokeStyle = '#8a5a30'; g.lineWidth = 2; g.beginPath(); g.moveTo(x - hw * .6, y - DECK); g.lineTo(x - hw - 18, y + 8); g.moveTo(x + hw * .55, y - DECK); g.lineTo(x + hw + 18, y + 8); g.stroke();
+      } else if (b.kind === 'collapsible'){
+        g.fillStyle = '#7b8288'; g.fillRect(x - hw, y - DECK - 1, b.w, DECK + 6);
+        g.fillStyle = '#a7aeb2'; g.fillRect(x - hw, y - DECK - 2, b.w, 3);
+        g.strokeStyle = 'rgba(40,44,48,.6)'; g.lineWidth = 1; for (let k = 1; k < 6; k++){ const px = x - hw + b.w * k / 6; g.beginPath(); g.moveTo(px, y - DECK); g.lineTo(px, y + 4); g.stroke(); }
+        g.fillStyle = '#2b2f36'; for (const k of [-.6, .62]){ g.beginPath(); g.arc(x + hw * k, y - DECK - 7, 4, 0, 7); g.fill(); }
+      } else {
+        g.fillStyle = '#b5822f'; g.fillRect(x - hw, y - DECK, b.w, DECK + 3);
+        g.fillStyle = '#8c5f1c'; for (let k = 0; k < 5; k++) g.fillRect(x - hw + 2 + k * (b.w - 4) / 5, y - DECK + 1, (b.w - 4) / 5 - 2, DECK);
+        g.strokeStyle = '#d8c79a'; g.lineWidth = 1.2; g.beginPath();
+        for (let k = 0; k < 4; k++){ const px = x - hw + 4 + k * (b.w - 8) / 3; g.moveTo(px - 5, y - 1); g.quadraticCurveTo(px, y + 6, px + 5, y - 1); }
+        g.stroke();
+      }
+      // the lantern in the middle, and its light on the water
+      g.strokeStyle = '#3a2a1a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, y - DECK); g.lineTo(x, y - DECK - 24); g.stroke();
+      const glow = g.createRadialGradient(x, y - DECK - 27, 0, x, y - DECK - 27, 20); glow.addColorStop(0, 'rgba(255,214,120,.75)'); glow.addColorStop(1, 'rgba(255,214,120,0)');
+      g.fillStyle = glow; g.beginPath(); g.arc(x, y - DECK - 27, 20, 0, 7); g.fill();
+      g.fillStyle = '#ffe2a0'; g.fillRect(x - 3, y - DECK - 31, 6, 7); g.fillStyle = '#3a2a1a'; g.fillRect(x - 4, y - DECK - 33, 8, 2);
+      g.fillStyle = 'rgba(255,214,120,.35)'; g.fillRect(x - 1.5, y + 6, 3, 18);
+      g.restore();
+    }
+    // the player: the same sailor as on the deck run and the deck climb, feet at x, y. On the stern he crouches deeper and
+    // swings his arms back as the power rises; in the air he reaches up as he takes off, then spreads his arms and draws
+    // his knees up to land; on the boat he lands crouched; in the sea only his head, cap and waving arms are above water.
+    const POSE = {
+      stand: pw => ({ lean: .05 + .15 * pw, hipUp: 0, legs: [[.15 + .55 * pw, .3 + 1.1 * pw], [.25 + .55 * pw, .35 + 1.1 * pw]], arms: [[-.2 - 1.2 * pw, .1 - 1 * pw], [-.1 - 1.3 * pw, .2 - 1 * pw]] }),
+      land: { lean: .25, hipUp: 0, legs: [[.7, 1.4], [.9, 1.6]], arms: [[.9, 1.4], [1.1, 1.6]] },
+      swim: { lean: 0, hipUp: 0, legs: [[0, 0], [.1, .1]], arms: [[2.5, 2.9], [2.7, 3.1]] }
+    };
+    const SAILOR = .85;
+    function drawJumper(x, y, pose){
+      g.save();
+      if (pose === 'swim'){ g.beginPath(); g.rect(0, 0, W, SEA + 1); g.clip(); }
+      g.translate(x, y); g.scale(SAILOR, SAILOR);
+      drawSailorPose(g, 0, pose === 'swim' ? 36 : 0, clock, pose === 'fly' ? climbPose(s.p.vy * 3 - 200) : pose === 'stand' ? POSE.stand(s.power) : POSE[pose]);
+      g.restore();
+    }
+    // the power meter: a brass gauge next to the stern, the needle swinging from "short" to "far"
+    function drawMeter(x, y){
+      g.save(); g.translate(x, y);
+      g.fillStyle = 'rgba(10,13,15,.8)'; g.fillRect(-4, -4, 128, 34);
+      g.strokeStyle = '#c9a24a'; g.lineWidth = 1.5; g.strokeRect(-3.5, -3.5, 127, 33);
+      const gr = g.createLinearGradient(4, 0, 116, 0); gr.addColorStop(0, '#3c7a4a'); gr.addColorStop(.6, '#d0a640'); gr.addColorStop(1, '#c2412c');
+      g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(4, 14, 112, 10);
+      g.fillStyle = gr; g.fillRect(4, 14, 112 * s.power, 10);
+      g.fillStyle = '#fff'; g.fillRect(4 + 112 * s.power - 1, 11, 2, 16);
+      g.fillStyle = '#e8dcc0'; g.font = `700 9px ${MONO}`; g.fillText('POWER', 4, 9);
+      g.textAlign = 'right'; g.fillText('FAR', 116, 9); g.textAlign = 'left';
+      g.restore();
     }
     return {
-      key(code, down){ if (down && (code === 'Space' || code === 'ArrowUp' || code === 'KeyW')) flap(); },
-      point(x, y, type){ if (type === 'down') flap(); },
-      start(){ api.status(`Flap to take off. Gaps: 0 of ${NEED}`); },
+      key(code, down){
+        if (code === 'ArrowLeft' || code === 'KeyA') keys.left = down;
+        if (code === 'ArrowRight' || code === 'KeyD') keys.right = down;
+        if (down && (code === 'Space' || code === 'ArrowUp' || code === 'KeyW')) jump();
+      },
+      point(x, y, type){
+        if (type === 'down'){ if (s.phase === 'aim') jump(); else if (x < W / 2) keys.left = true; else keys.right = true; }
+        if (type === 'up'){ keys.left = keys.right = false; }
+      },
+      start(){ status(); },
       update(dt){
-        b.f += dt * (started ? 14 : 6);
-        if (!started){ b.y = 160 + Math.sin(b.f * .5) * 6; return; }
-        scroll += SPEED * dt;
-        for (const f of floes){ f.x -= SPEED * .9 * dt; if (f.x < -40) f.x += W + 80; }
-        b.vy = Math.min(520, b.vy + 1100 * dt); b.y += b.vy * dt;
-        if (b.y < TOP){ b.y = TOP; b.vy = 0; }
-        for (const pp of pipes){
-          const x = pp.x - scroll;
-          if (!pp.done && x + 50 < b.x){ pp.done = true; passed++; api.sound('tick'); api.status(`Gaps: ${passed} of ${NEED}`); if (passed >= NEED) return api.win('Ten gaps. The seagull is through.'); }
-          if (x > b.x + 60 || x < b.x - 80) continue;
-          const poly = bergOf(pp, x);
-          const hitIce = [[0, 0], [7, 0], [-7, 0], [0, 5], [0, -5], [5, 4], [-5, 4]].some(([dx, dy]) => inPoly(poly, b.x + dx, b.y + dy));
-          if (hitIce || hitsClouds(pp.clouds, x + 25, b.x, b.y, 6)) return api.lose('The seagull crashed.');
+        clock += dt;
+        jumpStep(s, dt, keys);
+        for (const e of s.events){
+          if (e === 'land'){ const pts = s.scores[s.scores.length - 1]; api.sound(pts >= 90 ? 'bell' : 'good'); popup = { x: s.boats[s.n].x, t: 0, pts }; status(); }
+          if (e === 'splash'){
+            api.sound('splash'); popup = { x: s.p.x, t: 0, pts: 0 }; status();
+            for (let k = 0; k < 18; k++) drops.push({ x: s.p.x, y: SEA, vx: (api.rand() - .5) * 140, vy: -80 - api.rand() * 160, t: 0 });
+            ripples.push({ x: s.p.x, t: 0 });
+          }
+          if (e === 'next') status();
         }
-        if (b.y > SEA - 4) api.lose('The seagull fell into the icy sea.');
+        // the ship sinks a little further during the pause after each jump
+        const target = s.phase === 'landed' || s.phase === 'splash' ? s.n + 1 - Math.max(0, s.wait) / JUMP.PAUSE : s.n;
+        shown = Math.min(JUMP.SHIP.tilt.length - 1, target);
+        for (const d of drops){ d.t += dt; d.vy += 500 * dt; d.x += d.vx * dt; d.y += d.vy * dt; }
+        for (let k = drops.length - 1; k >= 0; k--) if (drops[k].y > SEA + 2 && drops[k].t > .1) drops.splice(k, 1);
+        for (const r of ripples) r.t += dt;
+        if (popup) popup.t += dt;
+        if (s.done === 'win') return api.win(`${s.total} points. Safe in the boats.`);
+        if (s.done === 'lose') return api.lose(s.scores.every(p => p === 0) ? 'Three times into the icy sea.' : `Only ${s.total} of ${JUMP.GOAL} points.`);
       },
       draw(){
         g.drawImage(night, 0, 0, W, H);
-        // the Titanic far away with all her lights on, drifting slowly
-        g.save(); g.globalAlpha = .9;
-        drawTitanic(g, ((380 - scroll * .08) % (W + 330) + W + 330) % (W + 330) - 300, SEA - 1, .9, { lights: true });
-        g.fillStyle = 'rgba(4,10,20,.45)'; g.fillRect(0, 150, W, SEA - 150);   // the night over the ship
+        // the boats already rowing away on the horizon
+        for (let k = 0; k < 6; k++){ const bx = 330 + k * 52 + Math.sin(clock * .3 + k) * 3; g.fillStyle = 'rgba(20,24,30,.9)'; g.fillRect(bx, 233, 14, 3); g.fillStyle = 'rgba(255,214,120,.8)'; g.fillRect(bx + 6, 229, 2, 2); }
+        // the Titanic, bow under, stern high, all her lights still burning; only the part above the sea is drawn
+        const sh = jumpShip(shown);
+        g.save(); g.beginPath(); g.rect(0, 0, W, SEA); g.clip();
+        g.translate(sh.tx, sh.ty); g.rotate(sh.a); drawTitanic(g, 0, 0, JUMP.SHIP.s, { lights: true });
         g.restore();
-        // reflections of the ship's lights and floating ice
-        for (const f of floes){ g.fillStyle = 'rgba(225,240,250,.75)'; g.beginPath(); g.ellipse(f.x, f.y, f.w, f.w * .18, 0, 0, 7); g.fill(); g.fillStyle = 'rgba(120,170,200,.4)'; g.fillRect(f.x - f.w * .6, f.y + 1, f.w * 1.2, 1); }
-        for (const pp of pipes){
-          const x = pp.x - scroll; if (x < -80 || x > W + 60) continue;
-          drawClouds(pp.clouds, x + 25);
-          const poly = bergOf(pp, x), top = pp.gap + GAP;
-          // the much bigger part of the iceberg under the water, then the part you can hit
-          g.fillStyle = 'rgba(120,180,210,.18)'; g.beginPath(); g.moveTo(x - 10, SEA + 6); g.lineTo(x + 66, SEA + 6); g.lineTo(x + 50, H); g.lineTo(x + 4, H); g.fill();
-          drawIceberg(g, x + 2, SEA + 6, 54, SEA + 6 - top);
-          g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(poly[3][0] - 1, poly[3][1] + 2, 2, 6);
+        // the foam where she goes in
+        g.strokeStyle = 'rgba(235,245,255,.7)'; g.lineWidth = 1.5; g.beginPath();
+        for (let k = 0; k < 5; k++){ const fx = JUMP.SHIP.x - 30 + k * 16 + Math.sin(clock * 3 + k) * 3; g.moveTo(fx, SEA + 1); g.lineTo(fx + 10, SEA + 1); }
+        g.stroke();
+        // the sea in front: black glass with long swells
+        g.fillStyle = 'rgba(2,8,16,.55)'; g.fillRect(0, SEA, W, H - SEA);
+        g.strokeStyle = 'rgba(150,190,220,.12)'; g.lineWidth = 1;
+        for (let k = 0; k < 6; k++){ const y = SEA + 8 + k * 11; g.beginPath(); for (let x = 0; x <= W; x += 20) g.lineTo(x, y + Math.sin(x / 40 + clock * 1.5 + k) * 1.5); g.stroke(); }
+        // the boat of this jump (the others are already out of reach)
+        const boat = s.boats[Math.min(s.n, JUMP.JUMPS - 1)], bob = Math.sin(clock * 2.2) * 1.5;
+        drawBoat(boat, bob);
+        for (const r of ripples){ if (r.t > 1.4) continue; g.strokeStyle = `rgba(220,235,250,${.6 * (1 - r.t / 1.4)})`; g.lineWidth = 1.2; g.beginPath(); g.ellipse(r.x, SEA + 2, 8 + r.t * 40, 2 + r.t * 6, 0, 0, 7); g.stroke(); }
+        // the player
+        const p = s.p;
+        if (s.phase === 'aim'){ drawJumper(sh.sx + 6, sh.sy, 'stand'); drawMeter(sh.sx + 30, Math.max(8, sh.sy - 70)); }
+        else if (s.phase === 'fly') drawJumper(p.x, p.y, 'fly');
+        else if (s.phase === 'landed') drawJumper(p.x, p.y + bob, 'land');
+        else drawJumper(p.x, SEA + 4, 'swim');
+        g.fillStyle = 'rgba(225,240,255,.85)'; for (const d of drops){ g.beginPath(); g.arc(d.x, d.y, 1.6, 0, 7); g.fill(); }
+        // the score of the last landing, rising over the boat
+        if (popup && popup.t < 1.4){
+          g.globalAlpha = Math.min(1, 2 * (1.4 - popup.t));
+          g.textAlign = 'center'; g.font = `700 15px ${MONO}`;
+          g.fillStyle = popup.pts >= 90 ? '#ffd27a' : popup.pts ? '#bfe8c4' : '#ff8a70';
+          g.fillText(popup.pts ? `+${popup.pts} ${jumpWord(popup.pts)}` : jumpWord(0), Math.max(80, Math.min(W - 80, popup.x)), SEA - 64 - popup.t * 20);
+          g.textAlign = 'left'; g.globalAlpha = 1;
         }
-        drawGull(g, b.x, b.y, 1.8, b.f, '#ffffff');
-        g.fillStyle = '#f2b134'; g.beginPath(); g.moveTo(b.x + 3, b.y - 1); g.lineTo(b.x + 9, b.y + 1); g.lineTo(b.x + 3, b.y + 3); g.fill();
+        // the panel: which boat, and the points so far
+        g.fillStyle = 'rgba(10,13,15,.78)'; g.fillRect(W - 236, 8, 228, 46);
+        g.fillStyle = '#ff7a1a'; g.font = `700 12px ${MONO}`;
+        g.fillText(`JUMP ${Math.min(s.n + 1, JUMP.JUMPS)}/${JUMP.JUMPS} · ${boat.name.toUpperCase()}`, W - 228, 25);
+        g.fillStyle = '#e8dcc0';
+        g.fillText(`POINTS ${String(s.total).padStart(3, ' ')} / ${JUMP.GOAL}`, W - 228, 44);
+        for (let k = 0; k < JUMP.JUMPS; k++){ g.fillStyle = k < s.scores.length ? (s.scores[k] ? '#7fd08a' : '#e0563b') : 'rgba(255,255,255,.25)'; g.fillRect(W - 36 + k * 9, 36, 6, 8); }
       }
     };
   };
@@ -1580,9 +1727,636 @@
     return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
   }
 
+  // ### 8. Hacking: break into an old control machine in the Titanic's engine room before the firewall in its furnace locks
+  // ### you out. Two parts, each played once: match the engine's beat on the indicator card (its frequency and its
+  // ### amplitude), then pick the key plate whose brass pegs match the master plate. The firewall burns up by itself and
+  // ### every wrong lock or wrong plate stokes it. hackNew(), hackAct() and hackStep() hold all the rules and are tested in
+  // ### Node; BUILD.hacking only draws them and turns keys, clicks and taps into actions.
+  const HACK = { W: 640, H: 360, LAYERS: ['wave', 'fragment'], FREQS: 7, AMPS: 5, FILL: 1 / 16, WRONG: .15,
+    GRID: 6, FLIPS: 2, SPEED: 2.2, OPTIONS: 4 };
+  // ### A key fragment: an n x n grid of bits, about half of them set, never fewer than a third.
+  function hackPattern(n, rand){
+    for (;;){
+      const p = Array.from({ length: n * n }, () => rand() < .45 ? 1 : 0), on = p.reduce((a, b) => a + b, 0);
+      if (on >= n * n / 3 && on <= n * n * .6) return p;
+    }
+  }
+  // ### The four fragments to choose from: the right one and three decoys, each with `flips` cells changed, all different.
+  function hackOptions(target, flips, rand){
+    const opts = [target.slice()], key = p => p.join('');
+    while (opts.length < HACK.OPTIONS){
+      const d = target.slice(), cells = new Set();
+      while (cells.size < flips) cells.add(Math.floor(rand() * d.length));
+      cells.forEach(i => { d[i] = 1 - d[i]; });
+      if (!opts.some(o => key(o) === key(d))) opts.push(d);
+    }
+    for (let i = opts.length - 1; i > 0; i--){ const j = Math.floor(rand() * (i + 1)); [opts[i], opts[j]] = [opts[j], opts[i]]; }
+    return { options: opts, answer: opts.findIndex(o => key(o) === key(target)) };
+  }
+  // ### A new break-in. The wave starts with your frequency and amplitude both off the target; the key plate part starts
+  // ### with the first plate selected.
+  function hackNew(rand){
+    const layers = HACK.LAYERS.map(kind => {
+      if (kind === 'wave'){
+        const tf = 2 + Math.floor(rand() * (HACK.FREQS - 1)), ta = 1 + Math.floor(rand() * HACK.AMPS);
+        let f, a;
+        do f = 1 + Math.floor(rand() * HACK.FREQS); while (f === tf);
+        do a = 1 + Math.floor(rand() * HACK.AMPS); while (a === ta);
+        return { kind, tf, ta, f, a, speed: HACK.SPEED };
+      }
+      const n = HACK.GRID, target = hackPattern(n, rand);
+      return { kind, n, target, sel: 0, ...hackOptions(target, HACK.FLIPS, rand) };
+    });
+    return { layers, layer: 0, fire: 0, won: false, lost: false, events: [] };
+  }
+  // ### How close your wave is to the target: 1 is a perfect match, 0 is as far off as it gets.
+  function hackSync(w){
+    return 1 - (Math.abs(w.f - w.tf) / (HACK.FREQS - 1) + Math.abs(w.a - w.ta) / (HACK.AMPS - 1)) / 2;
+  }
+  // ### One action of the player: 'freq+', 'freq-', 'amp+', 'amp-' and 'lock' on a wave layer; 'left', 'right', 'lock'
+  // ### (take the selected fragment) or a number (take that fragment) on a fragment layer. A right lock opens the layer,
+  // ### a wrong one feeds the firewall. Returns true when the action was taken. Sounds are left in s.events.
+  function hackAct(s, action){
+    if (s.won || s.lost) return false;
+    const L = s.layers[s.layer], clamp = (v, max) => Math.max(1, Math.min(max, v));
+    let right = null;
+    if (L.kind === 'wave'){
+      if (action === 'freq+' || action === 'freq-'){ const f = clamp(L.f + (action === 'freq+' ? 1 : -1), HACK.FREQS); if (f === L.f) return false; L.f = f; s.events.push('tick'); return true; }
+      if (action === 'amp+' || action === 'amp-'){ const a = clamp(L.a + (action === 'amp+' ? 1 : -1), HACK.AMPS); if (a === L.a) return false; L.a = a; s.events.push('tick'); return true; }
+      if (action !== 'lock') return false;
+      right = L.f === L.tf && L.a === L.ta;
+    } else {
+      if (action === 'left' || action === 'right'){ L.sel = (L.sel + (action === 'right' ? 1 : HACK.OPTIONS - 1)) % HACK.OPTIONS; s.events.push('tick'); return true; }
+      if (typeof action === 'number' && action >= 0 && action < HACK.OPTIONS) L.sel = action;
+      else if (action !== 'lock') return false;
+      right = L.sel === L.answer;
+    }
+    if (right){
+      s.layer++; s.events.push('good');
+      if (s.layer >= s.layers.length){ s.won = true; s.layer = s.layers.length - 1; }
+    } else {
+      s.fire = Math.min(1, s.fire + HACK.WRONG); s.events.push('bad');
+      if (s.fire >= 1) s.lost = true;
+    }
+    return true;
+  }
+  // ### The firewall grows on its own: from empty to full in 16 seconds, well within the 30 s of the clock.
+  function hackStep(s, dt){
+    if (s.won || s.lost) return;
+    s.fire = Math.min(1, s.fire + HACK.FILL * dt);
+    if (s.fire >= 1) s.lost = true;
+  }
+
+  const HACK_FONT = '"Big Shoulders Display", "Arial Narrow", sans-serif';
+  // ### The engine-room machine, painted once: a riveted steel panel gone dark with oil and soot, a brass trim, the brass
+  // ### nameplate, the frame of the furnace that holds the firewall, and the bezels of the two lamps, one for each part.
+  const BRASS = ['#f1d88f', '#c9a14f', '#8a6424'];
+  function brassPlate(g, x, y, w, h){
+    const b = g.createLinearGradient(0, y, 0, y + h); b.addColorStop(0, BRASS[0]); b.addColorStop(.5, BRASS[1]); b.addColorStop(1, BRASS[2]);
+    g.fillStyle = b; g.fillRect(x, y, w, h);
+    g.strokeStyle = '#4a3410'; g.lineWidth = 1.5; g.strokeRect(x + .75, y + .75, w - 1.5, h - 1.5);
+    g.strokeStyle = 'rgba(255,245,210,.55)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x + 2, y + 2.5); g.lineTo(x + w - 2, y + 2.5); g.stroke();
+  }
+  function rivet(g, x, y, r){
+    const k = g.createRadialGradient(x - r * .4, y - r * .4, r * .1, x, y, r);
+    k.addColorStop(0, '#9a8f80'); k.addColorStop(.6, '#4d463d'); k.addColorStop(1, '#1d1a16');
+    g.fillStyle = k; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  function paintEngine(g){
+    const { W, H } = HACK, r = seq(46);
+    const st = g.createLinearGradient(0, 0, 0, H); st.addColorStop(0, '#2c2924'); st.addColorStop(1, '#141210');
+    g.fillStyle = st; g.fillRect(0, 0, W, H);
+    // brushed steel, oil stains and soot
+    for (let i = 0; i < 160; i++){ g.strokeStyle = `rgba(255,255,255,${.012 + r() * .025})`; g.lineWidth = 1; const x = r() * W, y = r() * H; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 30 + r() * 90, y); g.stroke(); }
+    for (let i = 0; i < 9; i++){ const x = r() * W, y = r() * H, rr = 20 + r() * 50, k = g.createRadialGradient(x, y, 0, x, y, rr); k.addColorStop(0, 'rgba(0,0,0,.28)'); k.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = k; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+    // brass trim and the rivets along it
+    const tb = g.createLinearGradient(0, 0, W, H); tb.addColorStop(0, BRASS[0]); tb.addColorStop(.5, BRASS[2]); tb.addColorStop(1, BRASS[1]);
+    g.strokeStyle = tb; g.lineWidth = 5; g.strokeRect(2.5, 2.5, W - 5, H - 5);
+    g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 1; g.strokeRect(6, 6, W - 12, H - 12);
+    for (let x = 16; x < W - 8; x += 32){ rivet(g, x, 12, 2.6); rivet(g, x, H - 12, 2.6); }
+    for (let y = 44; y < H - 20; y += 32){ rivet(g, 12, y, 2.6); rivet(g, W - 12, y, 2.6); }
+    // the nameplate, engraved
+    brassPlate(g, 22, 18, 262, 22);
+    g.fillStyle = '#3a2808'; g.font = `700 14px ${HACK_FONT}`; g.textBaseline = 'middle'; g.textAlign = 'center';
+    g.fillText('R.M.S. TITANIC · ENGINE ROOM CONTROL', 153, 30); g.textAlign = 'left';
+    // the bezels of the two part lamps
+    for (let i = 0; i < HACK.LAYERS.length; i++){ const x = 36 + i * 30; g.fillStyle = BRASS[2]; g.beginPath(); g.arc(x, 56, 12, 0, 7); g.fill(); g.strokeStyle = BRASS[0]; g.lineWidth = 1.5; g.beginPath(); g.arc(x, 56, 11, Math.PI * .9, Math.PI * 1.7); g.stroke(); }
+    // the furnace: an iron firebox with a brass label plate
+    brassPlate(g, 476, 18, 142, 22);
+    g.fillStyle = '#0d0b09'; g.fillRect(160, 46, 458, 22);
+    g.strokeStyle = '#5b5248'; g.lineWidth = 2; g.strokeRect(159, 45, 460, 24);
+  }
+
+  BUILD.hacking = api => {
+    const { W, H } = HACK, MONO = '"JetBrains Mono", monospace', FONT = HACK_FONT;
+    const c = api.canvas(W, H), g = c.getContext('2d');
+    const s = hackNew(api.rand);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const panel = document.createElement('canvas'); panel.width = W * dpr; panel.height = H * dpr;
+    const pg = panel.getContext('2d'); pg.scale(dpr, dpr); paintEngine(pg);
+    let t = 0, flash = 0, shake = 0, lastLayer = 0;
+    // the five brass buttons under the indicator card, also clickable with the mouse; the four key plates beside the master
+    const BTN = [['freq-', '◀ FREQ'], ['freq+', 'FREQ ▶'], ['amp-', '▼ AMP'], ['amp+', 'AMP ▲'], ['lock', 'LOCK']]
+      .map(([act, label], i) => ({ act, label, x: 36 + i * 116, y: 300, w: 104, h: 42 }));
+    const fragBox = (L, i) => { const cell = L.n === 5 ? 18 : 15, size = cell * L.n; return { x: 204 + i * (size + 18), y: 132, cell, size }; };
+    const inBox = (x, y, b, w, h) => x >= b.x && x <= b.x + w && y >= b.y && y <= b.y + h;
+    const layerName = L => L.kind === 'wave' ? 'match the engine’s indicator wave' : 'pick the matching key plate';
+    const status = () => api.status(`Part ${s.layer + 1} of ${s.layers.length}: ${layerName(s.layers[s.layer])}`);
+    function play(){
+      for (const e of s.events) api.sound(e);
+      s.events.length = 0;
+      if (s.layer !== lastLayer){ lastLayer = s.layer; flash = .6; status(); }
+      if (s.won) return api.win('Both parts are done. The engine is yours.');
+      if (s.lost) return api.lose('The firewall locked you out.');
+    }
+    function act(a){ const before = s.fire; if (hackAct(s, a) && s.fire > before) shake = .35; play(); }
+    // ### A line of ink on the indicator card, as the pen of a steam-engine indicator draws it on its paper drum.
+    function wave(L, f, a, color, dashed, width){
+      g.save(); g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dashed ? [7, 6] : []); g.lineCap = 'round';
+      g.beginPath();
+      for (let x = 0; x <= 560; x += 3){ const y = 190 - a * 14 * Math.sin(Math.PI * 2 * f * x / 560 + t * L.speed); x ? g.lineTo(40 + x, y) : g.moveTo(40 + x, y); }
+      g.stroke(); g.restore();
+    }
+    // ### A key plate: a steel plate with brass pegs where the pattern is set and dark holes where it is not.
+    function plate(bits, n, x, y, cell, sel){
+      g.fillStyle = '#3a3631'; g.fillRect(x - 3, y - 3, cell * n + 6, cell * n + 6);
+      for (let i = 0; i < n * n; i++){
+        const cx = x + (i % n + .5) * cell, cy = y + (Math.floor(i / n) + .5) * cell, r = cell * .36;
+        if (bits[i]){
+          const k = g.createRadialGradient(cx - r * .35, cy - r * .35, r * .1, cx, cy, r);
+          k.addColorStop(0, sel ? '#fff1c4' : '#f6dc93'); k.addColorStop(.55, sel ? '#e7b35a' : BRASS[1]); k.addColorStop(1, '#5a3f12');
+          g.fillStyle = k; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+        } else { g.fillStyle = '#121010'; g.beginPath(); g.arc(cx, cy, r * .5, 0, 7); g.fill(); }
+      }
+    }
+    // a frame of brass around something on the panel
+    const frame = (x, y, w, h, color) => { g.strokeStyle = color || BRASS[1]; g.lineWidth = 3; g.strokeRect(x, y, w, h); g.strokeStyle = 'rgba(0,0,0,.5)'; g.lineWidth = 1; g.strokeRect(x + 2.5, y + 2.5, w - 5, h - 5); };
+    function engraved(text, x, y, size, align, color){
+      g.font = `700 ${size}px ${FONT}`; g.textAlign = align || 'left';
+      g.fillStyle = 'rgba(0,0,0,.6)'; g.fillText(text, x + 1, y + 1);
+      g.fillStyle = color || BRASS[0]; g.fillText(text, x, y); g.textAlign = 'left';
+    }
+    return {
+      key(code, down){
+        if (!down) return;
+        const L = s.layers[s.layer];
+        const map = L.kind === 'wave'
+          ? { ArrowLeft: 'freq-', KeyA: 'freq-', ArrowRight: 'freq+', KeyD: 'freq+', ArrowUp: 'amp+', KeyW: 'amp+', ArrowDown: 'amp-', KeyS: 'amp-', Space: 'lock' }
+          : { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'lock' };
+        if (map[code]) act(map[code]);
+      },
+      point(x, y, type){
+        if (type !== 'down') return;
+        const L = s.layers[s.layer];
+        if (L.kind === 'wave'){ const b = BTN.find(b => inBox(x, y, b, b.w, b.h)); if (b) act(b.act); return; }
+        for (let i = 0; i < HACK.OPTIONS; i++){ const b = fragBox(L, i); if (inBox(x, y, { x: b.x - 6, y: b.y - 6 }, b.size + 12, b.size + 30)) return act(i); }
+      },
+      start(){ status(); },
+      update(dt){
+        t += dt; flash = Math.max(0, flash - dt); shake = Math.max(0, shake - dt);
+        hackStep(s, dt); play();
+      },
+      draw(){
+        const L = s.layers[s.layer];
+        g.save();
+        if (shake > 0) g.translate((Math.random() - .5) * shake * 18, 0);
+        g.fillStyle = '#141210'; g.fillRect(-20, 0, W + 40, H);
+        g.drawImage(panel, 0, 0, W, H);
+        g.textBaseline = 'middle';
+        // the two part lamps: dark glass, amber and blinking for the part you are on, green once it is done
+        for (let i = 0; i < s.layers.length; i++){
+          const open = i < s.layer || s.won, cur = i === s.layer && !s.won, x = 36 + i * 30, lit = open || (cur && Math.floor(t * 3) % 2 === 0);
+          const k = g.createRadialGradient(x - 3, 53, 1, x, 56, 9);
+          k.addColorStop(0, open ? '#d9ffd0' : lit ? '#ffe7a8' : '#4a3a2a'); k.addColorStop(1, open ? '#2f8a3c' : lit ? '#d0781c' : '#1a1410');
+          g.fillStyle = k; g.beginPath(); g.arc(x, 56, 9, 0, 7); g.fill();
+          if (lit){ g.fillStyle = open ? 'rgba(90,220,110,.18)' : 'rgba(255,170,60,.2)'; g.beginPath(); g.arc(x, 56, 15, 0, 7); g.fill(); }
+        }
+        // the firewall: the fire in the furnace, burning up from the left; at full it locks you out
+        g.textBaseline = 'middle';
+        g.font = `700 14px ${FONT}`; g.fillStyle = '#5a0e08'; g.textAlign = 'center'; g.fillText(`FIREWALL ${Math.round(s.fire * 100)} %`, 547, 30); g.textAlign = 'left';
+        const fx = 162, fw = 454, n = 23, hot = s.fire > .75;
+        for (let i = 0; i < n; i++){
+          const x = fx + i * (fw / n), w = fw / n - 3, on = (i + 1) / n <= s.fire + 1e-9, part = !on && i / n < s.fire;
+          if (!on && !part){ g.fillStyle = '#1f1a16'; g.fillRect(x, 48, w, 18); continue; }
+          const flick = .75 + .25 * Math.sin(t * 13 + i * 2.1) * Math.sin(t * 7.3 + i);
+          const k = g.createLinearGradient(0, 66, 0, 48);
+          k.addColorStop(0, '#ffdf6a'); k.addColorStop(.45, hot ? '#ff5a1e' : '#f06a1a'); k.addColorStop(1, '#7a1408');
+          g.globalAlpha = part ? .45 : flick; g.fillStyle = k; g.fillRect(x, 48, w, 18); g.globalAlpha = 1;
+        }
+        if (hot){ g.fillStyle = `rgba(255,90,30,${.06 + .05 * Math.sin(t * 9)})`; g.fillRect(0, 0, W, H); }
+        if (L.kind === 'wave'){
+          const sync = hackSync(L);
+          // the indicator card on its brass drum: cream paper with a sepia grid
+          frame(32, 102, 576, 176);
+          g.fillStyle = '#efe3c2'; g.fillRect(36, 106, 568, 168);
+          g.strokeStyle = 'rgba(150,110,50,.35)'; g.lineWidth = 1;
+          for (let x = 40; x <= 600; x += 40){ g.beginPath(); g.moveTo(x, 110); g.lineTo(x, 270); g.stroke(); }
+          for (let y = 110; y <= 270; y += 20){ g.beginPath(); g.moveTo(40, y); g.lineTo(600, y); g.stroke(); }
+          g.strokeStyle = 'rgba(150,110,50,.6)'; g.beginPath(); g.moveTo(40, 190); g.lineTo(600, 190); g.stroke();
+          wave(L, L.tf, L.ta, '#23407a', true, 2.2);
+          wave(L, L.f, L.a, sync === 1 ? '#22703a' : '#b3261e', false, 2.6);
+          engraved('- - MASTER LINE', 36, 86, 15, 'left', '#9fb8e6');
+          engraved(`── YOUR ENGINE  F${L.f} A${L.a}`, 170, 86, 15, 'left', '#ef8a7a');
+          engraved(`SYNC ${Math.round(sync * 100)} %${sync === 1 ? ' · LOCK IT' : ''}`, 604, 86, 15, 'right', sync === 1 ? '#8fe39a' : BRASS[0]);
+          for (const b of BTN){
+            const lock = b.act === 'lock';
+            if (lock){
+              // the lock lever has a red enamel plate, green once the lines match
+              g.fillStyle = sync === 1 ? '#2a6a36' : '#7e1a14'; g.fillRect(b.x, b.y, b.w, b.h);
+              g.strokeStyle = BRASS[1]; g.lineWidth = 3; g.strokeRect(b.x + 1.5, b.y + 1.5, b.w - 3, b.h - 3);
+              engraved(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1, 19, 'center', '#f6dc93');
+            } else {
+              brassPlate(g, b.x, b.y, b.w, b.h);
+              g.font = `700 18px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#3a2808'; g.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1); g.textAlign = 'left';
+            }
+            for (const [rx, ry] of [[6, 6], [b.w - 6, 6], [6, b.h - 6], [b.w - 6, b.h - 6]]) rivet(g, b.x + rx, b.y + ry, 1.8);
+          }
+        } else {
+          const big = L.n === 5 ? 24 : 20, tx = 40, ty = 120;
+          engraved('MASTER KEY PLATE', tx - 4, 98, 15, 'left', '#9fb8e6');
+          frame(tx - 8, ty - 8, big * L.n + 16, big * L.n + 16, '#7d97c8');
+          plate(L.target, L.n, tx, ty, big, false);
+          engraved('WHICH PLATE MATCHES PEG FOR PEG?', 200, 98, 15);
+          for (let i = 0; i < HACK.OPTIONS; i++){
+            const b = fragBox(L, i), sel = i === L.sel;
+            if (sel){ g.fillStyle = 'rgba(255,170,60,.18)'; g.fillRect(b.x - 10, b.y - 10, b.size + 20, b.size + 20); }
+            frame(b.x - 7, b.y - 7, b.size + 14, b.size + 14, sel ? '#ffb347' : BRASS[2]);
+            plate(L.options[i], L.n, b.x, b.y, b.cell, sel);
+            brassPlate(g, b.x + b.size / 2 - 11, b.y + b.size + 10, 22, 16);
+            g.font = `700 13px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#3a2808'; g.fillText(String.fromCharCode(65 + i), b.x + b.size / 2, b.y + b.size + 18.5); g.textAlign = 'left';
+          }
+          engraved('← → TO CHOOSE · SPACE OR CLICK TO SET THE PLATE', 200, 300, 15, 'left', BRASS[1]);
+        }
+        // steam leaking from the old machine, rising slowly from the bottom
+        for (let k = 0; k < 7; k++){
+          const p = (t * .18 + k / 7) % 1, x = 30 + k * 96 + Math.sin(t * .7 + k) * 14, y = H - 10 - p * 150, r = 10 + p * 34;
+          g.fillStyle = `rgba(235,235,230,${.07 * (1 - p)})`; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+        }
+        // a layer just opened, or the whole machine
+        if (flash > 0 || s.won){
+          g.fillStyle = `rgba(255,214,120,${s.won ? .12 : flash * .2})`; g.fillRect(0, 76, W, H - 76);
+          brassPlate(g, W / 2 - 160, 168, 320, 60);
+          g.fillStyle = '#2c1e06'; g.font = `800 32px ${FONT}`; g.textAlign = 'center';
+          g.fillText(s.won ? 'FULL AHEAD' : `PART ${s.layer} DONE`, W / 2, 199); g.textAlign = 'left';
+        }
+        if (s.lost){
+          g.fillStyle = 'rgba(200,40,10,.25)'; g.fillRect(0, 0, W, H);
+          g.fillStyle = '#2a0c08'; g.fillRect(W / 2 - 160, 168, 320, 60);
+          g.strokeStyle = '#ff5a1e'; g.lineWidth = 3; g.strokeRect(W / 2 - 158.5, 169.5, 317, 57);
+          g.fillStyle = '#ff7a3a'; g.font = `800 32px ${FONT}`; g.textAlign = 'center'; g.fillText('LOCKED OUT', W / 2, 199); g.textAlign = 'left';
+        }
+        g.restore();
+      }
+    };
+  };
+
+  // ### 9. Conducting: the night the Titanic sank, her band played on to the end. Here you conduct it, in the first-class
+  // ### dining saloon while the ship tilts. The band plays
+  // ### Bach's Brandenburg Concerto No. 3 (a CC0 recording, sounds/orchestra.mp3, at a steady 117 beats a minute) and you
+  // ### bring the baton down on every beat. COND.FIRST and COND.BEAT are where the beats lie in that recording, measured
+  // ### when the file was made (see sounds/CREDITS.md). The first COUNT beats are counted in; after them every beat must
+  // ### be conducted within GOOD seconds. condNew(), condTap() and condStep() hold all the rules and are tested in Node;
+  // ### BUILD.conduct plays the music, draws the band and turns keys, clicks and taps into beats.
+  const COND = { W: 640, H: 360, BEAT: .51271, FIRST: 1.0724, COUNT: 4, BEATS: 60, PERFECT: .07, GOOD: .15, GOAL: 32, MISSES: 10 };
+  const condBeat = i => COND.FIRST + i * COND.BEAT;
+  // ### A new performance: nothing conducted yet. next is the first beat that has not been judged.
+  function condNew(){ return { next: COND.COUNT, hits: 0, perfect: 0, misses: 0, last: null, won: false, lost: false, events: [] }; }
+  function condMiss(s, kind, t, d){
+    s.misses++; s.last = { kind, t, d }; s.events.push('bad');
+    if (s.misses >= COND.MISSES) s.lost = true;
+  }
+  // ### The music moves on to time t (seconds into the recording): every beat whose window has closed without a stroke of
+  // ### the baton is a missed beat.
+  function condStep(s, t){
+    while (!s.won && !s.lost && s.next < COND.BEATS && condBeat(s.next) + COND.GOOD < t){ s.next++; condMiss(s, 'missed', t, 0); }
+    if (!s.won && !s.lost && s.next >= COND.BEATS) s.lost = true;
+  }
+  // ### A stroke of the baton at time t. Within GOOD seconds of the next beat it counts ('perfect' within PERFECT, else
+  // ### 'good'); any other stroke is off the music ('early') and counts against you. Strokes during the count-in are
+  // ### free ('count'). Returns what the stroke was, or null once the game is decided.
+  function condTap(s, t){
+    if (s.won || s.lost) return null;
+    condStep(s, t);
+    if (s.lost) return null;
+    if (t < condBeat(COND.COUNT) - COND.GOOD) return 'count';
+    const d = t - condBeat(s.next);
+    if (Math.abs(d) <= COND.GOOD){
+      const kind = Math.abs(d) <= COND.PERFECT ? 'perfect' : 'good';
+      s.next++; s.hits++; if (kind === 'perfect') s.perfect++;
+      s.last = { kind, t, d };
+      if (s.hits >= COND.GOAL) s.won = true;
+      return kind;
+    }
+    condMiss(s, 'early', t, d);
+    return 'early';
+  }
+
+  // ### The first-class dining saloon on D deck, painted once: white-painted Jacobean oak panelling with pilasters, the
+  // ### moulded white ceiling, tall leaded windows glowing amber, the patterned linoleum floor, and tables laid with white
+  // ### cloths, silver and little rose-shaded lamps among green leather chairs. It is painted larger than the canvas (by
+  // ### COND_M on every side), because the whole room is drawn tilted as the ship goes down. The chandeliers are not in
+  // ### it: they hang plumb while the room tilts, so they are drawn every frame (condLamps).
+  const COND_M = 60, COND_FLOOR = 238;
+  const condLamps = [70, 250, 430, 610].map(x => ({ x, y: 22 }));
+  function paintSaloon(g){
+    const { W, H } = COND, X0 = -COND_M, X1 = W + COND_M, Y0 = -COND_M, F = COND_FLOOR;
+    // the ceiling: white plaster in deep coffers, lit from below
+    const ceil = g.createLinearGradient(0, Y0, 0, 40); ceil.addColorStop(0, '#5e5648'); ceil.addColorStop(1, '#b9ad94');
+    g.fillStyle = ceil; g.fillRect(X0, Y0, X1 - X0, 100);
+    for (let x = X0 + 10; x < X1; x += 90){
+      g.fillStyle = 'rgba(60,50,35,.35)'; g.fillRect(x, Y0 + 8, 76, 42);
+      g.strokeStyle = 'rgba(255,245,220,.35)'; g.lineWidth = 1.5; g.strokeRect(x + 6, Y0 + 14, 64, 30);
+      g.strokeStyle = 'rgba(200,160,80,.45)'; g.beginPath(); g.ellipse(x + 38, Y0 + 29, 16, 8, 0, 0, 7); g.stroke();
+    }
+    g.fillStyle = '#cfc4a8'; g.fillRect(X0, 34, X1 - X0, 12);   // the cornice
+    g.fillStyle = 'rgba(80,60,30,.35)'; for (let x = X0; x < X1; x += 10) g.fillRect(x, 42, 5, 4);
+    // the panelled walls, white-painted oak, warm in the lamplight
+    const wall = g.createLinearGradient(0, 46, 0, F); wall.addColorStop(0, '#d8ccb0'); wall.addColorStop(1, '#bfae8c');
+    g.fillStyle = wall; g.fillRect(X0, 46, X1 - X0, F - 46);
+    for (let x = X0; x < X1; x += 100){
+      // a pilaster, then a bay with a tall leaded window over a panelled dado
+      g.fillStyle = '#e6dcc4'; g.fillRect(x, 46, 16, F - 46);
+      g.fillStyle = 'rgba(90,70,40,.3)'; g.fillRect(x + 14, 46, 2, F - 46);
+      g.fillStyle = '#d2a952'; g.fillRect(x + 2, 52, 12, 4);
+      const wx = x + 34, ww = 48;
+      g.fillStyle = '#6a5a3e'; g.fillRect(wx - 4, 62, ww + 8, 112);
+      const glass = g.createLinearGradient(0, 64, 0, 170); glass.addColorStop(0, '#ffe9b0'); glass.addColorStop(1, '#d9953e');
+      g.fillStyle = glass; g.beginPath(); g.moveTo(wx, 170); g.lineTo(wx, 84); g.quadraticCurveTo(wx + ww / 2, 58, wx + ww, 84); g.lineTo(wx + ww, 170); g.fill();
+      g.strokeStyle = 'rgba(70,50,25,.55)'; g.lineWidth = .8;
+      for (let k = -6; k < 12; k++){ g.beginPath(); g.moveTo(wx + k * 8, 170); g.lineTo(wx + k * 8 + 60, 110); g.moveTo(wx + k * 8, 110); g.lineTo(wx + k * 8 + 60, 170); g.stroke(); }
+      g.fillStyle = '#6a5a3e'; g.fillRect(wx + ww / 2 - 1.5, 66, 3, 104); g.fillRect(wx, 118, ww, 3);
+      const glow = g.createRadialGradient(wx + ww / 2, 120, 4, wx + ww / 2, 120, 70); glow.addColorStop(0, 'rgba(255,210,130,.25)'); glow.addColorStop(1, 'rgba(255,210,130,0)');
+      g.fillStyle = glow; g.fillRect(wx - 50, 50, ww + 100, 160);
+      // the dado: three raised panels
+      for (let k = 0; k < 3; k++){ g.strokeStyle = 'rgba(90,70,40,.4)'; g.lineWidth = 1.4; g.strokeRect(x + 22 + k * 26, 186, 20, 42); g.strokeStyle = 'rgba(255,250,235,.5)'; g.lineWidth = .8; g.strokeRect(x + 24 + k * 26, 188, 16, 38); }
+    }
+    g.fillStyle = '#8a7350'; g.fillRect(X0, 178, X1 - X0, 4);     // the chair rail
+    g.fillStyle = '#5a4730'; g.fillRect(X0, F - 6, X1 - X0, 6);   // the skirting
+    // the linoleum floor: red and cream tiles with a blue key, running away from you
+    const floor = g.createLinearGradient(0, F, 0, H + COND_M); floor.addColorStop(0, '#6e3a2a'); floor.addColorStop(1, '#3a1d14');
+    g.fillStyle = floor; g.fillRect(X0, F, X1 - X0, H + COND_M - F);
+    for (let row = 0, y = F, step = 7; y < H + COND_M; row++, y += step, step *= 1.18){
+      const sx = 320 - (X1 - X0) * .5 * (1 + row * .25);
+      for (let col = 0, x = sx; x < X1 + 200; col++, x += 28 * (1 + row * .25)){
+        if ((row + col) % 2) continue;
+        g.fillStyle = (row + col) % 4 ? 'rgba(230,214,180,.22)' : 'rgba(40,60,110,.25)';
+        g.fillRect(x, y, 28 * (1 + row * .25), step);
+      }
+    }
+    const pool = g.createRadialGradient(320, F + 30, 10, 320, F + 30, 300); pool.addColorStop(0, 'rgba(255,200,120,.2)'); pool.addColorStop(1, 'rgba(255,200,120,0)');
+    g.fillStyle = pool; g.fillRect(X0, F, X1 - X0, H + COND_M - F);
+    // the tables: two along the back wall, two big ones in front at the sides
+    const table = (x, y, r, s) => {
+      const chair = cx => { g.fillStyle = '#2f4a32'; g.fillRect(cx - 6 * s, y - 26 * s, 12 * s, 22 * s); g.fillStyle = '#4a2e1a'; g.fillRect(cx - 6 * s, y - 4 * s, 2 * s, 14 * s); g.fillRect(cx + 4 * s, y - 4 * s, 2 * s, 14 * s); };
+      chair(x - r - 4 * s); chair(x + r + 4 * s);
+      g.fillStyle = '#4a2e1a'; g.fillRect(x - 2 * s, y, 4 * s, 18 * s);
+      g.fillStyle = '#f6f2e8'; g.beginPath(); g.ellipse(x, y, r, r * .3, 0, 0, 7); g.fill();
+      g.fillStyle = '#e2dccd'; g.fillRect(x - r, y, r * 2, 12 * s);
+      g.fillStyle = '#c8c8c8'; for (const dx of [-.6, -.2, .25, .6]){ g.beginPath(); g.ellipse(x + dx * r, y - 1 * s, 4 * s, 1.4 * s, 0, 0, 7); g.fill(); }
+      g.strokeStyle = 'rgba(230,240,255,.8)'; g.lineWidth = s; for (const dx of [-.4, .45]){ g.beginPath(); g.moveTo(x + dx * r, y - 2 * s); g.lineTo(x + dx * r, y - 7 * s); g.stroke(); }
+      // the little lamp with its rose silk shade
+      g.fillStyle = '#d2a952'; g.fillRect(x - .8 * s, y - 14 * s, 1.6 * s, 13 * s);
+      g.fillStyle = '#e88f86'; g.beginPath(); g.moveTo(x - 4 * s, y - 13 * s); g.lineTo(x + 4 * s, y - 13 * s); g.lineTo(x + 2.5 * s, y - 19 * s); g.lineTo(x - 2.5 * s, y - 19 * s); g.fill();
+      const lg = g.createRadialGradient(x, y - 14 * s, 1, x, y - 14 * s, 26 * s); lg.addColorStop(0, 'rgba(255,170,150,.35)'); lg.addColorStop(1, 'rgba(255,170,150,0)');
+      g.fillStyle = lg; g.fillRect(x - 26 * s, y - 40 * s, 52 * s, 52 * s);
+    };
+    table(30, 232, 24, .8); table(610, 232, 24, .8);
+    table(-10, 318, 52, 1.6); table(660, 318, 52, 1.6);
+  }
+  // ### A musician of the band in the style of the sailor of the deck run and the deck climb, standing side-on, feet at x, y,
+  // ### facing right (dir 1) or left (-1), drawn sc times the sailor's size. His instrument ('violin', 'viola', 'cello' or
+  // ### 'bass') is drawn with him; bow (-1 to 1) is where the bow is in its stroke, bob dips him on the beat.
+  function drawBandsman(g, x, y, dir, sc, kind, bow, bob, t){
+    const WOOD = '#8a3d14', WOOD2 = '#c4692a', DARK = '#1a0d06', HAIR = '#efe6d2';
+    const fiddle = kind === 'violin' || kind === 'viola', big = kind === 'viola' ? 1.15 : kind === 'bass' ? 1.5 : 1;
+    // the same arm angles drawSailorPose uses: 0 down, positive forward; the far arm holds the neck, the near one bows
+    const arms = fiddle ? [[1.85, 1.75], [.55 + bow * .3, 1.75 + bow * .35]] : [[1.9 + (big - 1) * .9, 2.7], [.55 + bow * .3, 1.35 + bow * .2]];
+    const pose = { lean: fiddle ? -.05 : .1, hipUp: 0, legs: [[-.06, 0], [.1, .04]], arms };
+    g.save(); g.translate(x, y + bob); g.scale(dir * sc, sc);
+    // the hand positions, worked out as drawSailorPose does (standing, the hip is 30 above the feet)
+    const sh = [Math.sin(pose.lean) * 19, -30 - Math.cos(pose.lean) * 19];
+    const hand = (i, sx) => { const s = [sh[0] + sx, sh[1] + 2], e = at(s, 10, arms[i][0]); return at(e, 9.5, arms[i][1]); };
+    const far = hand(0, -1), near = hand(1, 1);
+    if (!fiddle){
+      // the cello or bass stands on its spike in front of him; its neck runs up to his far hand
+      const cx = 12 * big, cy = -14 * big - 2;
+      g.strokeStyle = DARK; g.lineWidth = 1.6; g.beginPath(); g.moveTo(cx, cy + 10 * big); g.lineTo(cx - 2, 0); g.stroke();
+      g.lineWidth = 2.2; g.beginPath(); g.moveTo(cx, cy - 6 * big); g.lineTo(far[0] + 1, far[1] - 6 * big); g.stroke();
+      g.fillStyle = WOOD; g.beginPath(); g.ellipse(cx, cy, 6.5 * big, 11 * big, -.12, 0, 7); g.fill();
+      g.fillStyle = WOOD2; g.beginPath(); g.ellipse(cx + 1, cy - 1, 4 * big, 8 * big, -.12, 0, 7); g.fill();
+      g.fillStyle = DARK; g.fillRect(cx - 3, cy + 1, 6, 1);
+    }
+    const out = drawSailorPose(g, 0, 0, t, pose);
+    if (fiddle){
+      // the fiddle tucked under his chin, its scroll in his far hand, the bow across the strings by the bridge
+      const ch = [out.head[0] + 1, out.head[1] + 6], ang = Math.atan2(far[1] - ch[1], far[0] - ch[0]);
+      g.save(); g.translate(ch[0], ch[1]); g.rotate(ang);
+      g.fillStyle = WOOD; g.beginPath(); g.ellipse(3 * big, 0, 6 * big, 3.4 * big, 0, 0, 7); g.fill();
+      g.fillStyle = WOOD2; g.beginPath(); g.ellipse(2.5 * big, -.6, 3.6 * big, 1.8 * big, 0, 0, 7); g.fill();
+      g.strokeStyle = DARK; g.lineWidth = 1.3; g.beginPath(); g.moveTo(8 * big, 0); g.lineTo(Math.hypot(far[0] - ch[0], far[1] - ch[1]) + 2, 0); g.stroke();
+      g.restore();
+      const br = [ch[0] + Math.cos(ang) * 5 * big, ch[1] + Math.sin(ang) * 5 * big], bl = Math.hypot(br[0] - near[0], br[1] - near[1]) || 1;
+      g.strokeStyle = HAIR; g.lineWidth = .9; g.beginPath(); g.moveTo(near[0], near[1]); g.lineTo(br[0] + (br[0] - near[0]) / bl * 7, br[1] + (br[1] - near[1]) / bl * 7); g.stroke();
+    } else {
+      g.strokeStyle = HAIR; g.lineWidth = 1; g.beginPath(); g.moveTo(near[0] - 3, near[1] + 1); g.lineTo(near[0] + 18 * big, near[1] - 1); g.stroke();
+    }
+    // the near hand over the bow
+    g.fillStyle = '#e0ad86'; g.beginPath(); g.arc(near[0], near[1], 2.1, 0, 7); g.fill();
+    g.restore();
+  }
+  // ### A note rising from the band: gold when you are in time, red and crooked when you are not.
+  function drawNote(g, x, y, color, tilt){
+    g.save(); g.translate(x, y); g.rotate(tilt);
+    g.fillStyle = color; g.strokeStyle = color; g.lineWidth = 1.6;
+    g.beginPath(); g.ellipse(0, 0, 4.2, 3, -.4, 0, 7); g.fill();
+    g.beginPath(); g.moveTo(3.6, -1); g.lineTo(3.6, -16); g.quadraticCurveTo(9, -12, 8, -6); g.stroke();
+    g.restore();
+  }
+
+  BUILD.conduct = api => {
+    const { W, H } = COND, FONT = HACK_FONT, ICTUS = { x: 350, y: 236 };
+    const c = api.canvas(W, H), g = c.getContext('2d');
+    const s = condNew();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const ship = document.createElement('canvas'); ship.width = (W + 2 * COND_M) * dpr; ship.height = (H + 2 * COND_M) * dpr;
+    const sg = ship.getContext('2d'); sg.scale(dpr, dpr); sg.translate(COND_M, COND_M); paintSaloon(sg);
+    // the band in a half circle round the conductor: the strings on the left face right, cello and bass on the right face left
+    const BAND = [['violin', 150, 1], ['violin', 216, 1], ['viola', 282, 1], ['cello', 438, -1], ['bass', 512, -1]].map(([kind, x, dir], i) => ({ kind, x, dir, y: 262 - (i % 2) * 6 }));
+    const notes = [];
+    let clock = 0, stroke = -9, shown = null, discord = 0, ended = false;
+    // ### The music: the recording through the room's sound (its volume and mute), or if it has not arrived, a plain beat
+    // ### of plucked strings at the same tempo, made on the spot. Without any sound the game is timed by the frame clock.
+    const au = api.audio && api.audio.ctx && api.audio.ctx.state === 'running' ? api.audio : null;
+    let t0 = 0, bus = null, src = null, synthUntil = 0;
+    const lat = au ? (au.ctx.outputLatency || au.ctx.baseLatency || 0) : 0;
+    function pluck(at, f, vol, len){
+      const ctx = au.ctx, o = ctx.createOscillator(), gg = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      gg.gain.setValueAtTime(0, at); gg.gain.linearRampToValueAtTime(vol, at + .008); gg.gain.exponentialRampToValueAtTime(.0005, at + len);
+      o.connect(gg); gg.connect(bus); o.start(at); o.stop(at + len + .02);
+    }
+    // the fallback: a bass note on every beat and a chord between them, around a steady D major like Bach's
+    const BASS = [73.42, 73.42, 110, 110, 98, 98, 110, 73.42], CHORD = [[293.7, 370, 440], [293.7, 370, 440], [277.2, 329.6, 440], [277.2, 329.6, 440], [293.7, 392, 493.9], [293.7, 392, 493.9], [277.2, 329.6, 440], [293.7, 370, 440]];
+    function synth(upTo){
+      while (synthUntil < COND.BEATS && condBeat(synthUntil) < upTo){
+        const i = synthUntil++, at = t0 + condBeat(i);
+        pluck(at, BASS[i % 8], .22, .45);
+        for (const f of CHORD[i % 8]) pluck(at + COND.BEAT / 2, f, .05, .25);
+        if (i < COND.COUNT) pluck(at, 1318, .06, .08);
+      }
+    }
+    const songTime = () => au ? au.ctx.currentTime - t0 - lat : clock;
+    function begin(){
+      if (!au) return;
+      const ctx = au.ctx;
+      bus = ctx.createGain(); bus.gain.value = 1; bus.connect(au.out);
+      t0 = ctx.currentTime + .08;
+      if (au.music){ src = ctx.createBufferSource(); src.buffer = au.music; src.connect(bus); src.start(t0); }
+      else synth(1.2);
+    }
+    // ### The music fades out when the game is decided, and stops at once when it is put away.
+    function fade(sec){
+      if (!bus || ended) return;
+      ended = true;
+      const now = au.ctx.currentTime;
+      bus.gain.cancelScheduledValues(now); bus.gain.setValueAtTime(bus.gain.value, now); bus.gain.linearRampToValueAtTime(0, now + sec);
+      if (src) try { src.stop(now + sec + .05); } catch (e){}
+      const b = bus; setTimeout(() => b.disconnect(), (sec + .2) * 1000);
+    }
+    const status = () => api.status(`In time: ${s.hits} of ${COND.GOAL} · Out of time: ${s.misses} of ${COND.MISSES}`);
+    function spawn(kind){
+      const m = BAND[Math.floor(api.rand() * BAND.length)], bad = kind === 'early' || kind === 'missed';
+      notes.push({ x: m.x + (api.rand() - .5) * 20, y: m.y - 96, vx: (api.rand() - .5) * 20, life: 1.4, bad, tilt: bad ? (api.rand() - .5) * 1.4 : 0 });
+    }
+    function play(){
+      for (const e of s.events) api.sound(e);
+      s.events.length = 0;
+      if (s.last && s.last !== shown){
+        shown = s.last;
+        if (s.last.kind === 'perfect' || s.last.kind === 'good') discord = Math.max(0, discord - .2);
+        else discord = Math.min(1, discord + .45);
+        spawn(s.last.kind);
+        status();
+      }
+      if (s.won) return api.win('The band played on, in time, to the last beat.');
+      if (s.lost) return api.lose(s.misses >= COND.MISSES ? 'The band fell apart: ten beats out of time.' : 'The music has ended.');
+    }
+    function tap(){
+      if (api.over) return;
+      const t = songTime();
+      condTap(s, t);
+      stroke = t;
+      play();
+    }
+    const WORD = { perfect: 'PERFECT', good: 'GOOD', early: 'OFF THE BEAT', missed: 'MISSED' };
+    return {
+      key(code, down){ if (down && (code === 'Space' || code === 'ArrowUp' || code === 'KeyW')) tap(); },
+      point(x, y, type){ if (type === 'down') tap(); },
+      start(){ begin(); api.status('Watch the count-in: one, two, three, four, then conduct.'); },
+      update(dt){
+        clock += dt;
+        const t = songTime();
+        if (au && !au.music) synth(t + 1.2);
+        condStep(s, t);
+        discord = Math.max(0, discord - dt * .5);
+        for (const n of notes){ n.life -= dt; n.y -= dt * (n.bad ? 18 : 40); n.x += n.vx * dt; }
+        while (notes.length && notes[0].life <= 0) notes.shift();
+        play();
+      },
+      draw(){
+        const t = songTime(), p = (t - COND.FIRST) / COND.BEAT;
+        g.fillStyle = '#1c140c'; g.fillRect(0, 0, W, H);
+        // the ship goes down by the bow: the saloon tilts more and more, while its chandeliers still hang plumb
+        const tilt = (1.5 + Math.min(30, clock) * .1) * Math.PI / 180;
+        g.save(); g.translate(W / 2, H); g.rotate(tilt); g.translate(-W / 2, -H);
+        g.drawImage(ship, -COND_M, -COND_M, W + 2 * COND_M, H + 2 * COND_M);
+        condLamps.forEach((L, i) => {
+          g.save(); g.translate(L.x, L.y); g.rotate(-tilt + Math.sin(clock * 1.3 + i) * .015);
+          g.strokeStyle = '#8a6a2a'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, 30); g.stroke();
+          const glow = g.createRadialGradient(0, 40, 2, 0, 40, 46); glow.addColorStop(0, 'rgba(255,225,160,.45)'); glow.addColorStop(1, 'rgba(255,225,160,0)');
+          g.fillStyle = glow; g.fillRect(-46, -6, 92, 92);
+          g.fillStyle = '#c99a3e'; g.beginPath(); g.ellipse(0, 36, 16, 4, 0, 0, 7); g.fill();
+          for (let k = -2; k <= 2; k++){ g.fillStyle = '#fff3cf'; g.beginPath(); g.arc(k * 7, 41 - Math.abs(k) * 2, 2.6, 0, 7); g.fill(); }
+          g.fillStyle = 'rgba(255,255,255,.7)'; for (let k = -3; k <= 3; k++){ g.fillRect(k * 4.5 - .5, 44, 1, 6 - Math.abs(k)); }
+          g.restore();
+        });
+        // the band: the bows go down and up with the beat; out of time they scatter
+        BAND.forEach((m, i) => {
+          const off = discord * (i % 2 ? .45 : -.35) * (1 + i * .2);
+          const bow = Math.cos(Math.PI * (p + off)) + discord * .3 * Math.sin(t * 17 + i * 3);
+          const pulse = Math.max(0, 1 - Math.abs(p + off - Math.round(p + off)) * 4);
+          drawBandsman(g, m.x, m.y, m.dir, 1.9, m.kind, Math.max(-1, Math.min(1, bow)), t > 0 ? pulse * 1.6 : 0, t);
+        });
+        for (const n of notes){ g.globalAlpha = Math.min(1, n.life); drawNote(g, n.x, n.y, n.bad ? '#e2483a' : '#ffd36a', n.tilt); }
+        g.globalAlpha = 1;
+        // the golden ring closes on the baton's tip as the next beat comes; a dashed ring marks the beat itself
+        const nextBeat = s.next < COND.COUNT ? Math.max(0, Math.ceil(p)) : s.next, until = condBeat(nextBeat) - t;
+        if (!s.won && !s.lost && until > -.1 && until < COND.BEAT * 1.5){
+          const r = 12 + Math.max(0, until) * 70;
+          g.strokeStyle = 'rgba(255,240,200,.55)'; g.lineWidth = 1.5; g.setLineDash([4, 4]); g.beginPath(); g.arc(ICTUS.x, ICTUS.y, 12, 0, 7); g.stroke(); g.setLineDash([]);
+          g.strokeStyle = `rgba(255,205,90,${Math.min(1, 1.6 - until)})`; g.lineWidth = 3; g.beginPath(); g.arc(ICTUS.x, ICTUS.y, r, 0, 7); g.stroke();
+        }
+        // you, the conductor, from behind: during the count-in the baton beats by itself, then it follows your strokes
+        const counting = t < condBeat(COND.COUNT) - COND.GOOD;
+        const since = counting ? (p - Math.floor(p)) * COND.BEAT : t - stroke;
+        const up = Math.min(1, Math.max(0, since) / .3), e = 1 - Math.pow(1 - up, 3);
+        const tip = { x: ICTUS.x + 30 * e, y: ICTUS.y - 70 * e }, hand = { x: tip.x + 30, y: tip.y + 56 };
+        g.fillStyle = '#0a0a0c'; g.beginPath(); g.moveTo(232, H + 10); g.lineTo(250, 318); g.quadraticCurveTo(320, 296, 390, 318); g.lineTo(408, H + 10); g.fill();
+        g.strokeStyle = '#0a0a0c'; g.lineWidth = 15; g.lineCap = 'round';
+        // upper arm out to the elbow, forearm up to the hand; the left hand hangs open, ready
+        const elbow = { x: 410 + 6 * e, y: 314 - 18 * e };
+        g.beginPath(); g.moveTo(378, 318); g.lineTo(elbow.x, elbow.y); g.stroke();
+        g.lineWidth = 12; g.beginPath(); g.moveTo(elbow.x, elbow.y); g.lineTo(hand.x, hand.y); g.stroke();
+        g.lineWidth = 14; g.beginPath(); g.moveTo(262, 318); g.lineTo(234, 306); g.stroke();
+        g.lineWidth = 11; g.beginPath(); g.moveTo(234, 306); g.lineTo(250, 282); g.stroke();
+        g.fillStyle = '#e0b08a'; g.beginPath(); g.arc(250, 280, 6, 0, 7); g.fill(); g.beginPath(); g.arc(hand.x, hand.y, 6, 0, 7); g.fill();
+        g.strokeStyle = '#f4f1ea'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(hand.x, hand.y); g.lineTo(tip.x, tip.y); g.stroke();
+        g.fillStyle = '#f4f1ea'; g.fillRect(304, 296, 32, 6);
+        g.fillStyle = '#e0b08a'; g.beginPath(); g.ellipse(298, 286, 4, 6, 0, 0, 7); g.ellipse(342, 286, 4, 6, 0, 0, 7); g.fill();
+        g.fillStyle = '#2a1c12'; g.beginPath(); g.ellipse(320, 280, 21, 23, 0, 0, 7); g.fill();
+        g.fillStyle = 'rgba(255,220,170,.18)'; g.beginPath(); g.ellipse(314, 270, 10, 8, -.5, 0, 7); g.fill();
+        g.restore();
+        // the score on brass plates, and the count-in
+        g.textBaseline = 'middle';
+        brassPlate(g, 14, 12, 150, 30);
+        g.font = `700 18px ${FONT}`; g.fillStyle = '#3a2808'; g.fillText(`IN TIME ${s.hits} / ${COND.GOAL}`, 26, 28);
+        brassPlate(g, W - 244, 12, 230, 30);
+        g.fillText('OUT OF TIME', W - 234, 28);
+        for (let i = 0; i < COND.MISSES; i++){ g.fillStyle = i < s.misses ? '#b3261e' : 'rgba(58,40,8,.35)'; g.beginPath(); g.arc(W - 120 + i * 10, 28, 3.6, 0, 7); g.fill(); }
+        if (t > COND.FIRST - .3 && counting){
+          const n = Math.min(COND.COUNT, Math.max(1, Math.round(p) + 1));
+          g.font = `800 64px ${FONT}`; g.textAlign = 'center'; g.fillStyle = 'rgba(0,0,0,.5)'; g.fillText(String(n), W / 2 + 2, 92);
+          g.fillStyle = '#ffe2a0'; g.fillText(String(n), W / 2, 90); g.textAlign = 'left';
+        } else if (t < COND.FIRST - .3){
+          g.font = `700 24px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#ffe2a0'; g.fillText('THE BAND PLAYS ON', W / 2, 90); g.textAlign = 'left';
+        } else if (t < condBeat(COND.COUNT) + .4){
+          g.font = `800 40px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#ffe2a0'; g.fillText('CONDUCT!', W / 2, 90); g.textAlign = 'left';
+        }
+        // how the last beat went, by the baton
+        if (s.last && t - s.last.t < .6){
+          const k = s.last.kind, good = k === 'perfect' || k === 'good';
+          g.globalAlpha = 1 - (t - s.last.t) / .6;
+          g.font = `800 22px ${FONT}`; g.textAlign = 'center';
+          g.fillStyle = 'rgba(0,0,0,.6)'; g.fillText(WORD[k], ICTUS.x + 1, ICTUS.y - 106 - (t - s.last.t) * 30 + 1);
+          g.fillStyle = k === 'perfect' ? '#ffd36a' : good ? '#f4ead2' : '#ff6a55'; g.fillText(WORD[k], ICTUS.x, ICTUS.y - 106 - (t - s.last.t) * 30);
+          g.textAlign = 'left'; g.globalAlpha = 1;
+        }
+        if (s.won || s.lost){
+          g.fillStyle = s.won ? 'rgba(255,214,120,.12)' : 'rgba(120,20,10,.25)'; g.fillRect(0, 0, W, H);
+          brassPlate(g, W / 2 - 160, 150, 320, 60);
+          g.fillStyle = '#2c1e06'; g.font = `800 30px ${FONT}`; g.textAlign = 'center';
+          g.fillText(s.won ? 'BRAVO, MAESTRO' : 'OUT OF TIME', W / 2, 181); g.textAlign = 'left';
+        }
+      },
+      end(){ fade(.8); },
+      stop(){ fade(.15); }
+    };
+  };
+
   // ---------- The shell: timer, input, loop ----------
   // ### open(host, id, opts) builds game `id` inside the element host and starts it. opts.onEnd(won, reason) is called once,
-  // ### a moment after the game is decided; opts.sound(name) plays a short effect. The returned stop() ends it silently
+  // ### a moment after the game is decided; opts.sound(name) plays a short effect; opts.audio is { ctx (the room's
+  // ### AudioContext), out (its volume), music (the band's recording, or null while it loads) } for the conducting game. The returned stop() ends it silently
   // ### (when the player pauses or closes the card), with no result.
   function open(host, id, opts){
     if (!BUILD[id]) throw new Error('Unknown mini game: ' + id);
@@ -1593,7 +2367,7 @@
     const stage = host.querySelector('.mg-stage'), bar = host.querySelector('.mg-timer i'), secs = host.querySelector('.mg-secs'), statusEl = host.querySelector('.mg-status');
     let left = TIME, raf = 0, last = 0, timers = [], canvas = null, logical = null, stopped = false, lastStatus = '', resizer = null, game = null;
     const api = {
-      rand, stage, over: false,
+      rand, stage, over: false, audio: opts.audio || null,
       status(t){ if (t !== lastStatus){ statusEl.textContent = t; lastStatus = t; } },
       sound(n){ if (opts.sound) opts.sound(n); },
       later(fn, ms){ timers.push(setTimeout(() => { if (!api.over && !stopped) fn(); }, ms)); },
@@ -1625,14 +2399,20 @@
       api.over = true; api.status(reason || (won ? 'Won!' : 'Lost.'));
       host.querySelector('.mg').classList.add(won ? 'won' : 'lost');
       api.sound(won ? 'win' : 'lose');
+      if (game.end) game.end();
       if (game.draw) game.draw();
       timers.push(setTimeout(() => { if (!stopped){ cleanup(); if (opts.onEnd) opts.onEnd(won, reason); } }, 900));
     }
-    const toLogical = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * logical.w, (e.clientY - r.top) / r.height * logical.h]; };
+    // ### On a short screen the canvas box is wider than the picture (object-fit: contain centres it), so the picture's own
+    // ### place and scale inside the box are used: a click lands where it is drawn.
+    const toLogical = e => {
+      const r = canvas.getBoundingClientRect(), k = Math.min(r.width / logical.w, r.height / logical.h) || 1;
+      return [(e.clientX - r.left - (r.width - logical.w * k) / 2) / k, (e.clientY - r.top - (r.height - logical.h * k) / 2) / k];
+    };
     const onDown = e => { if (!api.over && game.point){ e.preventDefault(); const [x, y] = toLogical(e); game.point(x, y, 'down'); } };
     const onMove = e => { if (!api.over && game.point){ const [x, y] = toLogical(e); game.point(x, y, 'move'); } };
     const onUp = e => { if (!api.over && game.point){ const [x, y] = toLogical(e); game.point(x, y, 'up'); } };
-    const GAME_KEYS = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'KeyW'];
+    const GAME_KEYS = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'KeyW', 'KeyS'];
     const onKey = e => {
       if (!GAME_KEYS.includes(e.code)) return;
       e.preventDefault();
@@ -1659,6 +2439,7 @@
       stopped = true; cancelAnimationFrame(raf); timers.forEach(clearTimeout); timers = [];
       removeEventListener('keydown', onKey, true); removeEventListener('keyup', onKey, true);
       if (resizer) resizer.disconnect();
+      if (game.stop) game.stop();
     }
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     if (game.start) game.start();
@@ -1667,5 +2448,6 @@
     return { stop(){ if (!stopped){ api.over = true; cleanup(); } }, get timeLeft(){ return left; } };
   }
 
-  return Object.freeze({ TIME, INFO, GAMES, DIFFS, pickGames, tttWinner, tttBot, placeFleet, fleetSunk, bsBot, around, waterAround, pickDiffs, hitDiff, overlap, icebergPoly, inPoly, cloudStack, hitsClouds, RUN_KINDS, RUN, runLayout, CLIMB_LEVELS, PIN, PIN_TABLE, pinNew, pinStep, open });
+  return Object.freeze({ TIME, INFO, GAMES, DIFFS, pickGames, tttWinner, tttBot, placeFleet, fleetSunk, bsBot, around, waterAround, pickDiffs, hitDiff, overlap, icebergPoly, inPoly, JUMP, jumpShip, jumpPoints, jumpPower, jumpNew, jumpAct, jumpStep, RUN_KINDS, RUN, runLayout, CLIMB_LEVELS, PIN, PIN_TABLE, pinNew, pinStep, HACK, hackNew, hackAct, hackStep, hackSync, hackOptions,
+    COND, condBeat, condNew, condTap, condStep, open });
 });

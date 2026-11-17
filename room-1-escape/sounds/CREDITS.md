@@ -1,7 +1,7 @@
 # Recorded sounds of the washroom
 
 Real recordings, all in the public domain under **CC0 1.0** (https://creativecommons.org/publicdomain/zero/1.0/).
-CC0 asks for no credit; we give it anyway. When the Openverse sound API answers (see `findApiVent` in `js/room.js`), the air vent plays a CC0 recording from Freesound instead of `air-vent.mp3`; the pause card names that recording and its creator. Everything else the room plays (the tube's hum, the drips, the effects) is
+CC0 asks for no credit; we give it anyway. When the Openverse sound API answers (see `findApiVent` in `js/room.js`), the air vent plays a CC0 recording from Freesound instead of `air-vent.mp3`; the pause card names that recording and its creator. The conducting mini game plays `orchestra.mp3`. Everything else the room plays (the tube's hum, the drips, the effects) is
 synthesised by `js/room.js` at run time.
 
 | File | What it is | Source | Licence |
@@ -12,6 +12,7 @@ synthesised by `js/room.js` at run time.
 | `steps/rung-1.mp3` … `rung-5.mp3` | A boot on wood, for the ladder's rungs | *footstep_wood_000* … *004* from Kenney's *Impact Sounds* 1.0 (https://kenney.nl/assets/impact-sounds), as vendored in https://github.com/OmniTender-Systems/game-audio-assets (`vendor/kenney/impact-sounds/`) | CC0 1.0 |
 | `air-vent.mp3` | The steady rush of a fan, used for the air vent in the ceiling | *Fan* by lllBabaBooeylll, Freesound 536942 (https://freesound.org/people/lllBabaBooeylll/sounds/536942/), as trimmed in https://github.com/Tafazzolian/still-sounds (`files/noise-fan.ogg`) | CC0 1.0 |
 | `ladder.mp3` | The climb down the ladder at the end: seven short recordings in one file, 0.35 s apart (two creaks of old wood, two knocks of wood on wood for the boots on the rungs, a hand gripping, clothes rustling, a hard shoe on stone) | From the CC0 collection https://github.com/EternityForest/Free-SFX: `rubberduck/WoodMetal/wood_squeak_01.opus` and `wood_squeak_02.opus`, `rubberduck/BreakingFalling/bfh1_wood_hit_01.opus` and `bfh1_wood_hit_02.opus` (rubberduck's CC0 packs on OpenGameArt), and from Owlish Media's *Sound Effects Pack* `Impacts/shouldergrab.opus` (0.14 to 0.44 s), `Cloth, Rustle/320138__owlstorm__blanket-movement-2.opus` (0.82 to 1.77 s) and `Footsteps/hard-footstep1.opus` | CC0 1.0 |
+| `orchestra.mp3` | The band for the conducting mini game: the opening 32.5 s of the first movement (Allegro) of Johann Sebastian Bach's *Brandenburg Concerto No. 3* (BWV 1048, 1721) for strings, at a steady 117 beats a minute | *Brandenburg Concerto III, Allegro I* by dogsounds, "dedicated to the Public Domain in 2017" (https://blog.dogsounds.com/music/), listed on FreePD (https://freepd.com, all CC0), as mirrored in the CC0 collection https://github.com/SoundSafari/CC0-1.0-Music (`freepd.com/Brandenburg Concerto III, Allegro I.mp3`). Bach's music itself is in the public domain | CC0 1.0 |
 
 ## What was changed
 
@@ -29,3 +30,7 @@ synthesised by `js/room.js` at run time.
 - **ladder.mp3**: each recording cut as listed, its peak set to −3 dBFS, a 4 ms fade in and a 20 ms fade out, then
   all seven joined with 0.35 s of silence between them; `LADDER` in `js/room.js` lists where each one starts and how
   long it is. Mono, 44.1 kHz, 96 kbit/s MP3.
+- **orchestra.mp3**: the first 32.5 s, faded out over the last 2 s, mono, 44.1 kHz, loudness set to −18 LUFS (EBU
+  R128, peaks at −2 dBTP), 96 kbit/s MP3. Its beats were found with librosa's beat tracker and fitted to a straight
+  line: the first beat at 1.0724 s, then one every 0.51271 s (117.0 a minute), each within 10 ms of the fit. These two
+  numbers are `COND.FIRST` and `COND.BEAT` in `js/minigames.js`; change them if the file is ever cut differently.

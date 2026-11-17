@@ -22,7 +22,7 @@ test('the story has 5 scenes, 2 items, 3 clues and 2 endings', () => {
   assert.equal(Object.keys(R.SCENES).length, 5);
   assert.deepEqual(Object.keys(R.ITEMS), ['mop', 'carkey']);
   assert.deepEqual(Object.keys(R.CLUES), ['tile', 'mirror', 'scratches']);
-  assert.equal(R.GAMES.length, 7);
+  assert.equal(R.GAMES.length, 9);
   assert.deepEqual(Object.keys(R.ENDINGS), ['A', 'B']);
   assert.equal(R.TIME_LIMIT, 600);
   // every exit leads to a real scene, and every "go" hotspot is a real exit
@@ -162,16 +162,16 @@ test('the mirror only opens its mini game while the hot tap steams it up, and gi
 
 test('each new game deals three different mini games, chosen outside the rules', () => {
   assert.deepEqual(play(START).games, R.GAMES.slice(0, 3), 'without a deal the first three');
-  const dealt = play([['start', ['seagull', 'deckrun', 'spotdiff']]]);
-  assert.deepEqual(dealt.games, ['seagull', 'deckrun', 'spotdiff']);
-  assert.equal(R.perform(play([['go', 'stall']], dealt), 'play', 'tile').message, 'seagull');
+  const dealt = play([['start', ['lifeboat', 'deckrun', 'spotdiff']]]);
+  assert.deepEqual(dealt.games, ['lifeboat', 'deckrun', 'spotdiff']);
+  assert.equal(R.perform(play([['go', 'stall']], dealt), 'play', 'tile').message, 'lifeboat');
   assert.equal(R.perform(dealt, 'play', 'scratches').message, 'spotdiff');
-  for (const bad of [['seagull', 'seagull', 'deckrun'], ['seagull', 'deckrun'], ['chess', 'deckrun', 'spotdiff'], 'seagull', null, []]){
+  for (const bad of [['lifeboat', 'lifeboat', 'deckrun'], ['lifeboat', 'deckrun'], ['chess', 'deckrun', 'spotdiff'], 'lifeboat', null, []]){
     const r = R.perform(R.newState(), 'start', bad);
     assert.equal(r.ok, false, JSON.stringify(bad));
     assert.equal(r.state.scene, 'intro');
   }
-  assert.equal(R.restore(JSON.stringify({ ...dealt, games: ['seagull', 'seagull', 'deckrun'] })), null, 'a save with the same game twice');
+  assert.equal(R.restore(JSON.stringify({ ...dealt, games: ['lifeboat', 'lifeboat', 'deckrun'] })), null, 'a save with the same game twice');
   assert.equal(R.restore(JSON.stringify({ ...dealt, games: undefined })), null, 'a save without the games');
 });
 

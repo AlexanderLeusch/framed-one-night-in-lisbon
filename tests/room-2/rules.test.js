@@ -943,3 +943,69 @@ test('kit guide: points at the nearest repair kit left, only from KIT_GUIDE_AT %
   assert.equal(Core.kitToGuide(kits, 0, 0, NaN), null, 'rejected: bad damage');
   assert.equal(Core.kitToGuide([{ x: NaN, z: 0 }, kits[0]], 0, 0, 80), kits[0], 'a broken kit entry is skipped');
 });
+
+test('the garage: on foot you can run, and the way out leads through the door into the eastbound lane', () => {
+  const G = Core.GARAGE, way = Core.garageWay();
+  assert.ok(G.walk > 1.7 && G.run > G.walk, 'walking is brisk and running is faster');
+  // the way begins at the top of the ramp, on the middle line, and stays there up to the door
+  assert.deepEqual(way[0], [0, -G.top]);
+  assert.ok(way.filter(p => p[1] <= 0).every(p => p[0] === 0), 'straight through the door');
+  for (let i = 1; i < way.length; i++) assert.ok(Math.hypot(way[i][0] - way[i - 1][0], way[i][1] - way[i - 1][1]) < 1.6, 'no gap in the way at ' + i);
+  // in the city: the door is in the south wall of a house (13.5 m from the middle of its block), the way ends on the cross
+  // street (7 m to each side of z = 0) in the lane to the east, heading east, before the next crossing
+  const [sx, sz] = G.street, block = (Math.floor(sx / 48) + 0.5) * 48, wallZ = (Math.floor(sz / 48) + 0.5) * 48 + 13.5;
+  assert.ok(Math.abs(sx - block) + G.door + 1 < 13.5, 'the door fits into the wall of the house');
+  assert.ok(sz > wallZ && sz - wallZ <= 1, 'the frame of the door stands just out of the wall');
+  const last = way[way.length - 1], before = way[way.length - 2];
+  assert.ok(sz + last[1] > 0.5 && sz + last[1] < 4, 'in the eastbound lane, clear of the cars parked at the kerb');
+  assert.ok(last[0] > before[0] && last[1] === before[1], 'heading east at the end');
+  // following it: from anywhere on the level stretch the aim moves on along the way and it ends at the last point
+  let [i, ax, az, done] = Core.wayAim(way, 0, 2, -G.top + 2, 4);
+  assert.ok(az > -G.top + 2 && Math.hypot(ax - 2, az + G.top - 2) >= 4 && !done, 'aims at least 4 m ahead');
+  assert.ok(Core.wayAim(way, i, 2, -G.top + 4, 4)[0] >= i, 'never back');
+  assert.equal(Core.wayAim(way, 0, last[0] - 1, last[1], 4)[3], false, 'the search starts at i: the first point is far away, so it stays the aim');
+  [i, ax, az, done] = Core.wayAim(way, way.length - 4, last[0] - 1, last[1], 4);
+  assert.ok(done && i === way.length - 1 && ax === last[0], 'done at the end of the way');
+  // a vehicle that steers for the aim comes out through the door without touching its frame and ends on the way
+  let x = 3, z = -G.top + 2, h = 0.3, wi = 0, out = false, n = 0;
+  while (!out && n++ < 3000){
+    const a = Core.wayAim(way, wi, x, z, 4); wi = a[0]; out = a[3];
+    const turn = Math.atan2(Math.sin(Math.atan2(a[1] - x, a[2] - z) - h), Math.cos(Math.atan2(a[1] - x, a[2] - z) - h));
+    h += Math.max(-1.1, Math.min(1.1, turn * 3)) / 60; x += Math.sin(h) * G.out / 60; z += Math.cos(h) * G.out / 60;
+    if (Math.abs(z) < 1) assert.ok(Math.abs(x) < G.door - 1.5, 'through the middle of the door');
+  }
+  assert.ok(out && Math.abs(z - last[1]) < 0.6 && Math.abs(h - Math.PI / 2) < 0.2, 'ends in the lane, heading east');
+  // the vehicle stops following 4 m short of the last point: that is still before the next crossing (7 m to each side of x = 48)
+  assert.ok(sx + x < Math.ceil(sx / 48) * 48 - 7, 'before the next crossing');
+});
+
+test('the garage: a level hall, a ramp that climbs to the street, and walls all round', () => {
+  const G = Core.GARAGE, top = G.z1 + G.ramp;
+  assert.equal(Core.garageFloor(0, G.z0), G.y, 'the hall is level');
+  assert.equal(Core.garageFloor(9, G.z1), G.y, 'up to the foot of the ramp');
+  assert.ok(Math.abs(Core.garageFloor(0, G.z1 + G.ramp / 2) - (G.y + G.rise / 2)) < 1e-9, 'halfway up the ramp');
+  assert.equal(Core.garageFloor(0, top), G.y + G.rise);
+  assert.equal(Core.garageFloor(0, top + G.top), G.y + G.rise, 'level again at the top');
+  assert.equal(Core.garageGrade(0, 0), 0, 'no slope in the hall');
+  assert.ok(Math.abs(Core.garageGrade(G.z1 + 5, 0) - G.rise / G.ramp) < 1e-9, 'uphill, driving up the ramp');
+  assert.ok(Core.garageGrade(G.z1 + 5, Math.PI) < 0, 'downhill, driving back down');
+  assert.equal(Core.garageOut(top), false, 'still on the ramp');
+  assert.equal(Core.garageOut(top + 2), true, 'over the top: the street begins');
+  assert.ok(G.y < -10, 'well under the city');
+  // every vehicle stands inside the hall, clear of the walls and pillars, and can climb the ramp from a standstill at its foot
+  const walls = Core.garageWalls();
+  for (const k of G.order){
+    const [x, z, h] = G.bays[k], V = Core.VEH[k];
+    for (const s of V.samples) for (const c of walls) assert.equal(Core.collidePoint(x + Math.sin(h) * s, z + Math.cos(h) * s, V.r, c), null, k + ' is clear of the walls');
+    let sp = 0, zz = G.z1, t = 0;
+    while (zz < top && t < 30){ sp = Core.stepSpeed(sp, { up: true }, 1 / 60, Math.min(G.speed, Core.topSpeed(Core.MODES.city, V, 0, false)), V, Core.garageGrade(zz, 0)); zz += sp / 60; t += 1 / 60; }
+    assert.ok(t < 10, k + ' climbs the ramp in ' + t.toFixed(1) + ' s');
+  }
+  // the walls hold: a point pushed against each side of the hall is pushed back in, and the only way out is the opening to the ramp
+  assert.ok(Core.collidePoint(G.x, 0, 1, walls[2]), 'east wall');
+  assert.ok(Core.collidePoint(-G.x, 0, 1, walls[1]), 'west wall');
+  assert.ok(Core.collidePoint(0, G.z0, 1, walls[0]), 'back wall');
+  assert.ok(walls.every(c => !Core.collidePoint(0, G.z1 + 0.5, 1, c)), 'the opening is free');
+  assert.ok(walls.some(c => Core.collidePoint(G.door + 2, G.z1 + 0.5, 1, c)), 'beside the opening is wall');
+  assert.ok(walls.some(c => Core.collidePoint(0, top + G.top, 1, c)), 'the far end of the ramp is closed');
+});
