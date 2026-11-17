@@ -22,7 +22,7 @@
   };
   // ### The eight Titanic mini games (drawn and played by minigames.js). Each new game deals three different ones to the
   // ### three spots; which three is chosen by room.js, because the rules have no randomness of their own.
-  const GAMES = ['battleship', 'spotdiff', 'tictactoe', 'deckrun', 'deckclimb', 'seagull', 'pinball', 'hacking'];
+  const GAMES = ['battleship', 'spotdiff', 'tictactoe', 'deckrun', 'deckclimb', 'lifeboat', 'pinball', 'hacking'];
   const SPOTS = { tile: 'stall', mirror: 'sinks', scratches: 'door' };
   const GRAFFITI = '“She was unsinkable. She sailed only once. — The year opens the floor.”';
   const WARNINGS = [[300, 'Officer Hale, outside: “Five minutes!”'], [120, 'Officer Hale: “Two minutes. Hurry it up in there.”'], [60, 'Keys jingle outside the door. One minute left.'], [30, 'Hale: “Thirty seconds, 4471!”']];

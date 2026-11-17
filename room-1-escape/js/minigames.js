@@ -33,10 +33,10 @@
       goal: 'Bounce up through the ship and land on the boat deck.',
       steps: ['The sailor bounces by himself on every platform he lands on.', 'Steer him up from the engine room past the crew quarters, second class and the long first class.', 'Lifebuoys bounce you higher. Miss the platforms and fall, and you lose.'],
       keys: '← → (A D) to steer, or move the mouse.', touch: 'Slide your finger left and right.' },
-    seagull: { title: 'The <em>seagull</em>', name: 'Seagull', how: 'Fly between the icebergs and the storm clouds. Flap with Space, ↑ or a click. Pass ten gaps.',
-      goal: 'Fly the seagull through ten gaps.',
-      steps: ['The seagull flies on by itself and sinks unless you flap.', 'Fly through the gaps between the icebergs below and the storm clouds above.', 'An iceberg, a cloud or the sea ends the flight.'],
-      keys: 'Space, ↑ or W to flap, or click.', touch: 'Tap to flap.' },
+    lifeboat: { title: 'Jump for the <em>lifeboats</em>', name: 'Lifeboat jump', how: 'Jump from the stern of the sinking Titanic onto three boats, each smaller than the last. Stop the power meter with Space, ↑ or a click, steer in the air with ← →, and land as close to the lantern in the middle as you can. 180 points win.',
+      goal: 'Score 180 points in three jumps from the sinking Titanic onto the boats below.',
+      steps: ['You stand on the stern of the sinking ship. The power meter swings up and down: jump to stop it. More power flies further.', 'In the air, steer a little left or right. The lantern on its pole marks the middle of the boat.', 'Landing in the middle scores 100, on the edge 30, in the sea 0. A lifeboat, a collapsible boat and a cork raft, each smaller, and the stern rises higher every jump.'],
+      keys: 'Space, ↑ or W to jump, ← → (A D) to steer in the air.', touch: 'Tap to jump, then press the left or right half of the picture to steer.' },
     pinball: { title: 'Vintage <em>pinball</em>', name: 'Pinball', how: 'Score 1,500 points with three balls. Flippers: ← and → (A and D), Space for both, or press the left or right half of the table. The ball shoots by itself, or press Space.',
       goal: 'Score 1,500 points with three balls.',
       steps: ['The ball shoots by itself, or press Space to shoot it.', 'The pop bumpers, the slingshots, the two lifebuoy targets and the R-M-S lanes at the top all score.', 'Keep the ball from falling between the flippers.'],
@@ -188,7 +188,7 @@
     g.beginPath(); g.moveTo(x - 10 * s, y - up); g.quadraticCurveTo(x - 5 * s, y - 6 * s - up * .4, x, y); g.quadraticCurveTo(x + 5 * s, y - 6 * s - up * .4, x + 10 * s, y - up); g.stroke();
   }
   // ### An iceberg: a jagged white lump, darker on its shaded side. Its base sits at y. icebergPoly gives its outline, which
-  // ### is also exactly what the seagull can hit, so what you see is what counts.
+  // ### is also what the tests check the drawing against.
   function icebergPoly(x, y, w, h){
     return [[x, y], [x + w * .12, y - h * .55], [x + w * .3, y - h * .7], [x + w * .45, y - h], [x + w * .62, y - h * .62], [x + w * .8, y - h * .72], [x + w, y]];
   }
@@ -207,29 +207,6 @@
       if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
     }
     return inside;
-  }
-  // ### A stack of separate, slightly overlapping clouds above a gap whose top edge is at y = bottom. Each cloud is a few
-  // ### round puffs ({ dx, dy, r } around the cloud's centre); the lowest cloud ends exactly at bottom, the highest reaches
-  // ### past the top of the screen, and neighbouring clouds overlap, so no bird fits between them.
-  function cloudStack(bottom, rand){
-    const clouds = [];
-    let cy = bottom - 18, k = 0;
-    while (cy > -24 && k++ < 20){
-      const cx = (k % 2 ? -6 : 6) + (rand() - .5) * 8;
-      const puffs = [{ dx: 0, dy: 0, r: 18 + rand() * 3 }];
-      const n = 3 + Math.floor(rand() * 3);
-      for (let i = 0; i < n; i++){ const a = i / n * Math.PI * 2 + rand(); puffs.push({ dx: Math.cos(a) * (14 + rand() * 10), dy: Math.sin(a) * 6, r: 11 + rand() * 6 }); }
-      // shift the cloud so its lowest puff touches bottom (the first cloud) or overlaps the cloud below it a little
-      const low = Math.max(...puffs.map(p => p.dy + p.r));
-      if (!clouds.length) cy = bottom - low;
-      clouds.push({ dx: cx, dy: cy, puffs });
-      cy -= 24 + rand() * 6;
-    }
-    return clouds;
-  }
-  // ### Whether a circle (x, y, r) touches any puff of a cloud stack drawn at column x0.
-  function hitsClouds(clouds, x0, x, y, r){
-    return clouds.some(c => c.puffs.some(p => Math.hypot(x0 + c.dx + p.dx - x, c.dy + p.dy - y) < p.r * .92 + r));
   }
   // ### The night of 14 April 1912 in the North Atlantic: clear, moonless and icy cold. A sky full of stars over a black,
   // ### glassy sea, the faint northern lights that survivors remembered, and ice on the horizon. Painted once per game.
@@ -1203,73 +1180,242 @@
     };
   };
 
-  // ### 6. Seagull: fly over the black, icy sea where the Titanic sank, between icebergs and clouds; the ship sails in the
-  // ### distance with all her lights on. What you can hit is what you see: the outline of each iceberg and the round puffs
-  // ### of each cloud.
-  BUILD.seagull = api => {
-    const W = 640, H = 360, SEA = 300, GAP = 128, SPEED = 175, NEED = 10, TOP = 16;
-    const c = api.canvas(W, H), g = c.getContext('2d');
-    const night = paintNight(W, H, SEA, 1415);
-    const b = { x: 150, y: 160, vy: 0, f: 0 };
-    let started = false, passed = 0, scroll = 0;
-    const pipes = [];
-    for (let i = 0; i < NEED + 2; i++){
-      const gap = 95 + api.rand() * (SEA - 95 - GAP - 30);
-      pipes.push({ x: 520 + i * 230, gap, clouds: cloudStack(gap, api.rand) });
+  // ### 6. Lifeboat jump: the Titanic goes down by the bow and her stern rises out of the sea. The player jumps from the
+  // ### stern three times, onto a lifeboat, a collapsible boat and a cork raft, each smaller and further away, and should
+  // ### land as close to the middle (the lantern) as possible. A power meter swings up and down; the jump stops it and
+  // ### sets how far you fly. In the air ← → steer a little. jumpNew(), jumpAct() and jumpStep() hold all the rules and
+  // ### are tested in Node; the build below only draws them.
+  const JUMP = { W: 640, H: 360, SEA: 292, DECK: 8, G: 430, VY: -190, VMIN: 120, VMAX: 420, STEER: 80, METER: 1.6,
+    JUMPS: 3, GOAL: 180, BEST: 100, EDGE: 30, PAUSE: 1.1, LEFT: 360, RIGHT: 620,
+    // the ship at each jump: its tilt (degrees, bow down) and how much of it is still above the sea (from the stern)
+    SHIP: { s: 1.1, x: 250, tilt: [20, 30, 40, 48], afloat: [210, 200, 190, 182] },
+    BOATS: [{ kind: 'lifeboat', name: 'Lifeboat', w: 116 }, { kind: 'collapsible', name: 'Collapsible boat', w: 80 }, { kind: 'raft', name: 'Cork raft', w: 52 }] };
+  // ### Where the ship lies at jump k (k may be a fraction while she sinks between two jumps): the angle a, the point
+  // ### (tx, ty) where her stern keel is drawn from, and the stern deck where the player stands (sx, sy). The point
+  // ### `afloat` pixels along her keel from the stern lies exactly on the sea at x = SHIP.x.
+  function jumpShip(k){
+    const { s, x, tilt, afloat } = JUMP.SHIP, i = Math.max(0, Math.min(tilt.length - 2, Math.floor(k))), f = Math.max(0, Math.min(1, k - i));
+    const a = (tilt[i] + (tilt[i + 1] - tilt[i]) * f) * Math.PI / 180, w = afloat[i] + (afloat[i + 1] - afloat[i]) * f;
+    const c = Math.cos(a), n = Math.sin(a), tx = x - s * w * c, ty = JUMP.SEA - s * w * n;
+    return { a, tx, ty, sx: tx + s * (8 * c + 41 * n), sy: ty + s * (8 * n - 41 * c) };
+  }
+  // ### The points for a landing dx from the middle of a boat w wide: 100 in the middle down to 30 on the edge, 0 in the sea.
+  function jumpPoints(dx, w){
+    const r = Math.abs(dx) / (w / 2);
+    return r > 1 ? 0 : Math.round(JUMP.EDGE + (JUMP.BEST - JUMP.EDGE) * (1 - r));
+  }
+  // ### The power meter swings from 0 to 1 and back in METER seconds.
+  function jumpPower(t){ const p = (t % JUMP.METER) / JUMP.METER; return p < .5 ? p * 2 : 2 - p * 2; }
+  function jumpNew(rand){
+    const boats = JUMP.BOATS.map((b, i) => ({ ...b, x: 380 + 20 * i + rand() * 170, vx: (rand() < .5 ? -1 : 1) * (5 + 6 * i + rand() * 6) }));
+    const st = jumpShip(0);
+    return { n: 0, total: 0, scores: [], phase: 'aim', t: 0, power: 0, boats, p: { x: st.sx, y: st.sy, vx: 0, vy: 0, dx: 0 }, wait: 0, done: null, events: [] };
+  }
+  // ### The one action: jump. Refused (false) unless the player is standing on the stern.
+  function jumpAct(s, action){
+    if (action !== 'jump' || s.phase !== 'aim' || s.done) return false;
+    const st = jumpShip(s.n);
+    s.phase = 'fly';
+    s.p = { x: st.sx, y: st.sy, vx: JUMP.VMIN + s.power * (JUMP.VMAX - JUMP.VMIN), vy: JUMP.VY, dx: 0 };
+    s.events.push('jump');
+    return true;
+  }
+  // ### Moves the game on by dt seconds. input.left / input.right steer in the air. The boats drift slowly between LEFT and
+  // ### RIGHT. The player lands when the feet come down through the top of the boat inside its width, else falls in the sea.
+  function jumpStep(s, dt, input){
+    s.events = [];
+    if (s.done) return s;
+    input = input || {};
+    for (const b of s.boats){
+      b.x += b.vx * dt;
+      if (b.x < JUMP.LEFT + b.w / 2){ b.x = JUMP.LEFT + b.w / 2; b.vx = Math.abs(b.vx); }
+      if (b.x > JUMP.RIGHT - b.w / 2){ b.x = JUMP.RIGHT - b.w / 2; b.vx = -Math.abs(b.vx); }
     }
-    const floes = Array.from({ length: 10 }, (_, i) => ({ x: i * 70 + api.rand() * 40, y: SEA + 10 + api.rand() * 50, w: 10 + api.rand() * 22 }));
-    const flap = () => { if (api.over) return; started = true; b.vy = -330; api.sound('jump'); };
-    const bergOf = (pp, x) => icebergPoly(x + 2, SEA + 6, 54, SEA + 6 - (pp.gap + GAP));
-    function drawClouds(clouds, x0){
-      for (const cl of clouds){
-        const cx = x0 + cl.dx, cy = cl.dy;
-        // the shaded underside first, then the moonless-night grey of the cloud, then a cold rim of starlight on top
-        g.fillStyle = '#3c4a5c'; for (const p of cl.puffs){ g.beginPath(); g.arc(cx + p.dx, cy + p.dy + 2, p.r, 0, 7); g.fill(); }
-        g.fillStyle = '#6a7b8f'; for (const p of cl.puffs){ g.beginPath(); g.arc(cx + p.dx, cy + p.dy, p.r - 1, 0, 7); g.fill(); }
-        g.fillStyle = 'rgba(190,210,230,.35)'; for (const p of cl.puffs){ g.beginPath(); g.arc(cx + p.dx - 2, cy + p.dy - 3, p.r * .6, 0, 7); g.fill(); }
+    const boat = s.boats[s.n], p = s.p, top = JUMP.SEA - JUMP.DECK;
+    if (s.phase === 'aim'){ s.t += dt; s.power = jumpPower(s.t); return s; }
+    if (s.phase === 'fly'){
+      p.vx += ((input.right ? 1 : 0) - (input.left ? 1 : 0)) * JUMP.STEER * dt;
+      p.vy += JUMP.G * dt;
+      const before = p.y;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (before < top && p.y >= top && Math.abs(p.x - boat.x) <= boat.w / 2){
+        const pts = jumpPoints(p.x - boat.x, boat.w);
+        p.y = top; p.dx = p.x - boat.x; s.scores.push(pts); s.total += pts; s.phase = 'landed'; s.wait = JUMP.PAUSE; s.events.push('land');
+      } else if (p.y >= JUMP.SEA + 4){
+        p.y = JUMP.SEA + 4; s.scores.push(0); s.phase = 'splash'; s.wait = JUMP.PAUSE; s.events.push('splash');
       }
+      return s;
+    }
+    // landed or in the sea: a short pause to see the result, then the next jump (or the end)
+    if (s.phase === 'landed') p.x = boat.x + p.dx;
+    s.wait -= dt;
+    if (s.wait <= 0){
+      s.n++;
+      // the end once all jumps are done, or as soon as the points can no longer be reached
+      if (s.n >= JUMP.JUMPS || s.total + JUMP.BEST * (JUMP.JUMPS - s.n) < JUMP.GOAL){ s.done = s.total >= JUMP.GOAL ? 'win' : 'lose'; return s; }
+      const st = jumpShip(s.n);
+      s.phase = 'aim'; s.t = 0; s.power = 0; s.p = { x: st.sx, y: st.sy, vx: 0, vy: 0, dx: 0 };
+      s.events.push('next');
+    }
+    return s;
+  }
+  // ### How a landing is called out above the boat.
+  const jumpWord = pts => pts >= 90 ? 'Bullseye!' : pts >= 65 ? 'Good landing' : pts > 0 ? 'On board' : 'Splash!';
+
+  BUILD.lifeboat = api => {
+    const { W, H, SEA, DECK } = JUMP, MONO = '"JetBrains Mono", monospace';
+    const c = api.canvas(W, H), g = c.getContext('2d');
+    const night = paintNight(W, H, 236, 1415);
+    const s = jumpNew(api.rand), keys = { left: false, right: false };
+    let clock = 0, shown = 0, popup = null;
+    const drops = [], ripples = [];
+    const status = () => api.status(`Jump ${Math.min(s.n + 1, JUMP.JUMPS)} of ${JUMP.JUMPS} · ${s.total} of ${JUMP.GOAL} points`);
+    const jump = () => { if (!api.over && jumpAct(s, 'jump')) api.sound('jump'); };
+    // a wooden lifeboat (white hull, varnished rail, survivors and oars), a collapsible (low, with grey canvas sides) or a
+    // cork raft (ochre blocks lashed with rope). Each has a lantern on a pole in its middle, the spot to aim for.
+    function drawBoat(b, bob){
+      const x = b.x, y = SEA + bob, hw = b.w / 2;
+      g.save();
+      g.fillStyle = 'rgba(255,214,140,.10)'; g.beginPath(); g.ellipse(x, y + 3, hw + 16, 5, 0, 0, 7); g.fill();
+      if (b.kind === 'lifeboat'){
+        g.fillStyle = '#e9e4d6'; g.beginPath(); g.moveTo(x - hw - 6, y - DECK - 2); g.lineTo(x + hw + 6, y - DECK - 2); g.quadraticCurveTo(x + hw, y + 6, x + hw - 14, y + 6); g.lineTo(x - hw + 14, y + 6); g.quadraticCurveTo(x - hw, y + 6, x - hw - 6, y - DECK - 2); g.fill();
+        g.fillStyle = '#6b3d1e'; g.fillRect(x - hw - 6, y - DECK - 3, b.w + 12, 3);
+        g.fillStyle = '#2b2f36'; for (const k of [-.7, -.45, .4, .68]){ g.beginPath(); g.arc(x + hw * k, y - DECK - 8, 4, 0, 7); g.fill(); g.fillRect(x + hw * k - 4, y - DECK - 6, 8, 4); }
+        g.strokeStyle = '#8a5a30'; g.lineWidth = 2; g.beginPath(); g.moveTo(x - hw * .6, y - DECK); g.lineTo(x - hw - 18, y + 8); g.moveTo(x + hw * .55, y - DECK); g.lineTo(x + hw + 18, y + 8); g.stroke();
+      } else if (b.kind === 'collapsible'){
+        g.fillStyle = '#7b8288'; g.fillRect(x - hw, y - DECK - 1, b.w, DECK + 6);
+        g.fillStyle = '#a7aeb2'; g.fillRect(x - hw, y - DECK - 2, b.w, 3);
+        g.strokeStyle = 'rgba(40,44,48,.6)'; g.lineWidth = 1; for (let k = 1; k < 6; k++){ const px = x - hw + b.w * k / 6; g.beginPath(); g.moveTo(px, y - DECK); g.lineTo(px, y + 4); g.stroke(); }
+        g.fillStyle = '#2b2f36'; for (const k of [-.6, .62]){ g.beginPath(); g.arc(x + hw * k, y - DECK - 7, 4, 0, 7); g.fill(); }
+      } else {
+        g.fillStyle = '#b5822f'; g.fillRect(x - hw, y - DECK, b.w, DECK + 3);
+        g.fillStyle = '#8c5f1c'; for (let k = 0; k < 5; k++) g.fillRect(x - hw + 2 + k * (b.w - 4) / 5, y - DECK + 1, (b.w - 4) / 5 - 2, DECK);
+        g.strokeStyle = '#d8c79a'; g.lineWidth = 1.2; g.beginPath();
+        for (let k = 0; k < 4; k++){ const px = x - hw + 4 + k * (b.w - 8) / 3; g.moveTo(px - 5, y - 1); g.quadraticCurveTo(px, y + 6, px + 5, y - 1); }
+        g.stroke();
+      }
+      // the lantern in the middle, and its light on the water
+      g.strokeStyle = '#3a2a1a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, y - DECK); g.lineTo(x, y - DECK - 24); g.stroke();
+      const glow = g.createRadialGradient(x, y - DECK - 27, 0, x, y - DECK - 27, 20); glow.addColorStop(0, 'rgba(255,214,120,.75)'); glow.addColorStop(1, 'rgba(255,214,120,0)');
+      g.fillStyle = glow; g.beginPath(); g.arc(x, y - DECK - 27, 20, 0, 7); g.fill();
+      g.fillStyle = '#ffe2a0'; g.fillRect(x - 3, y - DECK - 31, 6, 7); g.fillStyle = '#3a2a1a'; g.fillRect(x - 4, y - DECK - 33, 8, 2);
+      g.fillStyle = 'rgba(255,214,120,.35)'; g.fillRect(x - 1.5, y + 6, 3, 18);
+      g.restore();
+    }
+    // the player: a passenger in a white cork life jacket. Pose 'stand' on the stern, 'fly' with arms and legs spread,
+    // 'land' crouched, 'swim' only the head and jacket above the water.
+    function drawJumper(x, y, pose, tilt){
+      g.save(); g.translate(x, y); g.scale(1.25, 1.25);
+      if (pose === 'swim'){
+        g.fillStyle = '#efe9da'; g.fillRect(-7, -6, 14, 6);
+        g.fillStyle = '#d9b48f'; g.beginPath(); g.arc(0, -10, 4.5, 0, 7); g.fill();
+        g.restore(); return;
+      }
+      g.rotate(tilt || 0);
+      const crouch = pose === 'land' ? 5 : 0, spread = pose === 'fly';
+      g.strokeStyle = '#1c2230'; g.lineWidth = 3; g.lineCap = 'round';
+      g.beginPath();
+      g.moveTo(-2, -14 + crouch); g.lineTo(spread ? -8 : -3, 0); g.moveTo(2, -14 + crouch); g.lineTo(spread ? 8 : 3, 0);   // legs
+      g.stroke();
+      g.strokeStyle = '#2d3548'; g.lineWidth = 2.6; g.beginPath();
+      if (spread){ g.moveTo(-4, -24); g.lineTo(-13, -31); g.moveTo(4, -24); g.lineTo(13, -31); }
+      else { g.moveTo(-4, -24 + crouch); g.lineTo(-6, -14 + crouch); g.moveTo(4, -24 + crouch); g.lineTo(6, -14 + crouch); }
+      g.stroke();
+      g.fillStyle = '#efe9da'; g.fillRect(-5.5, -27 + crouch, 11, 13);                                         // the life jacket
+      g.fillStyle = '#b9b29e'; g.fillRect(-5.5, -21 + crouch, 11, 1.5);
+      g.fillStyle = '#d9b48f'; g.beginPath(); g.arc(0, -31 + crouch, 4.5, 0, 7); g.fill();                     // head
+      g.fillStyle = '#3a2618'; g.beginPath(); g.arc(0, -32.5 + crouch, 4.6, Math.PI, 0); g.fill();
+      g.restore();
+    }
+    // the power meter: a brass gauge next to the stern, the needle swinging from "short" to "far"
+    function drawMeter(x, y){
+      g.save(); g.translate(x, y);
+      g.fillStyle = 'rgba(10,13,15,.8)'; g.fillRect(-4, -4, 128, 34);
+      g.strokeStyle = '#c9a24a'; g.lineWidth = 1.5; g.strokeRect(-3.5, -3.5, 127, 33);
+      const gr = g.createLinearGradient(4, 0, 116, 0); gr.addColorStop(0, '#3c7a4a'); gr.addColorStop(.6, '#d0a640'); gr.addColorStop(1, '#c2412c');
+      g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(4, 14, 112, 10);
+      g.fillStyle = gr; g.fillRect(4, 14, 112 * s.power, 10);
+      g.fillStyle = '#fff'; g.fillRect(4 + 112 * s.power - 1, 11, 2, 16);
+      g.fillStyle = '#e8dcc0'; g.font = `700 9px ${MONO}`; g.fillText('POWER', 4, 9);
+      g.textAlign = 'right'; g.fillText('FAR', 116, 9); g.textAlign = 'left';
+      g.restore();
     }
     return {
-      key(code, down){ if (down && (code === 'Space' || code === 'ArrowUp' || code === 'KeyW')) flap(); },
-      point(x, y, type){ if (type === 'down') flap(); },
-      start(){ api.status(`Flap to take off. Gaps: 0 of ${NEED}`); },
+      key(code, down){
+        if (code === 'ArrowLeft' || code === 'KeyA') keys.left = down;
+        if (code === 'ArrowRight' || code === 'KeyD') keys.right = down;
+        if (down && (code === 'Space' || code === 'ArrowUp' || code === 'KeyW')) jump();
+      },
+      point(x, y, type){
+        if (type === 'down'){ if (s.phase === 'aim') jump(); else if (x < W / 2) keys.left = true; else keys.right = true; }
+        if (type === 'up'){ keys.left = keys.right = false; }
+      },
+      start(){ status(); },
       update(dt){
-        b.f += dt * (started ? 14 : 6);
-        if (!started){ b.y = 160 + Math.sin(b.f * .5) * 6; return; }
-        scroll += SPEED * dt;
-        for (const f of floes){ f.x -= SPEED * .9 * dt; if (f.x < -40) f.x += W + 80; }
-        b.vy = Math.min(520, b.vy + 1100 * dt); b.y += b.vy * dt;
-        if (b.y < TOP){ b.y = TOP; b.vy = 0; }
-        for (const pp of pipes){
-          const x = pp.x - scroll;
-          if (!pp.done && x + 50 < b.x){ pp.done = true; passed++; api.sound('tick'); api.status(`Gaps: ${passed} of ${NEED}`); if (passed >= NEED) return api.win('Ten gaps. The seagull is through.'); }
-          if (x > b.x + 60 || x < b.x - 80) continue;
-          const poly = bergOf(pp, x);
-          const hitIce = [[0, 0], [7, 0], [-7, 0], [0, 5], [0, -5], [5, 4], [-5, 4]].some(([dx, dy]) => inPoly(poly, b.x + dx, b.y + dy));
-          if (hitIce || hitsClouds(pp.clouds, x + 25, b.x, b.y, 6)) return api.lose('The seagull crashed.');
+        clock += dt;
+        jumpStep(s, dt, keys);
+        for (const e of s.events){
+          if (e === 'land'){ const pts = s.scores[s.scores.length - 1]; api.sound(pts >= 90 ? 'bell' : 'good'); popup = { x: s.boats[s.n].x, t: 0, pts }; status(); }
+          if (e === 'splash'){
+            api.sound('splash'); popup = { x: s.p.x, t: 0, pts: 0 }; status();
+            for (let k = 0; k < 18; k++) drops.push({ x: s.p.x, y: SEA, vx: (api.rand() - .5) * 140, vy: -80 - api.rand() * 160, t: 0 });
+            ripples.push({ x: s.p.x, t: 0 });
+          }
+          if (e === 'next') status();
         }
-        if (b.y > SEA - 4) api.lose('The seagull fell into the icy sea.');
+        // the ship sinks a little further during the pause after each jump
+        const target = s.phase === 'landed' || s.phase === 'splash' ? s.n + 1 - Math.max(0, s.wait) / JUMP.PAUSE : s.n;
+        shown = Math.min(JUMP.SHIP.tilt.length - 1, target);
+        for (const d of drops){ d.t += dt; d.vy += 500 * dt; d.x += d.vx * dt; d.y += d.vy * dt; }
+        for (let k = drops.length - 1; k >= 0; k--) if (drops[k].y > SEA + 2 && drops[k].t > .1) drops.splice(k, 1);
+        for (const r of ripples) r.t += dt;
+        if (popup) popup.t += dt;
+        if (s.done === 'win') return api.win(`${s.total} points. Safe in the boats.`);
+        if (s.done === 'lose') return api.lose(s.scores.every(p => p === 0) ? 'Three times into the icy sea.' : `Only ${s.total} of ${JUMP.GOAL} points.`);
       },
       draw(){
         g.drawImage(night, 0, 0, W, H);
-        // the Titanic far away with all her lights on, drifting slowly
-        g.save(); g.globalAlpha = .9;
-        drawTitanic(g, ((380 - scroll * .08) % (W + 330) + W + 330) % (W + 330) - 300, SEA - 1, .9, { lights: true });
-        g.fillStyle = 'rgba(4,10,20,.45)'; g.fillRect(0, 150, W, SEA - 150);   // the night over the ship
+        // the boats already rowing away on the horizon
+        for (let k = 0; k < 6; k++){ const bx = 330 + k * 52 + Math.sin(clock * .3 + k) * 3; g.fillStyle = 'rgba(20,24,30,.9)'; g.fillRect(bx, 233, 14, 3); g.fillStyle = 'rgba(255,214,120,.8)'; g.fillRect(bx + 6, 229, 2, 2); }
+        // the Titanic, bow under, stern high, all her lights still burning; only the part above the sea is drawn
+        const sh = jumpShip(shown);
+        g.save(); g.beginPath(); g.rect(0, 0, W, SEA); g.clip();
+        g.translate(sh.tx, sh.ty); g.rotate(sh.a); drawTitanic(g, 0, 0, JUMP.SHIP.s, { lights: true });
         g.restore();
-        // reflections of the ship's lights and floating ice
-        for (const f of floes){ g.fillStyle = 'rgba(225,240,250,.75)'; g.beginPath(); g.ellipse(f.x, f.y, f.w, f.w * .18, 0, 0, 7); g.fill(); g.fillStyle = 'rgba(120,170,200,.4)'; g.fillRect(f.x - f.w * .6, f.y + 1, f.w * 1.2, 1); }
-        for (const pp of pipes){
-          const x = pp.x - scroll; if (x < -80 || x > W + 60) continue;
-          drawClouds(pp.clouds, x + 25);
-          const poly = bergOf(pp, x), top = pp.gap + GAP;
-          // the much bigger part of the iceberg under the water, then the part you can hit
-          g.fillStyle = 'rgba(120,180,210,.18)'; g.beginPath(); g.moveTo(x - 10, SEA + 6); g.lineTo(x + 66, SEA + 6); g.lineTo(x + 50, H); g.lineTo(x + 4, H); g.fill();
-          drawIceberg(g, x + 2, SEA + 6, 54, SEA + 6 - top);
-          g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(poly[3][0] - 1, poly[3][1] + 2, 2, 6);
+        // the foam where she goes in
+        g.strokeStyle = 'rgba(235,245,255,.7)'; g.lineWidth = 1.5; g.beginPath();
+        for (let k = 0; k < 5; k++){ const fx = JUMP.SHIP.x - 30 + k * 16 + Math.sin(clock * 3 + k) * 3; g.moveTo(fx, SEA + 1); g.lineTo(fx + 10, SEA + 1); }
+        g.stroke();
+        // the sea in front: black glass with long swells
+        g.fillStyle = 'rgba(2,8,16,.55)'; g.fillRect(0, SEA, W, H - SEA);
+        g.strokeStyle = 'rgba(150,190,220,.12)'; g.lineWidth = 1;
+        for (let k = 0; k < 6; k++){ const y = SEA + 8 + k * 11; g.beginPath(); for (let x = 0; x <= W; x += 20) g.lineTo(x, y + Math.sin(x / 40 + clock * 1.5 + k) * 1.5); g.stroke(); }
+        // the boat of this jump (the others are already out of reach)
+        const boat = s.boats[Math.min(s.n, JUMP.JUMPS - 1)], bob = Math.sin(clock * 2.2) * 1.5;
+        drawBoat(boat, bob);
+        for (const r of ripples){ if (r.t > 1.4) continue; g.strokeStyle = `rgba(220,235,250,${.6 * (1 - r.t / 1.4)})`; g.lineWidth = 1.2; g.beginPath(); g.ellipse(r.x, SEA + 2, 8 + r.t * 40, 2 + r.t * 6, 0, 0, 7); g.stroke(); }
+        // the player
+        const p = s.p;
+        if (s.phase === 'aim'){ drawJumper(sh.sx + 6, sh.sy, 'stand', 0); drawMeter(sh.sx + 30, Math.max(8, sh.sy - 70)); }
+        else if (s.phase === 'fly') drawJumper(p.x, p.y, 'fly', Math.atan2(p.vy, Math.abs(p.vx) + 200) * .5);
+        else if (s.phase === 'landed') drawJumper(p.x, p.y + bob, 'land', 0);
+        else drawJumper(p.x, SEA + 4, 'swim', 0);
+        g.fillStyle = 'rgba(225,240,255,.85)'; for (const d of drops){ g.beginPath(); g.arc(d.x, d.y, 1.6, 0, 7); g.fill(); }
+        // the score of the last landing, rising over the boat
+        if (popup && popup.t < 1.4){
+          g.globalAlpha = Math.min(1, 2 * (1.4 - popup.t));
+          g.textAlign = 'center'; g.font = `700 15px ${MONO}`;
+          g.fillStyle = popup.pts >= 90 ? '#ffd27a' : popup.pts ? '#bfe8c4' : '#ff8a70';
+          g.fillText(popup.pts ? `+${popup.pts} ${jumpWord(popup.pts)}` : jumpWord(0), Math.max(80, Math.min(W - 80, popup.x)), SEA - 64 - popup.t * 20);
+          g.textAlign = 'left'; g.globalAlpha = 1;
         }
-        drawGull(g, b.x, b.y, 1.8, b.f, '#ffffff');
-        g.fillStyle = '#f2b134'; g.beginPath(); g.moveTo(b.x + 3, b.y - 1); g.lineTo(b.x + 9, b.y + 1); g.lineTo(b.x + 3, b.y + 3); g.fill();
+        // the panel: which boat, and the points so far
+        g.fillStyle = 'rgba(10,13,15,.78)'; g.fillRect(W - 236, 8, 228, 46);
+        g.fillStyle = '#ff7a1a'; g.font = `700 12px ${MONO}`;
+        g.fillText(`JUMP ${Math.min(s.n + 1, JUMP.JUMPS)}/${JUMP.JUMPS} · ${boat.name.toUpperCase()}`, W - 228, 25);
+        g.fillStyle = '#e8dcc0';
+        g.fillText(`POINTS ${String(s.total).padStart(3, ' ')} / ${JUMP.GOAL}`, W - 228, 44);
+        for (let k = 0; k < JUMP.JUMPS; k++){ g.fillStyle = k < s.scores.length ? (s.scores[k] ? '#7fd08a' : '#e0563b') : 'rgba(255,255,255,.25)'; g.fillRect(W - 36 + k * 9, 36, 6, 8); }
       }
     };
   };
@@ -1959,5 +2105,5 @@
     return { stop(){ if (!stopped){ api.over = true; cleanup(); } }, get timeLeft(){ return left; } };
   }
 
-  return Object.freeze({ TIME, INFO, GAMES, DIFFS, pickGames, tttWinner, tttBot, placeFleet, fleetSunk, bsBot, around, waterAround, pickDiffs, hitDiff, overlap, icebergPoly, inPoly, cloudStack, hitsClouds, RUN_KINDS, RUN, runLayout, CLIMB_LEVELS, PIN, PIN_TABLE, pinNew, pinStep, HACK, hackNew, hackAct, hackStep, hackSync, hackOptions, open });
+  return Object.freeze({ TIME, INFO, GAMES, DIFFS, pickGames, tttWinner, tttBot, placeFleet, fleetSunk, bsBot, around, waterAround, pickDiffs, hitDiff, overlap, icebergPoly, inPoly, JUMP, jumpShip, jumpPoints, jumpPower, jumpNew, jumpAct, jumpStep, RUN_KINDS, RUN, runLayout, CLIMB_LEVELS, PIN, PIN_TABLE, pinNew, pinStep, HACK, hackNew, hackAct, hackStep, hackSync, hackOptions, open });
 });

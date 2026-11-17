@@ -100,26 +100,107 @@ test('deck climb: four levels to climb from the engine room, first class the lon
   assert.equal(deck, 0, 'nothing to climb above the boat deck: landing on it wins');
 });
 
-test('seagull: the clouds above a gap leave no way through, end exactly at the gap, and the icebergs are hit by their outline', () => {
-  const rand = seeded(9);
-  for (let n = 0; n < 200; n++){
-    const gap = 95 + rand() * 47, clouds = M.cloudStack(gap, rand);
-    assert.ok(clouds.length >= 2, 'more than one cloud');
-    const lowest = Math.max(...clouds.flatMap(c => c.puffs.map(p => c.dy + p.dy + p.r)));
-    assert.ok(Math.abs(lowest - gap) < 1e-9, 'the lowest cloud ends at the gap');
-    // from the top of the screen down to just above the gap, the seagull (radius 6) hits a cloud somewhere in the column
-    for (let y = 16; y < gap - 10; y += 2){
-      let blocked = false;
-      for (let x = -20; x <= 20 && !blocked; x += 2) blocked = M.hitsClouds(clouds, 0, x, y, 6);
-      assert.ok(blocked, `a way through the clouds at y = ${y} (gap at ${gap.toFixed(1)})`);
-    }
-    assert.ok(!M.hitsClouds(clouds, 0, 0, gap + 64, 6), 'the middle of the gap is free');
-  }
+test('the icebergs on the pictures are hit by their outline', () => {
   const berg = M.icebergPoly(0, 300, 54, 100);
   assert.ok(M.inPoly(berg, 25, 290), 'inside near the base');
   assert.ok(M.inPoly(berg, 24, 205), 'just under the peak');
   assert.ok(!M.inPoly(berg, 3, 220), 'not in the empty corner beside the peak');
   assert.ok(!M.inPoly(berg, 25, 195), 'not above the peak');
+});
+
+// ### Lifeboat jump: a player who lets the game run, and one who jumps and steers like a person would.
+const J = M.JUMP;
+// where the flier lands (on the top of a boat) without more steering, and in how many seconds
+function landing(p){ const top = J.SEA - J.DECK, t = (-p.vy + Math.sqrt(p.vy * p.vy + 2 * J.G * (top - p.y))) / J.G; return { x: p.x + p.vx * t, t }; }
+function jumpPlay(seed, { noise, steer }){
+  const rand = seeded(seed), aim = seeded(seed * 7 + 1), s = M.jumpNew(rand);
+  let time = 0, want = null;
+  while (!s.done && time < 60){
+    const input = {};
+    if (s.phase === 'aim'){
+      if (want === null){
+        // the power that lands where the boat will be, then a timing error of up to `noise`
+        const st = M.jumpShip(s.n), b = s.boats[s.n];
+        let best = 0, miss = Infinity;
+        for (let pw = 0; pw <= 1; pw += .005){
+          const l = landing({ x: st.sx, y: st.sy, vx: J.VMIN + pw * (J.VMAX - J.VMIN), vy: J.VY }), d = Math.abs(l.x - (b.x + b.vx * l.t));
+          if (d < miss){ miss = d; best = pw; }
+        }
+        want = Math.max(0, Math.min(1, best + (aim() * 2 - 1) * noise));
+      }
+      if (s.t > .5 && Math.abs(s.power - want) < .02){ assert.ok(M.jumpAct(s, 'jump')); want = null; }
+    } else if (s.phase === 'fly' && steer){
+      const l = landing(s.p), b = s.boats[s.n], bx = b.x + b.vx * l.t;
+      if (l.x < bx - 3) input.right = true; else if (l.x > bx + 3) input.left = true;
+    }
+    M.jumpStep(s, 1 / 60, input); time += 1 / 60;
+  }
+  return { s, time };
+}
+
+test('lifeboat jump: three boats, each smaller, the stern rising higher above the sea every jump, clear of the boats', () => {
+  const sizes = J.BOATS.map(b => b.w);
+  assert.equal(J.BOATS.length, J.JUMPS);
+  assert.ok(sizes[0] > sizes[1] && sizes[1] > sizes[2], 'lifeboat, then collapsible, then raft');
+  let last = Infinity;
+  for (let n = 0; n < J.JUMPS; n++){
+    const st = M.jumpShip(n);
+    assert.ok(st.sy < last && st.sy > 40 && st.sy < J.SEA - 80, `the stern at jump ${n + 1} is high above the sea and higher than before`);
+    assert.ok(st.sx > 20 && st.sx < J.LEFT - 100, 'the stern stands well left of the boats');
+    last = st.sy;
+  }
+  const rand = seeded(3);
+  for (let i = 0; i < 200; i++){
+    const s = M.jumpNew(rand);
+    for (let k = 0; k < 600; k++) M.jumpStep(s, 1 / 60, {});
+    for (const b of s.boats) assert.ok(b.x - b.w / 2 >= J.LEFT - 1e-9 && b.x + b.w / 2 <= J.RIGHT + 1e-9, 'the boats drift but stay in the sea in front of the ship');
+  }
+});
+
+test('lifeboat jump: 100 points in the middle, 30 on the edge, nothing in the sea; the meter swings from 0 to 1 and back', () => {
+  assert.equal(M.jumpPoints(0, 80), 100);
+  assert.equal(M.jumpPoints(40, 80), 30);
+  assert.equal(M.jumpPoints(-40, 80), 30);
+  assert.equal(M.jumpPoints(40.5, 80), 0);
+  assert.equal(M.jumpPoints(20, 80), 65);
+  assert.equal(M.jumpPower(0), 0);
+  assert.ok(Math.abs(M.jumpPower(J.METER / 2) - 1) < 1e-9);
+  assert.ok(M.jumpPower(J.METER * .99) < .05);
+});
+
+test('lifeboat jump: jumping is refused in the air, and landing in the middle of the boat scores 100', () => {
+  const s = M.jumpNew(seeded(5));
+  assert.equal(M.jumpAct(s, 'fly'), false, 'only "jump" is an action');
+  M.jumpStep(s, .5, {});
+  assert.ok(M.jumpAct(s, 'jump'));
+  assert.equal(s.phase, 'fly');
+  assert.equal(M.jumpAct(s, 'jump'), false, 'no second jump in the air');
+  // put the flier right above the middle of the boat, falling
+  const b = s.boats[0];
+  b.vx = 0; s.p = { x: b.x, y: J.SEA - J.DECK - 20, vx: 0, vy: 200, dx: 0 };
+  for (let k = 0; k < 30 && s.phase === 'fly'; k++) M.jumpStep(s, 1 / 60, {});
+  assert.equal(s.phase, 'landed');
+  assert.deepEqual(s.scores, [100]);
+  assert.equal(s.total, 100);
+});
+
+test('lifeboat jump: a fair player wins in time, one who never steers mostly does not, and doing nothing loses', () => {
+  let fair = 0, careless = 0, slowest = 0;
+  for (let i = 1; i <= 200; i++){
+    const a = jumpPlay(i, { noise: .1, steer: true });
+    if (a.s.done === 'win') fair++;
+    slowest = Math.max(slowest, a.time);
+    if (jumpPlay(i, { noise: .1, steer: false }).s.done === 'win') careless++;
+  }
+  assert.ok(fair >= 190, `a fair player wins (${fair} of 200)`);
+  assert.ok(slowest < M.TIME - 10, `with time to spare (${slowest.toFixed(1)} s)`);
+  assert.ok(careless < 120, `steering matters (${careless} of 200 win without it)`);
+  // jumping with the meter at zero every time lands in the sea; the game ends as soon as 180 is out of reach
+  const s = M.jumpNew(seeded(11));
+  let steps = 0;
+  while (!s.done && steps++ < 5000){ if (s.phase === 'aim') M.jumpAct(s, 'jump'); M.jumpStep(s, 1 / 60, {}); }
+  assert.equal(s.done, 'lose');
+  assert.deepEqual(s.scores, [0, 0], 'over after two misses: one jump cannot make 180');
 });
 
 test('deck run: every obstacle is a plain box, so what you see is exactly what knocks you down', () => {
