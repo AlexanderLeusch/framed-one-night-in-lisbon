@@ -2533,14 +2533,63 @@ function buildBin(x, z){
   for (const sx of [-1, 1]) aoEdge(1.9, .22, v3(SX0 + sx * .02, 1.1, -D / 2 + .002), v3(sx, 0, 0), v3(0, 0, 1));
   flat(.9, 2.9, M.blob, -3.7, 0); flat(.7, .7, M.blob, 3.35, 2.45); flat(.8, .8, M.stain, 0, .3); WATER.puddle(1.15, .75, -3.2, .55);
   WATER.puddle(1.6, 1.3, -.25, .75);   // round the floor drain in the middle
-  // the security camera high in the north-west corner, its red light blinking
+  // ### The security cameras. High in the north-west corner a bullet camera on a wall bracket: a rounded housing of
+  // ### off-white powder-coated aluminium under a sunshield, dark glass in front with the lens and a ring of infrared
+  // ### LEDs glowing faintly red, a status light that blinks, and its cable looping from the back into a grey conduit
+  // ### that runs up the wall to the ceiling. Over the stall a vandal-proof dome camera hangs from the ceiling: a smoked
+  // ### dome on a white base, the camera inside only just visible.
+  const camWhite = new THREE.MeshStandardMaterial({ color: 0xd2d2c8, roughness: .55, map: canvasTex(64, 64, (g, w, h) => {
+    g.fillStyle = '#e8e8e2'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 400; i++){ g.fillStyle = `rgba(90,80,60,${rnd() * .08})`; g.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1); }   // dust and grime
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(110,95,70,.18)'); gr.addColorStop(.4, 'rgba(110,95,70,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  }) });
+  const glassDark = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: .04, metalness: .6, envMapIntensity: 1.4 });
+  const lensCoat = new THREE.MeshStandardMaterial({ color: 0x241a52, roughness: .08, metalness: 1, envMapIntensity: 1.6 });
+  const irLed = new THREE.MeshStandardMaterial({ color: 0x1a0505, emissive: 0x6a0a06, emissiveIntensity: .9, roughness: .3 });
+  const cableMat = new THREE.MeshStandardMaterial({ color: 0x141516, roughness: .6 });
+  const conduitMat = new THREE.MeshStandardMaterial({ color: 0x8e9290, roughness: .5 });
   const cctv = new THREE.Group(); cctv.position.set(-3.72, 2.66, -2.72); cctv.rotation.set(-.42, -Math.PI * .75, 0, 'YXZ'); room.add(cctv);
   const part = (geo, mat, x, y, z, rx = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.x = rx; m.castShadow = m.receiveShadow = true; cctv.add(m); return m; };
-  part(new THREE.BoxGeometry(.13, .12, .3), M.plastic, 0, 0, 0); part(new THREE.BoxGeometry(.17, .015, .34), M.plastic, 0, .07, -.02);
-  part(new THREE.CylinderGeometry(.045, .045, .03, 18), M.dark, 0, 0, -.16, Math.PI / 2); part(new THREE.CylinderGeometry(.03, .03, .005, 18), M.mirror, 0, 0, -.176, Math.PI / 2);
-  part(new THREE.SphereGeometry(.008, 8, 6), M.led, .045, -.04, -.152);
-  box(.06, .06, .02, M.dullSteel, -3.88, 2.74, -2.99); box(.02, .06, .06, M.dullSteel, -3.99, 2.74, -2.88);
-  { const arm = cyl(.014, .014, .25, M.dullSteel, -3.8, 2.73, -2.8, 8); arm.rotation.set(Math.PI / 2, 0, Math.PI / 4); }
+  // the housing: a rounded section drawn out along the camera's axis (its front is towards -z)
+  { const s = new THREE.Shape(); roundedRect(s, -.05, -.045, .05, .045, .03);
+    const g = new THREE.ExtrudeGeometry(s, { depth: .24, bevelEnabled: true, bevelThickness: .008, bevelSize: .006, bevelSegments: 3, curveSegments: 8 }); g.translate(0, 0, -.12); part(g, camWhite, 0, 0, 0); }
+  // the sunshield: a thin curved hood over the top that reaches out past the glass
+  { const g = new THREE.CylinderGeometry(.066, .066, .3, 24, 1, true, -Math.PI * .42, Math.PI * .84); g.rotateX(-Math.PI / 2); const m = part(g, camWhite, 0, .012, -.03); m.material = camWhite.clone(); m.material.side = THREE.DoubleSide; }
+  // the front: a dark bezel, smoked glass, the lens barrel and its coated glass, the infrared ring and the status light
+  part(new THREE.CylinderGeometry(.047, .047, .012, 28), M.dark, 0, 0, -.13, Math.PI / 2);
+  part(new THREE.CylinderGeometry(.043, .043, .002, 28), glassDark, 0, 0, -.137, Math.PI / 2);
+  part(new THREE.CylinderGeometry(.017, .019, .01, 20), M.black, 0, 0, -.132, Math.PI / 2);
+  part(new THREE.SphereGeometry(.012, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, .45, 1), lensCoat, 0, 0, -.136, -Math.PI / 2);
+  for (let i = 0; i < 10; i++){ const a = i / 10 * Math.PI * 2; part(new THREE.CylinderGeometry(.0042, .0042, .002, 10), irLed, Math.cos(a) * .031, Math.sin(a) * .031, -.1365, Math.PI / 2); }
+  part(new THREE.SphereGeometry(.004, 8, 6), M.led, .034, -.034, -.128);
+  // the back: an end cap and the cable gland
+  part(new THREE.CylinderGeometry(.04, .044, .012, 24), camWhite, 0, 0, .128, Math.PI / 2);
+  part(new THREE.CylinderGeometry(.007, .009, .02, 10), M.black, 0, -.02, .14, Math.PI / 2);
+  // the mount on top: a plate on the housing and a ball joint
+  part(new THREE.BoxGeometry(.05, .008, .06), camWhite, 0, .052, .04);
+  part(new THREE.SphereGeometry(.016, 14, 10), M.dullSteel, 0, .07, .04);
+  cctv.updateMatrixWorld(true);
+  const ball = cctv.localToWorld(v3(0, .07, .04)), gland = cctv.localToWorld(v3(0, -.02, .15));
+  // the bracket: a plate screwed to the west wall and an arm from it to the ball joint
+  const WP = v3(-3.985, ball.y + .02, ball.z - .04);
+  box(.012, .1, .1, camWhite, WP.x, WP.y, WP.z);
+  for (const dy of [-.035, .035]) for (const dz of [-.035, .035]){ const sc = cyl(.005, .005, .003, M.chrome, WP.x + .008, WP.y + dy, WP.z + dz, 6); sc.rotation.z = Math.PI / 2; }
+  { const from = v3(WP.x + .006, WP.y, WP.z), len = from.distanceTo(ball), arm = add(new THREE.Mesh(new THREE.CylinderGeometry(.013, .016, len, 12), camWhite));
+    arm.position.copy(from).add(ball).multiplyScalar(.5); arm.quaternion.setFromUnitVectors(v3(0, 1, 0), ball.clone().sub(from).normalize()); }
+  // the cable: from the gland it sags in a loop and goes into the bracket, then a conduit runs up the wall to the ceiling
+  { const pts = [gland, v3(gland.x - .02, gland.y - .09, gland.z - .02), v3(WP.x + .04, WP.y - .1, WP.z + .02), v3(WP.x + .01, WP.y - .045, WP.z)];
+    add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, .0035, 6), cableMat)); }
+  cyl(.012, .012, H - WP.y - .05, conduitMat, -3.982, (H + WP.y + .05) / 2, WP.z - .07, 10);
+  for (const y of [WP.y + .2, H - .08]) box(.01, .02, .035, M.dullSteel, -3.99, y, WP.z - .07);   // its clips
+  box(.03, .05, .03, conduitMat, -3.982, WP.y + .055, WP.z - .07);   // the junction where the cable enters it
+  // the dome camera over the stall: a base ring on the ceiling, a smoked dome and the camera module dim inside it
+  const DOME = v3(2.0, H, -.4);
+  cyl(.085, .09, .03, camWhite, DOME.x, H - .015, DOME.z, 32);
+  cyl(.075, .075, .008, M.dark, DOME.x, H - .033, DOME.z, 32);
+  { const inner = add(new THREE.Mesh(new THREE.SphereGeometry(.035, 16, 12), M.black)); inner.position.set(DOME.x, H - .07, DOME.z);
+    const lens = add(new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, .02, 16), lensCoat)); lens.position.set(DOME.x - .02, H - .085, DOME.z + .02); lens.rotation.set(.7, 0, .6);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(.07, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x0b0c0e, roughness: .03, metalness: .2, transparent: true, opacity: .72, envMapIntensity: 1.5 }));
+    dome.position.set(DOME.x, H - .036, DOME.z); dome.renderOrder = 2; room.add(dome); }
   // a ventilation grille in the ceiling and one high on the wall above the toilet
   box(.52, .02, .42, M.grille, 1.1, H - .01, 1.5); box(.56, .012, .46, M.dullSteel, 1.1, H - .003, 1.5);
   box(.4, .25, .02, M.grille, 3.3, 2.5, -D / 2 + .012); box(.44, .29, .01, M.dullSteel, 3.3, 2.5, -D / 2 + .004);
