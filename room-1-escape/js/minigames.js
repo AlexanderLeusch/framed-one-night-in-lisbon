@@ -1,4 +1,4 @@
-// Room 1: the seven Titanic mini games behind the three clue spots (the crooked tile, the mirror and the scratches).
+// Room 1: the eight mini games (seven on the Titanic, one hacking game) behind the three clue spots (the crooked tile, the mirror and the scratches).
 // ### Each game lasts at most 30 seconds and is drawn on its own (DOM buttons or a 2D canvas), with no image files.
 // ### The top of the file holds the pure helpers (dealing the games, the bots, the fleets, the differences), which the Node
 // ### tests load with require(). open() below them builds a game inside the card and reports the result through onEnd.
@@ -9,7 +9,7 @@
   'use strict';
 
   const TIME = 30;
-  // ### The seven games, in the order rules.js lists them. title and how are the words on the card above each game; goal,
+  // ### The eight games, in the order rules.js lists them. title and how are the words on the card above each game; goal,
   // ### steps, keys (mouse and keyboard) and touch (touch screen) fill the card that explains a game the first time it
   // ### comes up, before its 30 seconds start.
   const INFO = {
@@ -40,12 +40,16 @@
     pinball: { title: 'Vintage <em>pinball</em>', name: 'Pinball', how: 'Score 1,500 points with three balls. Flippers: ← and → (A and D), Space for both, or press the left or right half of the table. The ball shoots by itself, or press Space.',
       goal: 'Score 1,500 points with three balls.',
       steps: ['The ball shoots by itself, or press Space to shoot it.', 'The pop bumpers, the slingshots, the two lifebuoy targets and the R-M-S lanes at the top all score.', 'Keep the ball from falling between the flippers.'],
-      keys: '← and → (A and D) for the flippers, Space for both.', touch: 'Press the left or right half of the table.' }
+      keys: '← and → (A and D) for the flippers, Space for both.', touch: 'Press the left or right half of the table.' },
+    hacking: { title: 'Crack the <em>firewall</em>', name: 'Hacking', how: 'Break into the security node of Cell Block D: four layers before the firewall locks you out. Match the carrier wave, then pick the key fragment that matches exactly. Every wrong guess feeds the firewall.',
+      goal: 'Open all four layers of the security node before the firewall fills up.',
+      steps: ['Wave layers: change the frequency and the amplitude of your orange wave until it lies exactly on the blue target, then lock it.', 'Fragment layers: find the one of the four fragments that matches the key fragment cell for cell, and inject it.', 'The firewall fills by itself in 28 seconds, and every wrong lock or wrong fragment adds 15 %. Full means you are locked out.'],
+      keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For fragments, ← → and Space, or click one.', touch: 'Tap the buttons under the wave, or tap a fragment.' }
   };
   const GAMES = Object.keys(INFO);
 
   // ---------- Pure helpers ----------
-  // ### Deals three different games out of the seven. rand() returns a number from 0 (inclusive) to 1, like Math.random.
+  // ### Deals three different games out of the eight. rand() returns a number from 0 (inclusive) to 1, like Math.random.
   function pickGames(rand){
     const a = GAMES.slice();
     for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
@@ -1580,6 +1584,212 @@
     return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
   }
 
+  // ### 8. Hacking: break into the security node of Cell Block D before its firewall locks you out. Four layers, one after
+  // ### the other: tune your signal to the guards' carrier wave (its frequency and its amplitude), then pick the key
+  // ### fragment that matches exactly, then a second, faster wave and a finer fragment. The firewall grows by itself and
+  // ### every wrong lock or wrong fragment feeds it. hackNew(), hackAct() and hackStep() hold all the rules and are tested
+  // ### in Node; BUILD.hacking only draws them and turns keys, clicks and taps into actions.
+  const HACK = { W: 640, H: 360, LAYERS: ['wave', 'fragment', 'wave', 'fragment'], FREQS: 7, AMPS: 5, FILL: 1 / 28, WRONG: .15,
+    GRID: [5, 6], FLIPS: [2, 1], OPTIONS: 4 };
+  // ### A key fragment: an n x n grid of bits, about half of them set, never fewer than a third.
+  function hackPattern(n, rand){
+    for (;;){
+      const p = Array.from({ length: n * n }, () => rand() < .45 ? 1 : 0), on = p.reduce((a, b) => a + b, 0);
+      if (on >= n * n / 3 && on <= n * n * .6) return p;
+    }
+  }
+  // ### The four fragments to choose from: the right one and three decoys, each with `flips` cells changed, all different.
+  function hackOptions(target, flips, rand){
+    const opts = [target.slice()], key = p => p.join('');
+    while (opts.length < HACK.OPTIONS){
+      const d = target.slice(), cells = new Set();
+      while (cells.size < flips) cells.add(Math.floor(rand() * d.length));
+      cells.forEach(i => { d[i] = 1 - d[i]; });
+      if (!opts.some(o => key(o) === key(d))) opts.push(d);
+    }
+    for (let i = opts.length - 1; i > 0; i--){ const j = Math.floor(rand() * (i + 1)); [opts[i], opts[j]] = [opts[j], opts[i]]; }
+    return { options: opts, answer: opts.findIndex(o => key(o) === key(target)) };
+  }
+  // ### A new break-in. Each wave layer starts with your frequency and amplitude both off the target; each fragment layer
+  // ### starts with the first fragment selected.
+  function hackNew(rand){
+    let waves = 0, frags = 0;
+    const layers = HACK.LAYERS.map(kind => {
+      if (kind === 'wave'){
+        const k = waves++, tf = 2 + Math.floor(rand() * (HACK.FREQS - 1)), ta = 1 + Math.floor(rand() * HACK.AMPS);
+        let f, a;
+        do f = 1 + Math.floor(rand() * HACK.FREQS); while (f === tf);
+        do a = 1 + Math.floor(rand() * HACK.AMPS); while (a === ta);
+        return { kind, tf, ta, f, a, speed: 1.6 + k * 1.4 };
+      }
+      const k = frags++, n = HACK.GRID[k], target = hackPattern(n, rand);
+      return { kind, n, target, sel: 0, ...hackOptions(target, HACK.FLIPS[k], rand) };
+    });
+    return { layers, layer: 0, fire: 0, won: false, lost: false, events: [] };
+  }
+  // ### How close your wave is to the target: 1 is a perfect match, 0 is as far off as it gets.
+  function hackSync(w){
+    return 1 - (Math.abs(w.f - w.tf) / (HACK.FREQS - 1) + Math.abs(w.a - w.ta) / (HACK.AMPS - 1)) / 2;
+  }
+  // ### One action of the player: 'freq+', 'freq-', 'amp+', 'amp-' and 'lock' on a wave layer; 'left', 'right', 'lock'
+  // ### (take the selected fragment) or a number (take that fragment) on a fragment layer. A right lock opens the layer,
+  // ### a wrong one feeds the firewall. Returns true when the action was taken. Sounds are left in s.events.
+  function hackAct(s, action){
+    if (s.won || s.lost) return false;
+    const L = s.layers[s.layer], clamp = (v, max) => Math.max(1, Math.min(max, v));
+    let right = null;
+    if (L.kind === 'wave'){
+      if (action === 'freq+' || action === 'freq-'){ const f = clamp(L.f + (action === 'freq+' ? 1 : -1), HACK.FREQS); if (f === L.f) return false; L.f = f; s.events.push('tick'); return true; }
+      if (action === 'amp+' || action === 'amp-'){ const a = clamp(L.a + (action === 'amp+' ? 1 : -1), HACK.AMPS); if (a === L.a) return false; L.a = a; s.events.push('tick'); return true; }
+      if (action !== 'lock') return false;
+      right = L.f === L.tf && L.a === L.ta;
+    } else {
+      if (action === 'left' || action === 'right'){ L.sel = (L.sel + (action === 'right' ? 1 : HACK.OPTIONS - 1)) % HACK.OPTIONS; s.events.push('tick'); return true; }
+      if (typeof action === 'number' && action >= 0 && action < HACK.OPTIONS) L.sel = action;
+      else if (action !== 'lock') return false;
+      right = L.sel === L.answer;
+    }
+    if (right){
+      s.layer++; s.events.push('good');
+      if (s.layer >= s.layers.length){ s.won = true; s.layer = s.layers.length - 1; }
+    } else {
+      s.fire = Math.min(1, s.fire + HACK.WRONG); s.events.push('bad');
+      if (s.fire >= 1) s.lost = true;
+    }
+    return true;
+  }
+  // ### The firewall grows on its own: from empty to full in 28 seconds, a little sooner than the 30 s of the clock.
+  function hackStep(s, dt){
+    if (s.won || s.lost) return;
+    s.fire = Math.min(1, s.fire + HACK.FILL * dt);
+    if (s.fire >= 1) s.lost = true;
+  }
+
+  BUILD.hacking = api => {
+    const { W, H } = HACK, MONO = '"JetBrains Mono", monospace';
+    const c = api.canvas(W, H), g = c.getContext('2d');
+    const s = hackNew(api.rand);
+    let t = 0, flash = 0, shake = 0, lastLayer = 0;
+    // the five buttons under the wave, also clickable with the mouse; the four fragments to the right of the target
+    const BTN = [['freq-', '◀ FREQ'], ['freq+', 'FREQ ▶'], ['amp-', '▼ AMP'], ['amp+', 'AMP ▲'], ['lock', 'LOCK']]
+      .map(([act, label], i) => ({ act, label, x: 36 + i * 116, y: 300, w: 104, h: 42 }));
+    const fragBox = (L, i) => { const cell = L.n === 5 ? 18 : 15, size = cell * L.n; return { x: 204 + i * (size + 18), y: 132, cell, size }; };
+    const inBox = (x, y, b, w, h) => x >= b.x && x <= b.x + w && y >= b.y && y <= b.y + h;
+    const layerName = L => L.kind === 'wave' ? 'match the carrier wave' : 'pick the matching key fragment';
+    const status = () => api.status(`Layer ${s.layer + 1} of ${s.layers.length}: ${layerName(s.layers[s.layer])}`);
+    function play(){
+      for (const e of s.events) api.sound(e);
+      s.events.length = 0;
+      if (s.layer !== lastLayer){ lastLayer = s.layer; flash = .6; status(); }
+      if (s.won) return api.win('All four layers are down. You are in.');
+      if (s.lost) return api.lose('The firewall locked you out.');
+    }
+    function act(a){ const before = s.fire; if (hackAct(s, a) && s.fire > before) shake = .35; play(); }
+    function wave(L, f, a, color, dashed, width){
+      g.save(); g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dashed ? [7, 6] : []);
+      g.shadowColor = color; g.shadowBlur = dashed ? 0 : 8;
+      g.beginPath();
+      for (let x = 0; x <= 560; x += 3){ const y = 190 - a * 14 * Math.sin(Math.PI * 2 * f * x / 560 + t * L.speed); x ? g.lineTo(40 + x, y) : g.moveTo(40 + x, y); }
+      g.stroke(); g.restore();
+    }
+    function grid(bits, n, x, y, cell, on, off){
+      for (let i = 0; i < n * n; i++){ g.fillStyle = bits[i] ? on : off; g.fillRect(x + (i % n) * cell + 1, y + Math.floor(i / n) * cell + 1, cell - 2, cell - 2); }
+    }
+    return {
+      key(code, down){
+        if (!down) return;
+        const L = s.layers[s.layer];
+        const map = L.kind === 'wave'
+          ? { ArrowLeft: 'freq-', KeyA: 'freq-', ArrowRight: 'freq+', KeyD: 'freq+', ArrowUp: 'amp+', KeyW: 'amp+', ArrowDown: 'amp-', KeyS: 'amp-', Space: 'lock' }
+          : { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'lock' };
+        if (map[code]) act(map[code]);
+      },
+      point(x, y, type){
+        if (type !== 'down') return;
+        const L = s.layers[s.layer];
+        if (L.kind === 'wave'){ const b = BTN.find(b => inBox(x, y, b, b.w, b.h)); if (b) act(b.act); return; }
+        for (let i = 0; i < HACK.OPTIONS; i++){ const b = fragBox(L, i); if (inBox(x, y, { x: b.x - 6, y: b.y - 6 }, b.size + 12, b.size + 30)) return act(i); }
+      },
+      start(){ status(); },
+      update(dt){
+        t += dt; flash = Math.max(0, flash - dt); shake = Math.max(0, shake - dt);
+        hackStep(s, dt); play();
+      },
+      draw(){
+        const L = s.layers[s.layer];
+        g.save();
+        if (shake > 0) g.translate((Math.random() - .5) * shake * 18, 0);
+        // the screen of an old security terminal: near-black glass with faint scanlines
+        g.fillStyle = '#04090a'; g.fillRect(-20, 0, W + 40, H);
+        g.fillStyle = 'rgba(80,255,190,.035)'; for (let y = 0; y < H; y += 3) g.fillRect(0, y, W, 1);
+        g.font = `700 11px ${MONO}`; g.textBaseline = 'middle';
+        g.fillStyle = '#5fe0b4'; g.fillText('CELL BLOCK D · SECURITY NODE', 20, 18);
+        // the four layers: open ones in green, the current one blinking
+        for (let i = 0; i < s.layers.length; i++){
+          const open = i < s.layer || s.won, cur = i === s.layer && !s.won;
+          g.strokeStyle = open ? '#5fe0b4' : cur ? '#ff7a1a' : '#2c3d3a'; g.lineWidth = 2;
+          g.strokeRect(20 + i * 30, 34, 22, 22);
+          if (open){ g.fillStyle = '#5fe0b4'; g.fillRect(25 + i * 30, 39, 12, 12); }
+          else if (cur && Math.floor(t * 3) % 2 === 0){ g.fillStyle = '#ff7a1a'; g.fillRect(27 + i * 30, 41, 8, 8); }
+        }
+        // the firewall: a red wall of blocks that fills from the left; at full it locks you out
+        const fx = 160, fw = 460, n = 23;
+        g.fillStyle = '#ff4d4d'; g.textAlign = 'right'; g.fillText(`FIREWALL ${Math.round(s.fire * 100)}%`, fx + fw, 18); g.textAlign = 'left';
+        for (let i = 0; i < n; i++){
+          const on = (i + 1) / n <= s.fire + 1e-9, part = !on && i / n < s.fire;
+          g.fillStyle = on ? (s.fire > .75 && Math.floor(t * 6) % 2 ? '#ff8a6a' : '#e0322a') : part ? 'rgba(224,50,42,.45)' : '#1a1414';
+          g.fillRect(fx + i * (fw / n), 34, fw / n - 3, 22);
+        }
+        if (L.kind === 'wave'){
+          const sync = hackSync(L);
+          g.strokeStyle = '#123029'; g.lineWidth = 1;
+          for (let x = 40; x <= 600; x += 40){ g.beginPath(); g.moveTo(x, 110); g.lineTo(x, 270); g.stroke(); }
+          for (let y = 110; y <= 270; y += 20){ g.beginPath(); g.moveTo(40, y); g.lineTo(600, y); g.stroke(); }
+          wave(L, L.tf, L.ta, '#36c6ff', true, 2);
+          wave(L, L.f, L.a, sync === 1 ? '#5fe0b4' : '#ff7a1a', false, 2.6);
+          g.fillStyle = '#36c6ff'; g.fillText('- - TARGET', 40, 88);
+          g.fillStyle = '#ff7a1a'; g.fillText(`── YOU  F${L.f} A${L.a}`, 150, 88);
+          g.fillStyle = sync === 1 ? '#5fe0b4' : '#9ab'; g.textAlign = 'right'; g.fillText(`SYNC ${Math.round(sync * 100)}%${sync === 1 ? ' · LOCK IT' : ''}`, 600, 88); g.textAlign = 'left';
+          for (const b of BTN){
+            const lock = b.act === 'lock';
+            g.fillStyle = lock ? (sync === 1 ? '#1d4a3a' : '#2a1a10') : '#0e1c1a'; g.fillRect(b.x, b.y, b.w, b.h);
+            g.strokeStyle = lock ? (sync === 1 ? '#5fe0b4' : '#ff7a1a') : '#2f5a50'; g.lineWidth = 1.5; g.strokeRect(b.x + .5, b.y + .5, b.w - 1, b.h - 1);
+            g.fillStyle = lock ? '#fff' : '#bfe'; g.textAlign = 'center'; g.font = `700 13px ${MONO}`; g.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1); g.textAlign = 'left'; g.font = `700 11px ${MONO}`;
+          }
+        } else {
+          const big = L.n === 5 ? 24 : 20, tx = 40, ty = 120;
+          g.fillStyle = '#36c6ff'; g.fillText('KEY FRAGMENT', tx, 96);
+          g.strokeStyle = '#36c6ff'; g.lineWidth = 1.5; g.strokeRect(tx - 4, ty - 4, big * L.n + 8, big * L.n + 8);
+          grid(L.target, L.n, tx, ty, big, '#36c6ff', '#0b1a22');
+          g.fillStyle = '#9ab'; g.fillText('WHICH ONE MATCHES EXACTLY?', 204, 96);
+          for (let i = 0; i < HACK.OPTIONS; i++){
+            const b = fragBox(L, i), sel = i === L.sel;
+            g.strokeStyle = sel ? '#ff7a1a' : '#2f5a50'; g.lineWidth = sel ? 2.5 : 1.2;
+            g.strokeRect(b.x - 5, b.y - 5, b.size + 10, b.size + 10);
+            grid(L.options[i], L.n, b.x, b.y, b.cell, sel ? '#ffb27a' : '#7fd8c0', '#0d1a18');
+            g.fillStyle = sel ? '#ff7a1a' : '#5a7a72'; g.textAlign = 'center'; g.fillText(String.fromCharCode(65 + i), b.x + b.size / 2, b.y + b.size + 16); g.textAlign = 'left';
+          }
+          g.fillStyle = '#5a7a72'; g.fillText('← → TO CHOOSE · SPACE OR CLICK TO INJECT', 204, 300);
+        }
+        // a layer just opened, or the whole node
+        if (flash > 0 || s.won){
+          g.fillStyle = `rgba(95,224,180,${s.won ? .18 : flash * .25})`; g.fillRect(0, 70, W, H - 70);
+          g.fillStyle = 'rgba(4,9,10,.88)'; g.fillRect(W / 2 - 170, 172, 340, 56);
+          g.strokeStyle = '#5fe0b4'; g.lineWidth = 2; g.strokeRect(W / 2 - 170, 172, 340, 56);
+          g.fillStyle = '#5fe0b4'; g.font = `700 28px ${MONO}`; g.textAlign = 'center';
+          g.fillText(s.won ? 'ACCESS GRANTED' : `LAYER ${s.layer} OPEN`, W / 2, 200); g.textAlign = 'left';
+        }
+        if (s.lost){
+          g.fillStyle = 'rgba(224,50,42,.25)'; g.fillRect(0, 0, W, H);
+          g.fillStyle = 'rgba(4,9,10,.88)'; g.fillRect(W / 2 - 170, 172, 340, 56);
+          g.strokeStyle = '#ff4d4d'; g.lineWidth = 2; g.strokeRect(W / 2 - 170, 172, 340, 56);
+          g.fillStyle = '#ff4d4d'; g.font = `700 28px ${MONO}`; g.textAlign = 'center'; g.fillText('LOCKED OUT', W / 2, 200); g.textAlign = 'left';
+        }
+        g.restore();
+      }
+    };
+  };
+
   // ---------- The shell: timer, input, loop ----------
   // ### open(host, id, opts) builds game `id` inside the element host and starts it. opts.onEnd(won, reason) is called once,
   // ### a moment after the game is decided; opts.sound(name) plays a short effect. The returned stop() ends it silently
@@ -1628,11 +1838,16 @@
       if (game.draw) game.draw();
       timers.push(setTimeout(() => { if (!stopped){ cleanup(); if (opts.onEnd) opts.onEnd(won, reason); } }, 900));
     }
-    const toLogical = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * logical.w, (e.clientY - r.top) / r.height * logical.h]; };
+    // ### On a short screen the canvas box is wider than the picture (object-fit: contain centres it), so the picture's own
+    // ### place and scale inside the box are used: a click lands where it is drawn.
+    const toLogical = e => {
+      const r = canvas.getBoundingClientRect(), k = Math.min(r.width / logical.w, r.height / logical.h) || 1;
+      return [(e.clientX - r.left - (r.width - logical.w * k) / 2) / k, (e.clientY - r.top - (r.height - logical.h * k) / 2) / k];
+    };
     const onDown = e => { if (!api.over && game.point){ e.preventDefault(); const [x, y] = toLogical(e); game.point(x, y, 'down'); } };
     const onMove = e => { if (!api.over && game.point){ const [x, y] = toLogical(e); game.point(x, y, 'move'); } };
     const onUp = e => { if (!api.over && game.point){ const [x, y] = toLogical(e); game.point(x, y, 'up'); } };
-    const GAME_KEYS = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'KeyW'];
+    const GAME_KEYS = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'KeyW', 'KeyS'];
     const onKey = e => {
       if (!GAME_KEYS.includes(e.code)) return;
       e.preventDefault();
@@ -1667,5 +1882,5 @@
     return { stop(){ if (!stopped){ api.over = true; cleanup(); } }, get timeLeft(){ return left; } };
   }
 
-  return Object.freeze({ TIME, INFO, GAMES, DIFFS, pickGames, tttWinner, tttBot, placeFleet, fleetSunk, bsBot, around, waterAround, pickDiffs, hitDiff, overlap, icebergPoly, inPoly, cloudStack, hitsClouds, RUN_KINDS, RUN, runLayout, CLIMB_LEVELS, PIN, PIN_TABLE, pinNew, pinStep, open });
+  return Object.freeze({ TIME, INFO, GAMES, DIFFS, pickGames, tttWinner, tttBot, placeFleet, fleetSunk, bsBot, around, waterAround, pickDiffs, hitDiff, overlap, icebergPoly, inPoly, cloudStack, hitsClouds, RUN_KINDS, RUN, runLayout, CLIMB_LEVELS, PIN, PIN_TABLE, pinNew, pinStep, HACK, hackNew, hackAct, hackStep, hackSync, hackOptions, open });
 });

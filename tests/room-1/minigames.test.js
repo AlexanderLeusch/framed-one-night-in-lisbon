@@ -1,4 +1,4 @@
-// ### Unit tests for the seven Titanic mini games (room-1-escape/js/minigames.js): dealing, the bots, the fleets and the
+// ### Unit tests for the eight mini games (room-1-escape/js/minigames.js): dealing, the bots, the fleets and the
 // ### spot-the-difference circles. The drawing and the controls are played in the browser tests.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -8,7 +8,7 @@ const R = require('../../room-1-escape/js/rules.js');
 // a small seeded random number generator, so every run of these tests sees the same numbers
 const seeded = a => () => { a = (a * 1664525 + 1013904223) % 4294967296; return a / 4294967296; };
 
-test('there are seven games, the same seven the rules know, each at most 30 seconds', () => {
+test('there are eight games, the same eight the rules know, each at most 30 seconds', () => {
   assert.deepEqual(M.GAMES, R.GAMES);
   assert.equal(M.TIME, 30);
   for (const g of M.GAMES) assert.ok(M.INFO[g].title && M.INFO[g].how && M.INFO[g].name, g);
@@ -24,7 +24,7 @@ test('every game has the words for the card that explains it before its first pl
   }
 });
 
-test('every new game deals three different mini games, and over many games all seven come up', () => {
+test('every new game deals three different mini games, and over many games all eight come up', () => {
   const seen = new Set(), rand = seeded(7);
   for (let i = 0; i < 200; i++){
     const g = M.pickGames(rand);
@@ -33,7 +33,7 @@ test('every new game deals three different mini games, and over many games all s
     g.forEach(x => seen.add(x));
     assert.ok(R.perform(R.newState(), 'start', g).ok, 'the rules accept every deal');
   }
-  assert.equal(seen.size, 7);
+  assert.equal(seen.size, 8);
 });
 
 test('tic-tac-toe: lines, draws, and a bot that always wins when it can and can be beaten', () => {
@@ -221,4 +221,94 @@ test('spot the difference: five differences each game, found only once and only 
 test('overlap of two boxes, used by the three action games', () => {
   assert.ok(M.overlap({ x: 0, y: 0, w: 10, h: 10 }, { x: 5, y: 5, w: 10, h: 10 }));
   assert.ok(!M.overlap({ x: 0, y: 0, w: 10, h: 10 }, { x: 10, y: 0, w: 5, h: 5 }), 'touching edges do not count');
+});
+
+// a hacker who takes `think` seconds to size up each layer and `press` seconds for each key press after that
+function hackPlayer(s, think, press){
+  const wait = sec => { for (let k = 0; k < Math.round(sec * 60) && !s.lost; k++) M.hackStep(s, 1 / 60); };
+  let layer = -1;
+  while (!s.won && !s.lost){
+    const L = s.layers[s.layer];
+    if (s.layer !== layer){ layer = s.layer; wait(think); if (s.lost) break; }
+    let a;
+    if (L.kind === 'wave') a = L.f < L.tf ? 'freq+' : L.f > L.tf ? 'freq-' : L.a < L.ta ? 'amp+' : L.a > L.ta ? 'amp-' : 'lock';
+    else a = L.options.findIndex(o => o.join('') === L.target.join(''));
+    M.hackAct(s, a);
+    wait(press);
+  }
+  return s;
+}
+
+test('hacking: four layers, two waves and two fragments, each wave starting off the target', () => {
+  for (let seed = 1; seed <= 200; seed++){
+    const s = M.hackNew(seeded(seed));
+    assert.deepEqual(s.layers.map(l => l.kind), ['wave', 'fragment', 'wave', 'fragment']);
+    for (const L of s.layers){
+      if (L.kind === 'wave'){
+        assert.ok(L.f !== L.tf && L.a !== L.ta, 'frequency and amplitude both start wrong');
+        assert.ok(L.f >= 1 && L.f <= M.HACK.FREQS && L.tf >= 1 && L.tf <= M.HACK.FREQS && L.a >= 1 && L.a <= M.HACK.AMPS && L.ta >= 1 && L.ta <= M.HACK.AMPS);
+        assert.ok(M.hackSync(L) < 1);
+      } else {
+        const keys = L.options.map(o => o.join(''));
+        assert.equal(L.options.length, 4); assert.equal(new Set(keys).size, 4, 'four different fragments');
+        assert.equal(keys.filter(k => k === L.target.join('')).length, 1, 'exactly one matches');
+        assert.equal(keys[L.answer], L.target.join(''));
+        assert.equal(L.target.length, L.n * L.n);
+      }
+    }
+  }
+});
+
+test('hacking: a right lock opens the layer, a wrong one feeds the firewall, and a full firewall locks you out', () => {
+  const s = M.hackNew(seeded(4)), w = s.layers[0];
+  assert.equal(M.hackAct(s, 'lock'), true);
+  assert.equal(s.layer, 0, 'refused: the wave does not match');
+  assert.equal(s.fire, M.HACK.WRONG);
+  w.f = w.tf; w.a = w.ta;
+  assert.equal(M.hackSync(w), 1);
+  M.hackAct(s, 'lock');
+  assert.equal(s.layer, 1, 'the matching wave opens the first layer');
+  const f = s.layers[1], wrong = (f.answer + 1) % 4;
+  M.hackAct(s, wrong);
+  assert.equal(s.layer, 1, 'refused: a decoy fragment'); assert.ok(Math.abs(s.fire - 2 * M.HACK.WRONG) < 1e-9);
+  M.hackAct(s, 'right'); assert.equal(f.sel, (wrong + 1) % 4, 'the arrows move the selection');
+  assert.equal(M.hackAct(s, 'freq+'), false, 'refused: no wave on a fragment layer');
+  M.hackAct(s, f.answer);
+  assert.equal(s.layer, 2);
+  // the firewall fills by itself in 28 seconds, so the clock of 30 s is never the first to run out
+  const idle = M.hackNew(seeded(9));
+  for (let t = 0; t < 27.9; t += 1 / 60) M.hackStep(idle, 1 / 60);
+  assert.ok(!idle.lost);
+  for (let t = 0; t < .2; t += 1 / 60) M.hackStep(idle, 1 / 60);
+  assert.ok(idle.lost);
+  assert.equal(M.hackAct(idle, 'lock'), false, 'refused: nothing to do once locked out');
+  // every wrong lock costs 15 %, so seven in a row fill the firewall
+  const rush = M.hackNew(seeded(2));
+  for (let i = 0; i < 7; i++) M.hackAct(rush, 'lock');
+  assert.ok(rush.lost, 'seven wrong locks fill the firewall');
+});
+
+test('hacking: the frequency and amplitude stay in range', () => {
+  const s = M.hackNew(seeded(6)), w = s.layers[0];
+  for (let i = 0; i < 20; i++) M.hackAct(s, 'freq+');
+  assert.equal(w.f, M.HACK.FREQS);
+  assert.equal(M.hackAct(s, 'freq+'), false, 'refused: already at the top');
+  for (let i = 0; i < 20; i++) M.hackAct(s, 'amp-');
+  assert.equal(w.a, 1);
+  assert.equal(s.fire, 0, 'turning the knobs costs nothing');
+});
+
+test('hacking: a fair player makes it in time, a slow or guessing one does not', () => {
+  let fair = 0, slow = 0, guess = 0;
+  for (let seed = 1; seed <= 100; seed++){
+    if (hackPlayer(M.hackNew(seeded(seed)), 3, .3).won) fair++;
+    if (hackPlayer(M.hackNew(seeded(seed)), 6.5, .4).won) slow++;
+    // a guesser locks at once on every layer without looking
+    const g = M.hackNew(seeded(seed));
+    for (let k = 0; k < 40 && !g.won && !g.lost; k++){ M.hackAct(g, 'lock'); M.hackStep(g, .5); }
+    if (g.won) guess++;
+  }
+  assert.equal(fair, 100, 'three seconds to read each layer always makes it');
+  assert.ok(slow <= 10, 'six and a half seconds per layer hardly ever does');
+  assert.equal(guess, 0, 'guessing never does');
 });

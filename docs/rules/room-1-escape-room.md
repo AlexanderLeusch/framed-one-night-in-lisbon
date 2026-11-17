@@ -68,9 +68,9 @@ The **first time** a mini game comes up, a card explains it before it starts: th
 - A won clue is kept in your clue notes and can be read again at its spot; its mini game cannot be played again.
 - The **graffiti** on the stall wall ("She was unsinkable. She sailed only once. The year opens the floor.") is a hint, not one of the three clues.
 
-### The seven mini games
+### The eight mini games
 
-At the start of every game, **three different games out of seven** are dealt at random to the three spots (tile, mirror, scratches), so every round plays differently. The rules check that the three are different; the room deals them (`MiniGames.pickGames` in `room-1-escape/js/minigames.js`).
+At the start of every game, **three different games out of eight** are dealt at random to the three spots (tile, mirror, scratches), so every round plays differently. The rules check that the three are different; the room deals them (`MiniGames.pickGames` in `room-1-escape/js/minigames.js`).
 
 | Game | How to win in 30 seconds |
 |---|---|
@@ -81,6 +81,7 @@ At the start of every game, **three different games out of seven** are dealt at 
 | **Deck climb** | As the same sailor, bounce up through the Titanic: the engine room (boilers, furnaces, pipes), the crew quarters (bunks and lockers), second class (oak-panelled corridors and the library) and first class, the longest level, twice as tall as the others (the Grand Staircase with its glass dome, chandeliers, the clock "Honour and Glory" and the bronze cherub). The game is won the moment you land on the boat deck with its funnels and lifeboats above first class; there is nothing to climb above it. Steer with ← → or the mouse. Lifebuoys bounce you higher. Falling back down loses. |
 | **Seagull** | Fly the seagull over the black, icy North Atlantic at night, the lit Titanic in the background; flap with Space, ↑ or a click through ten gaps between stacks of overlapping clouds and icebergs. Only the drawn outline of a cloud or an iceberg counts as a crash. |
 | **Pinball** | A vintage White Star Line table in walnut, cream, brass and burgundy. Score **1,500 points** with three balls. Flippers: ← and → (A and D), Space for both, or press the left or right half of the table; the ball shoots by itself (or with Space). Points: pop bumper 150, lifebuoy target 250, slingshot 10, each R-M-S lane 100 and all three lanes 1,000 more, and 250 for every flipper shot that reaches the crow's nest bell at the top. A fair player gets there in about 15 seconds; losing all three balls loses. |
+| **Hacking** | Break into the security node of Cell Block D on an old green-screen terminal: **four layers** before the **firewall** locks you out. Layers 1 and 3: change the frequency (← →, A D) and the amplitude (↑ ↓, W S) of your orange wave until it lies on the dashed blue target wave (a sync meter shows how close you are), then lock it with Space; on a touch screen tap the buttons under the wave. Layers 2 and 4: four key fragments, only one matches the key fragment cell for cell (5 × 5 cells with two changed in each decoy, then 6 × 6 with only one); choose with ← → and Space or click it. The firewall fills by itself in 28 seconds and every wrong lock or wrong fragment adds 15 %; full means locked out. A fair player gets in in about 15 seconds. |
 
 ## The lock
 
