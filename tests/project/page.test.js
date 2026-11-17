@@ -241,10 +241,12 @@ test('the city is Lisbon: the gate stands at the south-west corner, towards the 
   assert.match(game, /gp = \{ x: -144, z: 144 \}/, 'the gate is where Rua do Crucifixo meets the river avenue');
   assert.equal(Core.streetAt(-144, 144, Math.PI / 2), 'Avenida Infante Dom Henrique');
   assert.match(game, /gp = \{ x: -144, z: 144 \}; gateRot = -Math\.PI \/ 2;/, 'the gate faces west, up the approach road to the bridge');
-  // behind the gate the approach road starts where the gate stands; it is scenery, the finale goes straight to the bridge
+  // behind the gate the approach road starts where the gate stands; through the gate you drive it up to the deck yourself
   assert.match(game, /X0 = -144, Z0 = 144/, 'the approach road starts at the gate');
-  assert.ok(!/CITY\.approach/.test(game), 'the car never drives on the approach road');
-  assert.match(game, /onBridge\(F\.start, F\.lane\)/,'through the gate the car is placed on the bridge, where it always was');
+  assert.match(game, /CITY\.approach = \{ len: LEN, at, hw \}/, 'the approach road can be driven');
+  assert.match(game, /if \(f\.ramp\) return updateRamp\(dt\);/, 'the finale starts with your own drive up the approach road');
+  assert.match(game, /onTheBridge\(local\.x, local\.z, /, 'on the deck the drive over the bridge takes over where you are, without a cut');
+  assert.match(game, /onBridge\(F\.start, F\.lane\)|onTheBridge\(F\.start, F\.lane, F\.speed\)/, 'if you do not get up there, the picture fades and the car is placed on the bridge, where it always was');
   assert.match(game, /const cine = finale\.on && finale\.placed;/, 'on the bridge the engine is heard working, not idling along on overrun');
   assert.match(game, /if \(!f\.kick\)\{ f\.kick = true; eng\.gear = Math\.max\(1, eng\.gear - 1\); f\.throttle = 1; \}/, 'with the second shot the driver changes down and puts the foot down');
   assert.match(game, /arco\(80\)/, 'the Arco da Rua Augusta still stands over Rua Augusta');
