@@ -543,7 +543,16 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       for (const [w, n, d] of [[0, 1, 1], [1, 1, -1], [2, 1, 1], [3, 2, 1]]) for (let k = 0; k < n; k++) await click(`[data-turn="${w},${d}"]`);
       assert.equal(await evaluate("[...document.querySelectorAll('#lockUi output')].map(o => o.textContent).join('')"), '1912');
       await click('[data-do="try"]');
-      await waitFor("/Ending A/.test((document.querySelector('#card .eyebrow') || {}).textContent || '')", 120000, 'Ending A card');
+      // down the ladder there is no card yet: you walk through the tunnel yourself and open the door at its far end
+      await waitFor("/Walk through the tunnel to the door/.test(document.getElementById('say').textContent)", 120000, 'down the ladder, told to walk to the door');
+      assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'no ending card at the foot of the ladder');
+      assert.equal(await evaluate("!!document.querySelector('[data-hotspot=\"open:door\"]')"), false, 'rejected: the door cannot be opened from the foot of the ladder');
+      await key('keydown', 'ArrowUp');
+      await waitFor("!!document.querySelector('[data-hotspot=\"open:door\"]')", 120000, 'walking up to the door');
+      await key('keyup', 'ArrowUp');
+      assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'still no card while the door is shut');
+      await hs('open:door');
+      await waitFor("/Ending A/.test((document.querySelector('#card .eyebrow') || {}).textContent || '')", 60000, 'Ending A card');
       assert.match(await text('#card'), /Took you long enough/);
       assert.deepEqual(errors, []);
       await evaluate("localStorage.removeItem('escape-room-save'), true");
