@@ -1554,11 +1554,167 @@ const hall = new THREE.Group(); room.add(hall);
   const t = new THREE.Mesh(new THREE.BoxGeometry(1.4, .05, .12), new THREE.MeshBasicMaterial({ color: 0xf2f8ff })); t.position.set(0, 2.97, 3.7); hall.add(t); }
 const hale = buildHale();
 // Fades Hale in or out; he is only drawn while he can be seen
-function haleFade(o){ for (const m of hale.mats) m.opacity = o; hale.g.visible = o > .01; }
+function haleFade(o){ if (hale.fade) hale.fade(o); else for (const m of hale.mats) m.opacity = o; hale.g.visible = o > .01; }
 hall.visible = false;
 hale.g.position.set(.14, 0, 3.42); hale.g.rotation.y = Math.PI; hale.g.visible = false; room.add(hale.g);
 const haleShadow = new THREE.Mesh(new THREE.PlaneGeometry(.7, 1.9), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, opacity: 0, depthWrite: false }));
 haleShadow.position.set(.12, .004, 2.05); haleShadow.rotation.set(-Math.PI / 2, 0, Math.PI); room.add(haleShadow);
+// ### Officer Hale as a real man. The figure above is only the stand-in until models/hale.glb has loaded (or if it cannot
+// ### be loaded). The model is made from the free MakeHuman base mesh (CC0, see models/LICENSE-hale.txt): a real male body
+// ### in his fifties, shaped by MakeHuman's own measurements, with its skeleton of 66 bones, real eyes and a painted skin
+// ### (textures/hale-skin.jpg and its bump map): stubble, grey cropped hair at the sides, eyebrows, the lines of his face.
+// ### Over it the uniform is fitted to the body: a navy wool tunic and trousers, a light blue shirt collar with a dark tie,
+// ### a duty belt with pouches, a buckle and keys, a badge, a name plate, boots and a peaked cap. Every piece of it is
+// ### bound to the skeleton, so he can move: his head turns to you, his right hand reaches for the edge of the door and
+// ### stays on it while he pulls it shut, his left arm hangs at his side, his chest rises and falls as he breathes.
+function readHuman(buf){
+  const { json, acc } = glbParts(buf), skin = json.skins[0];
+  const bones = skin.joints.map(j => { const n = json.nodes[j], b = new THREE.Bone(); b.name = n.name; b.position.fromArray(n.translation); return b; });
+  skin.joints.forEach((j, k) => (json.nodes[j].children || []).forEach(c => bones[k].add(bones[skin.joints.indexOf(c)])));
+  const ibm = acc(skin.inverseBindMatrices), inverses = bones.map((b, k) => new THREE.Matrix4().fromArray(ibm, k * 16));
+  const parts = json.meshes[0].primitives.map(p => {
+    const A = p.attributes, geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(acc(A.POSITION), 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(acc(A.NORMAL), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(acc(A.TEXCOORD_0), 2));
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(Uint16Array.from(acc(A.JOINTS_0)), 4));
+    geo.setAttribute('skinWeight', new THREE.BufferAttribute(acc(A.WEIGHTS_0), 4));
+    geo.setIndex(new THREE.BufferAttribute(acc(p.indices), 1));
+    return { name: json.materials[p.material].name, geo };
+  });
+  return { bones, inverses, parts };
+}
+function buildRealHale(buf){
+  const h = readHuman(buf), g = new THREE.Group(), mats = [];
+  const mat = o => { const m = new THREE.MeshStandardMaterial(Object.assign({ transparent: true, opacity: 0, skinning: true }, o)); mats.push(m); return m; };
+  const own = (file, srgb) => { const t = new THREE.TextureLoader().load('textures/' + file, shadowsMoved); t.flipY = false; t.anisotropy = ANISO; if (srgb) t.encoding = THREE.sRGBEncoding; return t; };
+  // the scans of the old figure, in units of one scan: the cloth pieces carry their UVs in metres
+  const tiled = (file, srgb, size) => SCAN(file, srgb, 1 / size, 1 / size);
+  const scanned = ([color, normal, rough], size, o) => mat(Object.assign({ map: tiled(color, true, size), normalMap: tiled(normal, false, size), roughnessMap: tiled(rough, false, size), side: THREE.DoubleSide }, o));
+  const WOOL = ['uniform-wool-color.jpg', 'uniform-wool-normal.jpg', 'uniform-wool-rough.jpg'], LEATHER = ['leather-color.jpg', 'leather-normal.jpg', 'leather-rough.jpg'];
+  const wool = scanned(WOOL, .27, { roughness: 1, normalScale: new THREE.Vector2(.9, .9), envMapIntensity: .25 }); wool.color.setRGB(.11, .135, .2);
+  const trousers = scanned(WOOL, .27, { roughness: 1, normalScale: new THREE.Vector2(.9, .9), envMapIntensity: .25 }); trousers.color.setRGB(.085, .1, .15);
+  const cap = scanned(WOOL, .2, { roughness: 1, normalScale: new THREE.Vector2(.7, .7), envMapIntensity: .25 }); cap.color.setRGB(.07, .085, .13);
+  const leather = scanned(LEATHER, .4, { roughness: .8, normalScale: new THREE.Vector2(.5, .5), envMapIntensity: .6 }); leather.color.setRGB(.13, .13, .14);
+  const M = {
+    skin: mat({ map: own('hale-skin.jpg', true), bumpMap: own('hale-skin-bump.jpg', false), bumpScale: .0012, roughness: .58, envMapIntensity: .3 }),
+    eyes: mat({ map: own('hale-eye.jpg', true), roughness: .35, envMapIntensity: .4 }),
+    cornea: mat({ color: 0xffffff, roughness: .03, envMapIntensity: 1.5, depthWrite: false }),
+    shirt: wool, trousers, cap, boots: leather, belt: leather,
+    collar: mat({ color: 0x9db3c8, roughness: .8, normalMap: tiled('shirt-poplin-normal.jpg', false, .29), normalScale: new THREE.Vector2(.8, .8), envMapIntensity: .2, side: THREE.DoubleSide }),
+    tie: mat({ color: 0x0d1016, roughness: .7, envMapIntensity: .3, side: THREE.DoubleSide }),
+    metal: mat({ color: 0xc9c2a8, roughness: .3, metalness: 1, envMapIntensity: 1.1, side: THREE.DoubleSide }),
+    visor: mat({ color: 0x050506, roughness: .5, envMapIntensity: .12, side: THREE.DoubleSide }),
+    sole: mat({ color: 0x0c0c0c, roughness: .9, envMapIntensity: .2 })
+  };
+  const corneaOpacity = .14;
+  const root = h.bones[0]; g.add(root);
+  const skeleton = new THREE.Skeleton(h.bones, h.inverses);
+  for (const p of h.parts){ const m = new THREE.SkinnedMesh(p.geo, M[p.name]); m.frustumCulled = false; if (p.name === 'cornea') m.renderOrder = 1; g.add(m); m.bind(skeleton, new THREE.Matrix4()); }
+  const by = Object.fromEntries(h.bones.map(b => [b.name, b]));
+  // ---- posing. In the model every bone starts unturned (lined up with the world), so a pose is built from the rest
+  // ---- pose each time: curl the fingers, then turn each bone of an arm so that it points where it should.
+  const V = () => new THREE.Vector3(), q = new THREE.Quaternion(), pq = new THREE.Quaternion(), a = V(), b = V();
+  const wpos = (o, out) => o.getWorldPosition(out);
+  // turns bone so that the line from it to tip points along dir (world)
+  const aim = (bone, tip, dir) => {
+    bone.updateWorldMatrix(true, true);
+    wpos(bone, a); wpos(tip, b); b.sub(a).normalize();
+    q.setFromUnitVectors(b, dir.clone().normalize());
+    bone.parent.getWorldQuaternion(pq);
+    bone.quaternion.premultiply(pq.clone().invert().multiply(q).multiply(pq));
+  };
+  const rest = h.bones.map(b => b.quaternion.clone());
+  // in the rest pose: where each finger points and which way each palm faces, to curl them towards it
+  root.updateWorldMatrix(true, true);
+  const restDir = (b1, b2) => wpos(b2, V()).sub(wpos(b1, V())).normalize();
+  const curlAxis = {};
+  for (const [s, sg] of [['R', 1], ['L', -1]]){
+    const across = restDir(by['finger2-1.' + s], by['finger5-1.' + s]), along = restDir(by['finger3-1.' + s], by['finger3-2.' + s]);
+    const palm = V().crossVectors(along, across).multiplyScalar(sg).normalize();
+    for (let f = 1; f <= 5; f++) for (let k = 1; k <= 2; k++){
+      const n = 'finger' + f + '-' + k + '.' + s, d = restDir(by[n], by['finger' + f + '-' + (k + 1) + '.' + s]);
+      curlAxis[n] = V().crossVectors(d, palm).normalize();
+    }
+    curlAxis['finger1-3.' + s] = curlAxis['finger1-2.' + s];
+    for (let f = 2; f <= 5; f++) curlAxis['finger' + f + '-3.' + s] = curlAxis['finger' + f + '-2.' + s];
+  }
+  const curl = (s, amount, thumb) => {
+    for (let f = 1; f <= 5; f++) for (let k = 1; k <= 3; k++){
+      const n = 'finger' + f + '-' + k + '.' + s, bone = by[n];
+      bone.quaternion.setFromAxisAngle(curlAxis[n], (f === 1 ? thumb : amount) * (k === 1 ? .8 : 1));
+    }
+  };
+  const len = (b1, b2) => wpos(b1, V()).distanceTo(wpos(b2, V()));
+  const ARM = {};
+  for (const s of ['R', 'L']) ARM[s] = { up: len(by['upperarm01.' + s], by['lowerarm01.' + s]), low: len(by['lowerarm01.' + s], by['wrist.' + s]) };
+  const S = V(), E = V(), T = V(), u = V(), pole = V(), tmp = V(), fwd = V(), look = V();
+  // two-bone reach: the wrist goes to target (or as near as the arm allows), the elbow bends towards pole
+  const reach = (s, target, poleDir) => {
+    const A = ARM[s];
+    wpos(by['upperarm01.' + s], S);
+    u.copy(target).sub(S); const d = Math.min(u.length(), (A.up + A.low) * .985); u.normalize();
+    const x = (A.up * A.up - A.low * A.low + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, A.up * A.up - x * x));
+    pole.copy(poleDir).addScaledVector(u, -poleDir.dot(u)).normalize();
+    E.copy(S).addScaledVector(u, x).addScaledVector(pole, hh);
+    T.copy(S).addScaledVector(u, d);
+    aim(by['upperarm01.' + s], by['lowerarm01.' + s], tmp.copy(E).sub(S));
+    aim(by['lowerarm01.' + s], by['wrist.' + s], tmp.copy(T).sub(E));
+  };
+  const dirOf = (x, y, z) => g.localToWorld(V().set(x, y, z)).sub(g.getWorldPosition(V())).normalize();
+  // the pose at time t of the scene: grip is where his right hand holds the door, eye the camera he looks at
+  const pose = (t, grip, eye) => {
+    h.bones.forEach((b, i) => b.quaternion.copy(rest[i]));
+    g.updateWorldMatrix(true, true);
+    // how well he can reach the door: not at all while it stands wide open, fully once it swings towards him
+    wpos(by['upperarm01.R'], S);
+    const span = ARM.R.up + ARM.R.low, hold = THREE.MathUtils.smoothstep(span * 1.12 - S.distanceTo(grip), 0, span * .15);
+    const r = THREE.MathUtils.smoothstep(t, 1.4, 1.75);   // he reaches out as the door starts to swing
+    curl('R', .3 + .75 * hold, .2 + .3 * hold); curl('L', .35, .25);
+    // leaning in after the door while he reaches for it
+    by.spine03.quaternion.setFromAxisAngle(V().set(1, 0, 0), .12 * r * (1 - hold * .6));
+    const breath = Math.sin(t * 1.7) * .012;
+    by.spine02.quaternion.setFromAxisAngle(V().set(1, 0, 0), -breath);
+    // the left arm hangs down beside him, the elbow a little bent
+    wpos(by['upperarm01.L'], S);
+    reach('L', tmp.copy(S).add(dirOf(.09, -1, .1).multiplyScalar(.5)), dirOf(.2, 0, -1));
+    aim(by['wrist.L'], by['finger3-1.L'], wpos(by['wrist.L'], V()).sub(wpos(by['lowerarm01.L'], V())));
+    // the right hand: while the door stands open it hangs, and with "Inside" it shows you in, the palm open; then it
+    // reaches for the edge of the door, the wrist a hand's breadth short of where the fingers hold it
+    wpos(by['upperarm01.R'], S);
+    const show = THREE.MathUtils.smoothstep(t, .8, 1.15) * (1 - THREE.MathUtils.smoothstep(t, 1.5, 1.9));
+    const free = V().copy(S).add(dirOf(-.09, -1, .1).multiplyScalar(.52)).lerp(V().copy(S).add(dirOf(-.25, -.5, .85).normalize().multiplyScalar(.55)), show);
+    const w = V().copy(grip).sub(S); const wl = w.length(); w.normalize();
+    const held = V().copy(grip).addScaledVector(w, -Math.min(.09, wl * .2));
+    reach('R', free.lerp(held, r), dirOf(-.6, -1, -.3));
+    const hand = V().copy(wpos(by['wrist.R'], V())).sub(wpos(by['lowerarm01.R'], V())).normalize();
+    aim(by['wrist.R'], by['finger3-1.R'], hand.lerp(V().copy(grip).sub(wpos(by['wrist.R'], V())).normalize(), r).add(dirOf(0, show * .35, 0)));
+    // the head (and less the neck) turns to look at you
+    if (eye){
+      g.updateWorldMatrix(true, true);
+      wpos(by.head, a); look.copy(eye).sub(a).normalize();
+      fwd.copy(dirOf(0, 0, 1));
+      const yaw = Math.atan2(look.dot(dirOf(1, 0, 0)), look.dot(fwd)), pitch = Math.asin(THREE.MathUtils.clamp(look.dot(dirOf(0, 1, 0)), -1, 1));
+      const cy = THREE.MathUtils.clamp(yaw, -1, 1), cp = THREE.MathUtils.clamp(pitch, -.5, .4);
+      by.neck02.quaternion.setFromEuler(new THREE.Euler(-cp * .4, cy * .4, 0, 'YXZ'));
+      by.head.quaternion.setFromEuler(new THREE.Euler(-cp * .6, cy * .6, 0, 'YXZ'));
+    }
+  };
+  const fade = o => { for (const m of mats) m.opacity = m === M.cornea ? o * corneaOpacity : o; };
+  return { g, mats, pose, fade };
+}
+// ### Loads the real Hale and swaps him in for the stand-in, in the same place and with the same fade.
+function loadRealHale(){
+  fetch('models/hale.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then(buf => {
+      const real = buildRealHale(buf), o = hale.mats[0].opacity;
+      real.g.position.copy(hale.g.position); real.g.rotation.copy(hale.g.rotation);
+      room.remove(hale.g); room.add(real.g);
+      Object.assign(hale, real); haleFade(o); shadowsMoved();
+    })
+    .catch(() => {});
+}
+loadRealHale();
 // the cold light that falls in through the open door
 const doorLight = new THREE.SpotLight(0xd4e6ff, 0, 9, .62, .55, 1.3);
 doorLight.position.set(0, 2.3, 4.1); doorLight.target.position.set(0, 0, .3); room.add(doorLight, doorLight.target);
@@ -4559,6 +4715,7 @@ function cue(name){
 // ### light, swings the door shut, locks it and tells you through it that your ten minutes have begun. Next skips it; Back
 // ### from card 4 plays it again. With reduced motion it starts at the end: the door shut and his words on the card.
 const DOOR_OPEN = 1.35, CINE_END = 5;
+const HALE_GRIP = new THREE.Vector3(), HALE_EYE = new THREE.Vector3();   // where his right hand holds the door, and where he looks
 let cineT = -1, shake = 0;
 const LINES = [
   [0, '<span class="narr">Officer Hale walks you to washroom 2 and holds the door open.</span>'],
@@ -4589,6 +4746,7 @@ function updateCine(dt){
   doorLight.intensity = 4 * open;
   haleFade(Math.min(1, t * 2.5) * (open > .02 ? 1 : 0));
   hale.g.position.z = 3.42 + k * .12;
+  if (hale.pose && hale.g.visible){ doorPivot.updateMatrixWorld(true); hale.pose(t, doorPivot.localToWorld(HALE_GRIP.set(1.02, 1.05, .04)), camera.getWorldPosition(HALE_EYE)); }
   haleShadow.material.opacity = .5 * open * Math.min(1, t * 2.5);
   for (const [s, html] of LINES) if (s > 0 && at(s)) cineLine(html);
   if (at(1.7)) cue('open');
