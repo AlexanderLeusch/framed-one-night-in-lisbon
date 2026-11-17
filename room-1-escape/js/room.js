@@ -3980,6 +3980,7 @@ function showMini(spot, id){
   miniSpot = spot;
   mini = MiniGames.open(card.querySelector('#miniHost'), id, {
     sound: miniSound,
+    audio: ac ? { ctx: ac, out: master, music: bandBuf } : null,
     onEnd: (won, reason) => { mini = null; if (S.ending) return; if (won) act('win', spot); else showMiniLost(spot, id, reason); }
   });
 }
@@ -4113,6 +4114,10 @@ const VENT = { file: 'sounds/air-vent.mp3', loopStart: .25, loopEnd: 9.25, vol: 
 const LADDER = { file: 'sounds/ladder.mp3', creak1: [.35, .478], creak2: [1.178, .386], rung1: [1.914, .248], rung2: [2.512, .281],
   grab: [3.143, .3], cloth: [3.793, .95], floor: [5.093, .58] };
 let ladderBuf = null, ladderBus = null;
+// ### The music of the conducting mini game: the band's recording (Bach, CC0, see sounds/CREDITS.md), loaded with the rest;
+// ### the beats in it are listed in MiniGames.COND. Until it has arrived the game plays a plain beat of its own.
+const BAND_FILE = 'sounds/orchestra.mp3';
+let bandBuf = null;
 // ### Plays one of the ladder's recordings, with the echo of the brick shaft; false while the file has not arrived.
 function ladderSound(name, vol, rate, delay){
   if (!ac || !ladderBuf) return false;
@@ -4149,6 +4154,7 @@ function initAudio(){
   loadSound(TAP.file, b => { tapBuf = b; });
   loadSound(VENT.file, startVent);
   loadSound(LADDER.file, b => { ladderBuf = b; });
+  loadSound(BAND_FILE, b => { bandBuf = b; });
   findApiVent();
   stepBus = ac.createGain(); stepBus.connect(master);
   const echo = ac.createConvolver(), echoGain = ac.createGain(); echo.buffer = washroomEcho(); echoGain.gain.value = STEP_VOL.echo;

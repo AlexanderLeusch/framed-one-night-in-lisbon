@@ -1,4 +1,4 @@
-// Room 1: the eight Titanic mini games behind the three clue spots (the crooked tile, the mirror and the scratches).
+// Room 1: the nine Titanic mini games behind the three clue spots (the crooked tile, the mirror and the scratches).
 // ### Each game lasts at most 30 seconds and is drawn on its own (DOM buttons or a 2D canvas), with no image files.
 // ### The top of the file holds the pure helpers (dealing the games, the bots, the fleets, the differences), which the Node
 // ### tests load with require(). open() below them builds a game inside the card and reports the result through onEnd.
@@ -9,7 +9,7 @@
   'use strict';
 
   const TIME = 30;
-  // ### The eight games, in the order rules.js lists them. title and how are the words on the card above each game; goal,
+  // ### The nine games, in the order rules.js lists them. title and how are the words on the card above each game; goal,
   // ### steps, keys (mouse and keyboard) and touch (touch screen) fill the card that explains a game the first time it
   // ### comes up, before its 30 seconds start.
   const INFO = {
@@ -44,12 +44,16 @@
     hacking: { title: 'Hack the <em>engine</em>', name: 'Hacking', how: 'Break into an old control machine in the Titanic’s engine room in two parts before the firewall in its furnace locks you out. First match the engine’s wave on the indicator card, then pick the key plate that matches the master peg for peg. Every wrong guess stokes the firewall.',
       goal: 'Finish both parts of the engine-room machine before the firewall burns up.',
       steps: ['Part 1, the wave: change the frequency and the amplitude of your red ink line on the indicator card until it lies exactly on the dashed blue master line, then lock it.', 'Part 2, the key plate: find the one of the four brass plates whose pegs match the master key plate peg for peg, and set it.', 'The firewall burns up by itself in 16 seconds, and every wrong lock or wrong plate adds 15 %. Full means you are locked out.'],
-      keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For the key plate, ← → and Space, or click one.', touch: 'Tap the brass buttons under the wave, or tap a key plate.' }
+      keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For the key plate, ← → and Space, or click one.', touch: 'Tap the brass buttons under the wave, or tap a key plate.' },
+    conduct: { title: 'Conduct the <em>band</em>', name: 'Conducting', how: 'The Titanic is sinking and her band plays on. You conduct: bring the baton down on every beat of the music with Space, ↑ or a click, just as the golden ring closes. 32 beats in time win; ten beats missed or off the music and the band falls apart.',
+      goal: 'Keep the Titanic’s band in time for 32 beats.',
+      steps: ['The band plays Bach’s Brandenburg Concerto No. 3 on the tilting deck. The first four beats are counted in for you.', 'Bring the baton down on every beat, just as the golden ring closes on its tip. About a seventh of a second early or late still counts.', 'A beat you miss, or a beat off the music, puts the band out of time. Ten of them and it falls apart.'],
+      keys: 'Space, ↑ or W on every beat, or click.', touch: 'Tap the screen on every beat.' }
   };
   const GAMES = Object.keys(INFO);
 
   // ---------- Pure helpers ----------
-  // ### Deals three different games out of the eight. rand() returns a number from 0 (inclusive) to 1, like Math.random.
+  // ### Deals three different games out of the nine. rand() returns a number from 0 (inclusive) to 1, like Math.random.
   function pickGames(rand){
     const a = GAMES.slice();
     for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
@@ -255,6 +259,8 @@
   // ---------- The games ----------
   // ### Each game is a function that gets the shell (api) and returns { update(dt), draw(), key(code, down), point(x, y, type) },
   // ### all optional. It calls api.win() or api.lose(reason) when it is decided; the shell ends it when the 30 s are up.
+  // ### A game with sound of its own may also return end() (called when it is decided) and stop() (called when it is put
+  // ### away); api.audio is the room's { ctx, out, music } or null.
   const BUILD = {};
 
   // ### 1. Battleship on two 6 x 6 grids: your liner fleet on the left, the enemy waters on the right.
@@ -2013,9 +2019,322 @@
     };
   };
 
+  // ### 9. Conducting: the night the Titanic sank, her band played on deck to the end. Here you conduct it. The band plays
+  // ### Bach's Brandenburg Concerto No. 3 (a CC0 recording, sounds/orchestra.mp3, at a steady 117 beats a minute) and you
+  // ### bring the baton down on every beat. COND.FIRST and COND.BEAT are where the beats lie in that recording, measured
+  // ### when the file was made (see sounds/CREDITS.md). The first COUNT beats are counted in; after them every beat must
+  // ### be conducted within GOOD seconds. condNew(), condTap() and condStep() hold all the rules and are tested in Node;
+  // ### BUILD.conduct plays the music, draws the band and turns keys, clicks and taps into beats.
+  const COND = { W: 640, H: 360, BEAT: .51271, FIRST: 1.0724, COUNT: 4, BEATS: 60, PERFECT: .07, GOOD: .15, GOAL: 32, MISSES: 10 };
+  const condBeat = i => COND.FIRST + i * COND.BEAT;
+  // ### A new performance: nothing conducted yet. next is the first beat that has not been judged.
+  function condNew(){ return { next: COND.COUNT, hits: 0, perfect: 0, misses: 0, last: null, won: false, lost: false, events: [] }; }
+  function condMiss(s, kind, t, d){
+    s.misses++; s.last = { kind, t, d }; s.events.push('bad');
+    if (s.misses >= COND.MISSES) s.lost = true;
+  }
+  // ### The music moves on to time t (seconds into the recording): every beat whose window has closed without a stroke of
+  // ### the baton is a missed beat.
+  function condStep(s, t){
+    while (!s.won && !s.lost && s.next < COND.BEATS && condBeat(s.next) + COND.GOOD < t){ s.next++; condMiss(s, 'missed', t, 0); }
+    if (!s.won && !s.lost && s.next >= COND.BEATS) s.lost = true;
+  }
+  // ### A stroke of the baton at time t. Within GOOD seconds of the next beat it counts ('perfect' within PERFECT, else
+  // ### 'good'); any other stroke is off the music ('early') and counts against you. Strokes during the count-in are
+  // ### free ('count'). Returns what the stroke was, or null once the game is decided.
+  function condTap(s, t){
+    if (s.won || s.lost) return null;
+    condStep(s, t);
+    if (s.lost) return null;
+    if (t < condBeat(COND.COUNT) - COND.GOOD) return 'count';
+    const d = t - condBeat(s.next);
+    if (Math.abs(d) <= COND.GOOD){
+      const kind = Math.abs(d) <= COND.PERFECT ? 'perfect' : 'good';
+      s.next++; s.hits++; if (kind === 'perfect') s.perfect++;
+      s.last = { kind, t, d };
+      if (s.hits >= COND.GOAL) s.won = true;
+      return kind;
+    }
+    condMiss(s, 'early', t, d);
+    return 'early';
+  }
+
+  // ### The boat deck at night, painted once: the white deckhouse with its lit windows and the first-class entrance, a
+  // ### funnel above it, the teak deck, and to the right the railing and an empty lifeboat davit with the sea behind. It is
+  // ### painted larger than the canvas (by M on every side), because the whole ship is drawn tilted as she goes down.
+  const COND_M = 60;
+  function paintBandDeck(g){
+    const { W, H } = COND, X0 = -COND_M, X1 = W + COND_M, DECK = 246, WALL = 430;
+    // the funnel: buff with a black top, behind the deckhouse
+    const fun = g.createLinearGradient(70, 0, 170, 0); fun.addColorStop(0, '#6e4a22'); fun.addColorStop(.45, '#b07a3a'); fun.addColorStop(1, '#5a3c1c');
+    g.fillStyle = fun; g.fillRect(70, -COND_M, 100, 160);
+    g.fillStyle = '#0c0b0a'; g.fillRect(70, -COND_M, 100, 44);
+    g.fillStyle = 'rgba(0,0,0,.35)'; for (let y = 10; y < 96; y += 22) g.fillRect(70, y, 100, 2);
+    // the deckhouse: white-painted steel in the dark, lit warm from the lamps and windows
+    const wall = g.createLinearGradient(0, 96, 0, DECK); wall.addColorStop(0, '#5d6670'); wall.addColorStop(.6, '#8d8e88'); wall.addColorStop(1, '#a29b8a');
+    g.fillStyle = wall; g.fillRect(X0, 96, WALL - X0, DECK - 96);
+    g.fillStyle = '#2b2e33'; g.fillRect(X0, 90, WALL - X0 + 6, 8);   // the roof's overhang
+    g.fillStyle = 'rgba(0,0,0,.18)'; for (let x = X0; x < WALL; x += 48) g.fillRect(x, 98, 1.5, DECK - 98);
+    for (let x = X0 + 14; x < WALL - 10; x += 48){
+      if (x > 236 && x < 330) continue;
+      g.fillStyle = '#3c3a34'; g.fillRect(x - 2, 128, 28, 44);
+      const lit = g.createLinearGradient(0, 130, 0, 170); lit.addColorStop(0, '#ffe7a6'); lit.addColorStop(1, '#e09a3c');
+      g.fillStyle = lit; g.fillRect(x, 130, 24, 40);
+      g.fillStyle = '#3c3a34'; g.fillRect(x + 11, 130, 2, 40); g.fillRect(x, 148, 24, 2);
+      const glow = g.createRadialGradient(x + 12, 150, 2, x + 12, 150, 48); glow.addColorStop(0, 'rgba(255,200,110,.22)'); glow.addColorStop(1, 'rgba(255,200,110,0)');
+      g.fillStyle = glow; g.fillRect(x - 40, 102, 104, 120);
+    }
+    // the first-class entrance: double doors with light pouring out
+    g.fillStyle = '#4a3420'; g.fillRect(246, 116, 74, DECK - 116);
+    const door = g.createLinearGradient(0, 122, 0, DECK); door.addColorStop(0, '#fff0c2'); door.addColorStop(1, '#e8a64c');
+    g.fillStyle = door; g.fillRect(252, 122, 30, DECK - 122); g.fillRect(286, 122, 28, DECK - 122);
+    g.fillStyle = 'rgba(80,50,20,.5)'; for (let y = 140; y < DECK; y += 26){ g.fillRect(252, y, 30, 2); g.fillRect(286, y, 28, 2); }
+    const spill = g.createRadialGradient(284, DECK, 4, 284, DECK, 140); spill.addColorStop(0, 'rgba(255,205,120,.35)'); spill.addColorStop(1, 'rgba(255,205,120,0)');
+    g.fillStyle = spill; g.fillRect(140, 120, 290, 200);
+    // the end of the deckhouse, then the railing with the sea behind it
+    g.fillStyle = '#4b4d4f'; g.fillRect(WALL, 96, 8, DECK - 96);
+    // the empty davit: its lifeboat is gone, the falls hang loose
+    g.strokeStyle = '#d8d6cf'; g.lineWidth = 6; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(560, DECK); g.lineTo(560, 140); g.quadraticCurveTo(560, 104, 600, 108); g.stroke();
+    g.strokeStyle = 'rgba(220,210,190,.7)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(598, 110); g.quadraticCurveTo(606, 170, 596, 214); g.stroke();
+    g.strokeStyle = '#e9e6dd'; g.lineWidth = 3; g.lineCap = 'butt';
+    g.beginPath(); g.moveTo(WALL + 8, 200); g.lineTo(X1, 200); g.stroke();
+    g.lineWidth = 1.6; for (const y of [216, 231]){ g.beginPath(); g.moveTo(WALL + 8, y); g.lineTo(X1, y); g.stroke(); }
+    g.lineWidth = 2.4; for (let x = WALL + 22; x < X1; x += 26){ g.beginPath(); g.moveTo(x, 200); g.lineTo(x, DECK); g.stroke(); }
+    // the teak deck, its planks running away from you
+    const deck = g.createLinearGradient(0, DECK, 0, H + COND_M); deck.addColorStop(0, '#4a3524'); deck.addColorStop(1, '#2a1c12');
+    g.fillStyle = deck; g.fillRect(X0, DECK, X1 - X0, H + COND_M - DECK);
+    g.strokeStyle = 'rgba(15,8,4,.55)'; g.lineWidth = 1;
+    for (let k = -14; k <= 14; k++){ g.beginPath(); g.moveTo(320 + k * 34, DECK); g.lineTo(320 + k * 150, H + COND_M); g.stroke(); }
+    for (let y = DECK + 8, step = 6; y < H + COND_M; y += step, step *= 1.25){ g.fillStyle = 'rgba(15,8,4,.25)'; g.fillRect(X0, y, X1 - X0, 1); }
+    const warm = g.createRadialGradient(290, DECK + 20, 10, 290, DECK + 20, 260); warm.addColorStop(0, 'rgba(255,190,110,.18)'); warm.addColorStop(1, 'rgba(255,190,110,0)');
+    g.fillStyle = warm; g.fillRect(X0, DECK, X1 - X0, H + COND_M - DECK);
+  }
+  // ### A musician of the band, facing you, feet at x, y: navy uniform with brass buttons, a peaked cap, and his
+  // ### instrument ('violin', 'viola', 'cello' or 'bass'). bow (-1 to 1) is where the bow is in its stroke; bob dips him
+  // ### on the beat.
+  function drawMusician(g, x, y, kind, bow, bob){
+    y += bob;
+    const NAVY = '#1c2740', WOOD = '#8a3d14', WOOD2 = '#c4692a', SKIN = '#e0b08a';
+    g.fillStyle = '#0f131c'; g.fillRect(x - 9, y - 40, 7, 38); g.fillRect(x + 2, y - 40, 7, 38);
+    g.fillStyle = '#050505'; g.fillRect(x - 11, y - 3, 10, 4); g.fillRect(x + 1, y - 3, 10, 4);
+    g.fillStyle = NAVY; g.beginPath(); g.moveTo(x - 13, y - 76); g.lineTo(x + 13, y - 76); g.lineTo(x + 15, y - 36); g.lineTo(x - 15, y - 36); g.fill();
+    g.fillStyle = '#efe9dc'; g.beginPath(); g.moveTo(x - 5, y - 76); g.lineTo(x + 5, y - 76); g.lineTo(x, y - 62); g.fill();
+    g.fillStyle = '#d9b354'; for (let k = 0; k < 3; k++){ g.beginPath(); g.arc(x, y - 58 + k * 7, 1.2, 0, 7); g.fill(); }
+    g.fillStyle = SKIN; g.beginPath(); g.arc(x, y - 84, 8, 0, 7); g.fill();
+    g.fillStyle = NAVY; g.fillRect(x - 9, y - 96, 18, 7);
+    g.fillStyle = '#060606'; g.fillRect(x - 10, y - 90, 20, 3);
+    g.fillStyle = '#d9b354'; g.fillRect(x - 9, y - 92, 18, 1.5);
+    const arm = (ax, ay, bx, by) => { g.strokeStyle = NAVY; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke(); g.fillStyle = SKIN; g.beginPath(); g.arc(bx, by, 3, 0, 7); g.fill(); };
+    if (kind === 'violin' || kind === 'viola'){
+      const big = kind === 'viola' ? 1.15 : 1;
+      // the fiddle under his chin on his left shoulder (your right), the scroll pointing out
+      g.save(); g.translate(x + 10, y - 72); g.rotate(-.35);
+      g.fillStyle = WOOD; g.beginPath(); g.ellipse(0, 0, 10 * big, 5.5 * big, 0, 0, 7); g.fill();
+      g.fillStyle = WOOD2; g.beginPath(); g.ellipse(-1, -1, 6 * big, 3 * big, 0, 0, 7); g.fill();
+      g.strokeStyle = '#1a0d06'; g.lineWidth = 2; g.beginPath(); g.moveTo(8 * big, 0); g.lineTo(24 * big, 0); g.stroke();
+      g.restore();
+      arm(x + 11, y - 74, x + 10 + 22 * big * Math.cos(-.35), y - 72 + 22 * big * Math.sin(-.35) + 1);
+      // the bow crosses the strings by the bridge and slides along its own length
+      const bx = x + 6 - bow * 9, by = y - 68 + bow * 4;
+      arm(x - 11, y - 74, bx - 6, by + 2);
+      g.strokeStyle = '#efe6d2'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(bx - 8, by + 3); g.lineTo(bx + 26, by - 10); g.stroke();
+    } else {
+      const big = kind === 'bass' ? 1.45 : 1, cy = y - 30 * big;
+      // the instrument stands on its spike in front of him
+      g.strokeStyle = '#1a0d06'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(x, cy - 16 * big); g.lineTo(x, cy - 44 * big); g.stroke();
+      g.beginPath(); g.moveTo(x, cy + 18 * big); g.lineTo(x, y + 1); g.stroke();
+      g.fillStyle = WOOD; g.beginPath(); g.ellipse(x, cy, 12 * big, 19 * big, 0, 0, 7); g.fill();
+      g.fillStyle = WOOD2; g.beginPath(); g.ellipse(x - 1, cy - 2, 8 * big, 14 * big, 0, 0, 7); g.fill();
+      g.fillStyle = '#1a0d06'; g.fillRect(x - 4, cy - 3, 8, 1.5);
+      arm(x + 11, y - 74, x + 4, cy - 36 * big);
+      const bx = x + bow * 12 * big, by = cy + 6;
+      arm(x - 11, y - 74, bx - 18, by);
+      g.strokeStyle = '#efe6d2'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(bx - 22, by); g.lineTo(bx + 22, by - 2); g.stroke();
+    }
+  }
+  // ### A note rising from the band: gold when you are in time, red and crooked when you are not.
+  function drawNote(g, x, y, color, tilt){
+    g.save(); g.translate(x, y); g.rotate(tilt);
+    g.fillStyle = color; g.strokeStyle = color; g.lineWidth = 1.6;
+    g.beginPath(); g.ellipse(0, 0, 4.2, 3, -.4, 0, 7); g.fill();
+    g.beginPath(); g.moveTo(3.6, -1); g.lineTo(3.6, -16); g.quadraticCurveTo(9, -12, 8, -6); g.stroke();
+    g.restore();
+  }
+
+  BUILD.conduct = api => {
+    const { W, H } = COND, FONT = HACK_FONT, ICTUS = { x: 350, y: 236 };
+    const c = api.canvas(W, H), g = c.getContext('2d');
+    const s = condNew(), night = paintNight(W, H, 214, 1515);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const ship = document.createElement('canvas'); ship.width = (W + 2 * COND_M) * dpr; ship.height = (H + 2 * COND_M) * dpr;
+    const sg = ship.getContext('2d'); sg.scale(dpr, dpr); sg.translate(COND_M, COND_M); paintBandDeck(sg);
+    const BAND = [['violin', 168], ['violin', 232], ['viola', 300], ['cello', 400], ['bass', 478]].map(([kind, x], i) => ({ kind, x, y: 262 - (i % 2) * 6, lag: 0 }));
+    const notes = [];
+    let clock = 0, stroke = -9, shown = null, discord = 0, ended = false;
+    // ### The music: the recording through the room's sound (its volume and mute), or if it has not arrived, a plain beat
+    // ### of plucked strings at the same tempo, made on the spot. Without any sound the game is timed by the frame clock.
+    const au = api.audio && api.audio.ctx && api.audio.ctx.state === 'running' ? api.audio : null;
+    let t0 = 0, bus = null, src = null, synthUntil = 0;
+    const lat = au ? (au.ctx.outputLatency || au.ctx.baseLatency || 0) : 0;
+    function pluck(at, f, vol, len){
+      const ctx = au.ctx, o = ctx.createOscillator(), gg = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      gg.gain.setValueAtTime(0, at); gg.gain.linearRampToValueAtTime(vol, at + .008); gg.gain.exponentialRampToValueAtTime(.0005, at + len);
+      o.connect(gg); gg.connect(bus); o.start(at); o.stop(at + len + .02);
+    }
+    // the fallback: a bass note on every beat and a chord between them, around a steady D major like Bach's
+    const BASS = [73.42, 73.42, 110, 110, 98, 98, 110, 73.42], CHORD = [[293.7, 370, 440], [293.7, 370, 440], [277.2, 329.6, 440], [277.2, 329.6, 440], [293.7, 392, 493.9], [293.7, 392, 493.9], [277.2, 329.6, 440], [293.7, 370, 440]];
+    function synth(upTo){
+      while (synthUntil < COND.BEATS && condBeat(synthUntil) < upTo){
+        const i = synthUntil++, at = t0 + condBeat(i);
+        pluck(at, BASS[i % 8], .22, .45);
+        for (const f of CHORD[i % 8]) pluck(at + COND.BEAT / 2, f, .05, .25);
+        if (i < COND.COUNT) pluck(at, 1318, .06, .08);
+      }
+    }
+    const songTime = () => au ? au.ctx.currentTime - t0 - lat : clock;
+    function begin(){
+      if (!au) return;
+      const ctx = au.ctx;
+      bus = ctx.createGain(); bus.gain.value = 1; bus.connect(au.out);
+      t0 = ctx.currentTime + .08;
+      if (au.music){ src = ctx.createBufferSource(); src.buffer = au.music; src.connect(bus); src.start(t0); }
+      else synth(1.2);
+    }
+    // ### The music fades out when the game is decided, and stops at once when it is put away.
+    function fade(sec){
+      if (!bus || ended) return;
+      ended = true;
+      const now = au.ctx.currentTime;
+      bus.gain.cancelScheduledValues(now); bus.gain.setValueAtTime(bus.gain.value, now); bus.gain.linearRampToValueAtTime(0, now + sec);
+      if (src) try { src.stop(now + sec + .05); } catch (e){}
+      const b = bus; setTimeout(() => b.disconnect(), (sec + .2) * 1000);
+    }
+    const status = () => api.status(`In time: ${s.hits} of ${COND.GOAL} · Out of time: ${s.misses} of ${COND.MISSES}`);
+    function spawn(kind){
+      const m = BAND[Math.floor(api.rand() * BAND.length)], bad = kind === 'early' || kind === 'missed';
+      notes.push({ x: m.x + (api.rand() - .5) * 20, y: m.y - 100, vx: (api.rand() - .5) * 20, life: 1.4, bad, tilt: bad ? (api.rand() - .5) * 1.4 : 0 });
+    }
+    function play(){
+      for (const e of s.events) api.sound(e);
+      s.events.length = 0;
+      if (s.last && s.last !== shown){
+        shown = s.last;
+        if (s.last.kind === 'perfect' || s.last.kind === 'good') discord = Math.max(0, discord - .2);
+        else discord = Math.min(1, discord + .45);
+        spawn(s.last.kind);
+        status();
+      }
+      if (s.won) return api.win('The band played on, in time, to the last beat.');
+      if (s.lost) return api.lose(s.misses >= COND.MISSES ? 'The band fell apart: ten beats out of time.' : 'The music has ended.');
+    }
+    function tap(){
+      if (api.over) return;
+      const t = songTime();
+      condTap(s, t);
+      stroke = t;
+      play();
+    }
+    const WORD = { perfect: 'PERFECT', good: 'GOOD', early: 'OFF THE BEAT', missed: 'MISSED' };
+    return {
+      key(code, down){ if (down && (code === 'Space' || code === 'ArrowUp' || code === 'KeyW')) tap(); },
+      point(x, y, type){ if (type === 'down') tap(); },
+      start(){ begin(); api.status('Watch the count-in: one, two, three, four, then conduct.'); },
+      update(dt){
+        clock += dt;
+        const t = songTime();
+        if (au && !au.music) synth(t + 1.2);
+        condStep(s, t);
+        discord = Math.max(0, discord - dt * .5);
+        for (const n of notes){ n.life -= dt; n.y -= dt * (n.bad ? 18 : 40); n.x += n.vx * dt; }
+        while (notes.length && notes[0].life <= 0) notes.shift();
+        play();
+      },
+      draw(){
+        const t = songTime(), p = (t - COND.FIRST) / COND.BEAT;
+        g.drawImage(night, 0, 0, W, H);
+        // the ship goes down by the bow: the deck tilts more and more while the sea and the sky stay level
+        const tilt = (1.5 + Math.min(30, clock) * .1) * Math.PI / 180;
+        g.save(); g.translate(W / 2, H); g.rotate(tilt); g.translate(-W / 2, -H);
+        g.drawImage(ship, -COND_M, -COND_M, W + 2 * COND_M, H + 2 * COND_M);
+        // the band: the bows go down and up with the beat; out of time they scatter
+        BAND.forEach((m, i) => {
+          const off = discord * (i % 2 ? .45 : -.35) * (1 + i * .2);
+          const bow = Math.cos(Math.PI * (p + off)) + discord * .3 * Math.sin(t * 17 + i * 3);
+          const pulse = Math.max(0, 1 - Math.abs(p + off - Math.round(p + off)) * 4);
+          drawMusician(g, m.x, m.y, m.kind, Math.max(-1, Math.min(1, bow)), t > 0 ? pulse * 1.6 : 0);
+        });
+        for (const n of notes){ g.globalAlpha = Math.min(1, n.life); drawNote(g, n.x, n.y, n.bad ? '#e2483a' : '#ffd36a', n.tilt); }
+        g.globalAlpha = 1;
+        // the golden ring closes on the baton's tip as the next beat comes; a dashed ring marks the beat itself
+        const nextBeat = s.next < COND.COUNT ? Math.max(0, Math.ceil(p)) : s.next, until = condBeat(nextBeat) - t;
+        if (!s.won && !s.lost && until > -.1 && until < COND.BEAT * 1.5){
+          const r = 12 + Math.max(0, until) * 70;
+          g.strokeStyle = 'rgba(255,240,200,.55)'; g.lineWidth = 1.5; g.setLineDash([4, 4]); g.beginPath(); g.arc(ICTUS.x, ICTUS.y, 12, 0, 7); g.stroke(); g.setLineDash([]);
+          g.strokeStyle = `rgba(255,205,90,${Math.min(1, 1.6 - until)})`; g.lineWidth = 3; g.beginPath(); g.arc(ICTUS.x, ICTUS.y, r, 0, 7); g.stroke();
+        }
+        // you, the conductor, from behind: during the count-in the baton beats by itself, then it follows your strokes
+        const counting = t < condBeat(COND.COUNT) - COND.GOOD;
+        const since = counting ? (p - Math.floor(p)) * COND.BEAT : t - stroke;
+        const up = Math.min(1, Math.max(0, since) / .3), e = 1 - Math.pow(1 - up, 3);
+        const tip = { x: ICTUS.x + 30 * e, y: ICTUS.y - 70 * e }, hand = { x: tip.x + 30, y: tip.y + 56 };
+        g.fillStyle = '#0a0a0c'; g.beginPath(); g.moveTo(232, H + 10); g.lineTo(250, 318); g.quadraticCurveTo(320, 296, 390, 318); g.lineTo(408, H + 10); g.fill();
+        g.strokeStyle = '#0a0a0c'; g.lineWidth = 15; g.lineCap = 'round';
+        // upper arm out to the elbow, forearm up to the hand; the left hand hangs open, ready
+        const elbow = { x: 410 + 6 * e, y: 314 - 18 * e };
+        g.beginPath(); g.moveTo(378, 318); g.lineTo(elbow.x, elbow.y); g.stroke();
+        g.lineWidth = 12; g.beginPath(); g.moveTo(elbow.x, elbow.y); g.lineTo(hand.x, hand.y); g.stroke();
+        g.lineWidth = 14; g.beginPath(); g.moveTo(262, 318); g.lineTo(234, 306); g.stroke();
+        g.lineWidth = 11; g.beginPath(); g.moveTo(234, 306); g.lineTo(250, 282); g.stroke();
+        g.fillStyle = '#e0b08a'; g.beginPath(); g.arc(250, 280, 6, 0, 7); g.fill(); g.beginPath(); g.arc(hand.x, hand.y, 6, 0, 7); g.fill();
+        g.strokeStyle = '#f4f1ea'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(hand.x, hand.y); g.lineTo(tip.x, tip.y); g.stroke();
+        g.fillStyle = '#f4f1ea'; g.fillRect(304, 296, 32, 6);
+        g.fillStyle = '#e0b08a'; g.beginPath(); g.ellipse(298, 286, 4, 6, 0, 0, 7); g.ellipse(342, 286, 4, 6, 0, 0, 7); g.fill();
+        g.fillStyle = '#2a1c12'; g.beginPath(); g.ellipse(320, 280, 21, 23, 0, 0, 7); g.fill();
+        g.fillStyle = 'rgba(255,220,170,.18)'; g.beginPath(); g.ellipse(314, 270, 10, 8, -.5, 0, 7); g.fill();
+        g.restore();
+        // the score on brass plates, and the count-in
+        g.textBaseline = 'middle';
+        brassPlate(g, 14, 12, 150, 30);
+        g.font = `700 18px ${FONT}`; g.fillStyle = '#3a2808'; g.fillText(`IN TIME ${s.hits} / ${COND.GOAL}`, 26, 28);
+        brassPlate(g, W - 244, 12, 230, 30);
+        g.fillText('OUT OF TIME', W - 234, 28);
+        for (let i = 0; i < COND.MISSES; i++){ g.fillStyle = i < s.misses ? '#b3261e' : 'rgba(58,40,8,.35)'; g.beginPath(); g.arc(W - 120 + i * 10, 28, 3.6, 0, 7); g.fill(); }
+        if (t > COND.FIRST - .3 && counting){
+          const n = Math.min(COND.COUNT, Math.max(1, Math.round(p) + 1));
+          g.font = `800 64px ${FONT}`; g.textAlign = 'center'; g.fillStyle = 'rgba(0,0,0,.5)'; g.fillText(String(n), W / 2 + 2, 92);
+          g.fillStyle = '#ffe2a0'; g.fillText(String(n), W / 2, 90); g.textAlign = 'left';
+        } else if (t < COND.FIRST - .3){
+          g.font = `700 24px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#ffe2a0'; g.fillText('THE BAND PLAYS ON', W / 2, 90); g.textAlign = 'left';
+        } else if (t < condBeat(COND.COUNT) + .4){
+          g.font = `800 40px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#ffe2a0'; g.fillText('CONDUCT!', W / 2, 90); g.textAlign = 'left';
+        }
+        // how the last beat went, by the baton
+        if (s.last && t - s.last.t < .6){
+          const k = s.last.kind, good = k === 'perfect' || k === 'good';
+          g.globalAlpha = 1 - (t - s.last.t) / .6;
+          g.font = `800 22px ${FONT}`; g.textAlign = 'center';
+          g.fillStyle = 'rgba(0,0,0,.6)'; g.fillText(WORD[k], ICTUS.x + 1, ICTUS.y - 106 - (t - s.last.t) * 30 + 1);
+          g.fillStyle = k === 'perfect' ? '#ffd36a' : good ? '#f4ead2' : '#ff6a55'; g.fillText(WORD[k], ICTUS.x, ICTUS.y - 106 - (t - s.last.t) * 30);
+          g.textAlign = 'left'; g.globalAlpha = 1;
+        }
+        if (s.won || s.lost){
+          g.fillStyle = s.won ? 'rgba(255,214,120,.12)' : 'rgba(120,20,10,.25)'; g.fillRect(0, 0, W, H);
+          brassPlate(g, W / 2 - 160, 150, 320, 60);
+          g.fillStyle = '#2c1e06'; g.font = `800 30px ${FONT}`; g.textAlign = 'center';
+          g.fillText(s.won ? 'BRAVO, MAESTRO' : 'OUT OF TIME', W / 2, 181); g.textAlign = 'left';
+        }
+      },
+      end(){ fade(.8); },
+      stop(){ fade(.15); }
+    };
+  };
+
   // ---------- The shell: timer, input, loop ----------
   // ### open(host, id, opts) builds game `id` inside the element host and starts it. opts.onEnd(won, reason) is called once,
-  // ### a moment after the game is decided; opts.sound(name) plays a short effect. The returned stop() ends it silently
+  // ### a moment after the game is decided; opts.sound(name) plays a short effect; opts.audio is { ctx (the room's
+  // ### AudioContext), out (its volume), music (the band's recording, or null while it loads) } for the conducting game. The returned stop() ends it silently
   // ### (when the player pauses or closes the card), with no result.
   function open(host, id, opts){
     if (!BUILD[id]) throw new Error('Unknown mini game: ' + id);
@@ -2026,7 +2345,7 @@
     const stage = host.querySelector('.mg-stage'), bar = host.querySelector('.mg-timer i'), secs = host.querySelector('.mg-secs'), statusEl = host.querySelector('.mg-status');
     let left = TIME, raf = 0, last = 0, timers = [], canvas = null, logical = null, stopped = false, lastStatus = '', resizer = null, game = null;
     const api = {
-      rand, stage, over: false,
+      rand, stage, over: false, audio: opts.audio || null,
       status(t){ if (t !== lastStatus){ statusEl.textContent = t; lastStatus = t; } },
       sound(n){ if (opts.sound) opts.sound(n); },
       later(fn, ms){ timers.push(setTimeout(() => { if (!api.over && !stopped) fn(); }, ms)); },
@@ -2058,6 +2377,7 @@
       api.over = true; api.status(reason || (won ? 'Won!' : 'Lost.'));
       host.querySelector('.mg').classList.add(won ? 'won' : 'lost');
       api.sound(won ? 'win' : 'lose');
+      if (game.end) game.end();
       if (game.draw) game.draw();
       timers.push(setTimeout(() => { if (!stopped){ cleanup(); if (opts.onEnd) opts.onEnd(won, reason); } }, 900));
     }
@@ -2097,6 +2417,7 @@
       stopped = true; cancelAnimationFrame(raf); timers.forEach(clearTimeout); timers = [];
       removeEventListener('keydown', onKey, true); removeEventListener('keyup', onKey, true);
       if (resizer) resizer.disconnect();
+      if (game.stop) game.stop();
     }
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     if (game.start) game.start();
@@ -2105,5 +2426,6 @@
     return { stop(){ if (!stopped){ api.over = true; cleanup(); } }, get timeLeft(){ return left; } };
   }
 
-  return Object.freeze({ TIME, INFO, GAMES, DIFFS, pickGames, tttWinner, tttBot, placeFleet, fleetSunk, bsBot, around, waterAround, pickDiffs, hitDiff, overlap, icebergPoly, inPoly, JUMP, jumpShip, jumpPoints, jumpPower, jumpNew, jumpAct, jumpStep, RUN_KINDS, RUN, runLayout, CLIMB_LEVELS, PIN, PIN_TABLE, pinNew, pinStep, HACK, hackNew, hackAct, hackStep, hackSync, hackOptions, open });
+  return Object.freeze({ TIME, INFO, GAMES, DIFFS, pickGames, tttWinner, tttBot, placeFleet, fleetSunk, bsBot, around, waterAround, pickDiffs, hitDiff, overlap, icebergPoly, inPoly, JUMP, jumpShip, jumpPoints, jumpPower, jumpNew, jumpAct, jumpStep, RUN_KINDS, RUN, runLayout, CLIMB_LEVELS, PIN, PIN_TABLE, pinNew, pinStep, HACK, hackNew, hackAct, hackStep, hackSync, hackOptions,
+    COND, condBeat, condNew, condTap, condStep, open });
 });

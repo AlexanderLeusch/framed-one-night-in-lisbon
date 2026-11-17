@@ -1,14 +1,16 @@
-// ### Unit tests for the eight Titanic mini games (room-1-escape/js/minigames.js): dealing, the bots, the fleets and the
+// ### Unit tests for the nine Titanic mini games (room-1-escape/js/minigames.js): dealing, the bots, the fleets and the
 // ### spot-the-difference circles. The drawing and the controls are played in the browser tests.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const M = require('../../room-1-escape/js/minigames.js');
 const R = require('../../room-1-escape/js/rules.js');
 
 // a small seeded random number generator, so every run of these tests sees the same numbers
 const seeded = a => () => { a = (a * 1664525 + 1013904223) % 4294967296; return a / 4294967296; };
 
-test('there are eight games, the same eight the rules know, each at most 30 seconds', () => {
+test('there are nine games, the same nine the rules know, each at most 30 seconds', () => {
   assert.deepEqual(M.GAMES, R.GAMES);
   assert.equal(M.TIME, 30);
   for (const g of M.GAMES) assert.ok(M.INFO[g].title && M.INFO[g].how && M.INFO[g].name, g);
@@ -24,7 +26,7 @@ test('every game has the words for the card that explains it before its first pl
   }
 });
 
-test('every new game deals three different mini games, and over many games all eight come up', () => {
+test('every new game deals three different mini games, and over many games all nine come up', () => {
   const seen = new Set(), rand = seeded(7);
   for (let i = 0; i < 200; i++){
     const g = M.pickGames(rand);
@@ -33,7 +35,7 @@ test('every new game deals three different mini games, and over many games all e
     g.forEach(x => seen.add(x));
     assert.ok(R.perform(R.newState(), 'start', g).ok, 'the rules accept every deal');
   }
-  assert.equal(seen.size, 8);
+  assert.equal(seen.size, 9);
 });
 
 test('tic-tac-toe: lines, draws, and a bot that always wins when it can and can be beaten', () => {
@@ -394,4 +396,67 @@ test('hacking: a fair player makes it in time, a slow or guessing one does not',
   assert.equal(fair, 100, 'three seconds to read each part always makes it');
   assert.ok(slow <= 10, 'eight seconds per part hardly ever does');
   assert.equal(guess, 0, 'guessing never does');
+});
+
+// ### Conducting: a player who strokes the baton on every beat, off by `late` seconds plus a random spread of up to
+// ### `spread` either way, starting with the first conducted beat; every `skip`-th beat left out.
+function conductor(late, spread, rand, skip){
+  const s = M.condNew();
+  for (let i = M.COND.COUNT; i < M.COND.BEATS && !s.won && !s.lost; i++){
+    if (skip && (i - M.COND.COUNT) % skip === skip - 1) continue;
+    const t = M.condBeat(i) + late + (rand() * 2 - 1) * spread;
+    M.condStep(s, t); M.condTap(s, t);
+  }
+  M.condStep(s, 99);
+  return s;
+}
+
+test('conducting: the beats lie where the recording has them, and the game fits in its 30 seconds', () => {
+  assert.ok(Math.abs(60 / M.COND.BEAT - 117) < .1, 'Bach at 117 beats a minute');
+  assert.ok(M.condBeat(M.COND.COUNT + M.COND.GOAL - 1) < 20, 'a player who never misses wins well within the 30 s');
+  assert.ok(M.condBeat(M.COND.BEATS - 1) > M.TIME, 'the music never runs out before the clock');
+  assert.ok(fs.statSync(path.join(__dirname, '../../room-1-escape/sounds/orchestra.mp3')).size > 100000, 'the recording is there');
+});
+
+test('conducting: a stroke on the beat counts, a stroke off it or a missed beat counts against you', () => {
+  const s = M.condNew(), b = M.condBeat(M.COND.COUNT);
+  assert.equal(M.condTap(s, M.condBeat(1)), 'count', 'the count-in is free');
+  assert.equal(s.misses, 0);
+  assert.equal(M.condTap(s, b + .03), 'perfect');
+  assert.equal(M.condTap(s, b + .1), 'early', 'refused: a second stroke right after the beat is off the music');
+  assert.equal(s.misses, 1);
+  assert.equal(M.condTap(s, M.condBeat(M.COND.COUNT + 1) - .12), 'good', 'a little early still counts');
+  assert.equal(M.condTap(s, M.condBeat(M.COND.COUNT + 2) - .3), 'early', 'refused: too early');
+  M.condStep(s, M.condBeat(M.COND.COUNT + 2) + M.COND.GOOD + .01);
+  assert.equal(s.misses, 3, 'a beat with no stroke is missed');
+  assert.equal(s.last.kind, 'missed');
+  assert.deepEqual([s.hits, s.perfect, s.next], [2, 1, M.COND.COUNT + 3]);
+  // doing nothing loses after ten beats
+  const idle = M.condNew();
+  M.condStep(idle, M.condBeat(M.COND.COUNT + M.COND.MISSES - 1) + M.COND.GOOD - .01);
+  assert.ok(!idle.lost);
+  M.condStep(idle, M.condBeat(M.COND.COUNT + M.COND.MISSES - 1) + M.COND.GOOD + .01);
+  assert.ok(idle.lost, 'ten missed beats and the band falls apart');
+  assert.equal(M.condTap(idle, 20), null, 'refused: nothing to conduct once it is lost');
+});
+
+test('conducting: a fair player keeps the band in time, a guessing or hurried one does not', () => {
+  const rand = seeded(11);
+  for (let k = 0; k < 50; k++){
+    assert.ok(conductor(0, .06, rand).won, 'within 60 ms always wins');
+    assert.ok(conductor(.08, .05, rand).won, 'a steady player a little late wins too');
+  }
+  let half = 0, sloppy = 0, mash = 0, random = 0;
+  for (let k = 0; k < 50; k++){
+    if (conductor(0, .02, rand, 2).won) half++;            // only every other beat
+    if (conductor(0, .3, rand).won) sloppy++;              // up to 0.3 s off
+    // mashing the button eight times a second, or stroking at random about twice a second
+    const m = M.condNew(); for (let t = 0; t < 30 && !m.won && !m.lost; t += .125) M.condTap(m, t); if (m.won) mash++;
+    const r = M.condNew(); for (let t = 0; t < 30 && !r.won && !r.lost; t += .2 + rand() * .6) M.condTap(r, t); if (r.won) random++;
+  }
+  assert.equal(half, 0, 'half the beats is not enough');
+  assert.ok(sloppy <= 2, 'a third of a second off hardly ever does');
+  assert.equal(mash, 0, 'mashing never does');
+  assert.equal(random, 0, 'random strokes never do');
+  assert.ok(conductor(0, .02, rand, 8).won, 'missing a beat now and then is fine');
 });
