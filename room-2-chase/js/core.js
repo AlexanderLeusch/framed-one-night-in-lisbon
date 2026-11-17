@@ -14,9 +14,9 @@
   // ### acceleration and handling multipliers, damage taken (dmg), ramming power (ram) and the collision circles (samples, r).
   // ### Change a number here and the whole game, including the stat bars in the menu, follows it.
   const MODES = {
-    city: { key: 'city', title: 'Lisbon · Baixa', eyebrow: 'Baixa · Lisbon', mission: 'Evidence', max: 34, police: 33, time: 180, gaugeMax: 180, redline: 140, radar: 70, shards: 6, kits: 3, store: 'shard-heist-city-best' },
-    highway: { key: 'highway', title: 'Highway', eyebrow: 'Highway', mission: 'Bonus Shards', max: 55.6, police: 52, time: 110, gaugeMax: 290, redline: 230, radar: 110, shards: 12, kits: 2, bonus: 4, store: 'shard-heist-highway-best', linear: true },
-    country: { key: 'country', title: 'Countryside', eyebrow: 'Country roads', mission: 'Bonus Shards', max: 44, police: 41, time: 150, gaugeMax: 240, redline: 190, radar: 90, shards: 10, kits: 3, bonus: 4, store: 'shard-heist-country-best', linear: true }
+    city: { key: 'city', title: 'Lisbon · Baixa', eyebrow: 'Baixa · Lisbon', mission: 'Evidence', max: 34, police: 30, time: 180, gaugeMax: 180, redline: 140, radar: 70, shards: 6, kits: 3, store: 'shard-heist-city-best' },
+    highway: { key: 'highway', title: 'Highway', eyebrow: 'Highway', mission: 'Bonus Shards', max: 55.6, police: 48, time: 110, gaugeMax: 290, redline: 230, radar: 110, shards: 12, kits: 2, bonus: 4, store: 'shard-heist-highway-best', linear: true },
+    country: { key: 'country', title: 'Countryside', eyebrow: 'Country roads', mission: 'Bonus Shards', max: 44, police: 38, time: 150, gaugeMax: 240, redline: 190, radar: 90, shards: 10, kits: 3, bonus: 4, store: 'shard-heist-country-best', linear: true }
   };
   const VEH = {
     car: { key: 'car', name: 'Car', cls: 'Muscle coupe', blurb: 'A fastback V8 coupe. Balanced speed and grip, average toughness.', speed: 1.0, accel: 1.0, handling: 1.0, dmg: 1.0, ram: 1.0, samples: [-1.1, 1.1], r: 1.2, cam: [10, 4.4], show: [7.5, 2.0, 0.7], light: 2.45, lightY: 0.7 },
@@ -586,16 +586,19 @@
   // ---------- Police pressure ----------
   // ### Wanted stars (1-5) rise with the time on the run and with the progress towards the end, whichever is further along.
   // ### Each wrecked police car adds a little, and stars never fall. PURSUIT says what each star means. The helicopter joins
-  // ### after a minute on the run, or sooner with the fifth star. The bust meter fills while a cop is within 9 m and you are almost
-  // ### stopped, and drains otherwise.
+  // ### after a minute on the run, or sooner with the fifth star. The police drive at about 88 % of your top speed, so on a clear
+  // ### road you can pull away; more stars make them only a little faster. The bust meter (BUST) fills while a cop is within
+  // ### BUST.radius metres and you are almost stopped, full after BUST.fill seconds, and drains in BUST.drain seconds otherwise,
+  // ### so one short stop next to a cop is not the end.
   const PURSUIT = Object.freeze([
     Object.freeze({ cops: 1, speed: 1, spawn: 3, respawn: 9, hp: 3 }),
     Object.freeze({ cops: 2, speed: 1, spawn: 3, respawn: 9, hp: 3 }),
-    Object.freeze({ cops: 3, speed: 1.03, spawn: 3, respawn: 8, hp: 3 }),
-    Object.freeze({ cops: 3, speed: 1.06, spawn: 2.5, respawn: 6, hp: 3.5 }),
-    Object.freeze({ cops: 4, speed: 1.1, spawn: 2, respawn: 4.5, hp: 4 })
+    Object.freeze({ cops: 3, speed: 1.02, spawn: 3, respawn: 8, hp: 3 }),
+    Object.freeze({ cops: 3, speed: 1.04, spawn: 2.5, respawn: 6, hp: 3.5 }),
+    Object.freeze({ cops: 4, speed: 1.06, spawn: 2, respawn: 4.5, hp: 4 })
   ]);
   const MAX_STARS = PURSUIT.length, SPOT_RADIUS = 9, HELI_AFTER = 60;
+  const BUST = Object.freeze({ radius: 7, slow: 4.5, fill: 3.5, drain: 2 });
   function wantedStars(prev, elapsed, limit, progress, wrecked){
     const time = limit > 0 ? clamp(elapsed / limit, 0, 1) : 0;
     const score = Math.max(time, clamp(progress || 0, 0, 1)) + Math.max(0, wrecked || 0) * 0.04;
@@ -615,7 +618,7 @@
   const inSpotlight = (sx, sz, x, z) => Math.hypot(x - sx, z - sz) <= SPOT_RADIUS;
   function bustStep(bust, nearestCop, speed, dt){
     dt = clamp(dt, 0, MAX_DT);
-    bust = nearestCop < 9 && Math.abs(speed) < 4.5 ? bust + dt / 2.2 : Math.max(0, bust - dt / 3);
+    bust = nearestCop < BUST.radius && Math.abs(speed) < BUST.slow ? bust + dt / BUST.fill : Math.max(0, bust - dt / BUST.drain);
     if (bust >= 1) return { bust: 1, busted: true };
     return { bust, busted: false };
   }
@@ -1072,7 +1075,7 @@
     parsePick, parseBest, applyPick, actionAllowed, GARAGE, garageFloor, garageGrade, garageOut, garageWalls, garageWay, wayAim,
     vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, SCRAPE, scrapeLevel, sparkCount, LOOK, lookingBack, lookBackView, NITRO, newNitro, nitroPickup, nitroFire, nitroOn, nitroStep, nitroTop, nitroPush, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
     crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, KIT_GUIDE_AT, kitToGuide, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
-    PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
+    PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, BUST, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
     driveTime, runStars, isNewBest,
     NAME_MAX, DRIVERS_MAX, BOARD_KEEP, BOARD_SHOW, cleanName, sameName, newBoard, parseBoard, addDriver, recordRun, boardRows, boardList, monthKey, monthName,
     newStory, beginAct, retryAct, finishOpen, storyEnding, dueRadio,

@@ -39,9 +39,9 @@ Percentages are relative to the map's top speed and to the car. The menu shows t
 
 | Map | Goal | Time | Car top speed | Police top speed | Shards | Repair kits |
 |---|---|---|---|---|---|---|
-| **Lisbon · Baixa** | Collect **all 6 pieces of evidence**, pick up the **witness**, then drive through the golden gate that appears at the south-west corner of the Baixa (Rua do Crucifixo at the river avenue), on the way to the 25 de Abril bridge | 3:00 | 122 km/h | 119 km/h | 6 pieces of evidence | 3 |
-| **Highway** | Reach the finish **4 km** ahead. Shards are optional: **+4 s** each | 1:50 | 200 km/h | 187 km/h | 12 | 2 |
-| **Countryside** | Reach the village at the end of the road. Shards: **+4 s** each | 2:30 | 158 km/h | 148 km/h | 10 | 3 |
+| **Lisbon · Baixa** | Collect **all 6 pieces of evidence**, pick up the **witness**, then drive through the golden gate that appears at the south-west corner of the Baixa (Rua do Crucifixo at the river avenue), on the way to the 25 de Abril bridge | 3:00 | 122 km/h | 108 km/h | 6 pieces of evidence | 3 |
+| **Highway** | Reach the finish **4 km** ahead. Shards are optional: **+4 s** each | 1:50 | 200 km/h | 173 km/h | 12 | 2 |
+| **Countryside** | Reach the village at the end of the road. Shards: **+4 s** each | 2:30 | 158 km/h | 137 km/h | 10 | 3 |
 
 - A shard or a piece of evidence is picked up within 3.8 m; a repair kit within 3.6 m, and only when you have damage.
 - Lisbon has traffic lights, 26 other cars, two white city buses, four motorcycles and three yellow trams. The trams only run on their tracks, a stone track bed with two rails set into the road: a clockwise loop through Rua da Conceição, Rua da Prata, the north side of the Praça do Comércio and Rua Áurea. As on real Lisbon streets, cars and the player can drive over the tracks. Each wheel that rolls over a rail gives a jolt: the picture and the vehicle shake, the rail clacks, and phones that can vibrate give a short buzz. The faster you go, the harder the jolt; the front wheels hit first and the rear ones a moment later. Driving along the stone track bed rumbles lightly. The trams themselves run on steel railway wheels with a flange on the inside, on a two-axle truck with springs and brake blocks. The buses are 12 m long, so at a crossing they go straight on or turn left in the wide arc, never right into the tight corner (unless that is the only way left at the edge of the map). Everything stops at red lights and keeps its distance to the back of the vehicle ahead, so nobody runs into the long tail of a bus or a tram. On the highway traffic drives both ways: cars, SUVs, lorries, three coaches and six motorcycles; lorries and coaches keep to the middle and slow lanes. On country roads there is oncoming traffic, with one coach and three motorcycles among it, and driving off the road cuts your top speed to 55 %.
@@ -144,16 +144,16 @@ The city is a hand-built model of the real Baixa, not map data loaded by the gam
 | **Police wreck** | stays where it stopped: lights out, dented and dull, sagging to one side and smoking for about 14 s. Traffic stops behind it, and you and the police can crash into it. It is cleared when you are more than 260 m away, or after 30 s once you are more than 70 m away. When that car is sent back into the chase, it comes back clean |
 | Far behind | a police car more than 140 m away drives 20 % faster; one more than 230 m away in the city, or 320 m on the open roads, is sent back near you with full health |
 | Hills | police slow down uphill and speed up downhill as you do; other traffic keeps its speed |
-| **Bust meter** | fills while a police car is **within 9 m** and you are **slower than 4.5 m/s** (about 16 km/h): full in 2.2 s. Otherwise it drains (empty from full in 3 s). |
+| **Bust meter** | fills while a police car is **within 7 m** and you are **slower than 4.5 m/s** (about 16 km/h): full in 3.5 s. Otherwise it drains (empty from full in 2 s). |
 | **Busted** | bust meter at 100 %: game over |
 
 | Stars | Police cars | Police speed | New car every | Wrecked car returns after | Health |
 |---|---|---|---|---|---|
 | ★ | 1 | 100 % | 3 s | 9 s | 3 |
 | ★★ | 2 | 100 % | 3 s | 9 s | 3 |
-| ★★★ | 3 | 103 % | 3 s | 8 s | 3 |
-| ★★★★ | 3 | 106 % | 2.5 s | 6 s | 3.5 |
-| ★★★★★ | 4 | 110 % | 2 s | 4.5 s | 4 |
+| ★★★ | 3 | 102 % | 3 s | 8 s | 3 |
+| ★★★★ | 3 | 104 % | 2.5 s | 6 s | 3.5 |
+| ★★★★★ | 4 | 106 % | 2 s | 4.5 s | 4 |
 
 **Helicopter.** After 60 seconds on the run (or sooner with the fifth star), a police helicopter joins the chase for the rest of the run and hunts you with its searchlight. Its searchlight follows you at 94 % of the police speed. While you are in the light (within 9 m of its centre), the police drive 6 % faster, and in the city they see you from 170 m instead of 110 m. It cannot bust you or damage you. An undamaged car or motorcycle at full speed on a clear, level road stays ahead of the light; the truck, and a badly damaged car, cannot.
 
