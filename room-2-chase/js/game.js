@@ -4801,7 +4801,8 @@ function updateEngine(dt){
   // a badly damaged engine misfires
   if (live && damage >= 50 && Math.random() < dt * (damage - 40) / 10) eng.miss = 0.05;
   if (eng.miss > 0){ eng.miss -= dt; vol *= 0.4; }
-  a.bus.gain.setTargetAtTime(state === 'menu' || state === 'pause' || muted || (state === 'over' && endReason === 'wrecked') ? 0 : on ? vol * (cine ? finale.level : 1) : vol * 0.3, t, 0.03);
+  // on foot in the garage the engines are off: the chosen one is first heard when the player sits in it and starts it
+  a.bus.gain.setTargetAtTime(state === 'menu' || state === 'pause' || muted || (garage.on && !garage.live) || (state === 'over' && endReason === 'wrecked') ? 0 : on ? vol * (cine ? finale.level : 1) : vol * 0.3, t, 0.03);
   if (on && E.pops){
     if (eng.prevPedal && !pedal && norm > 0.45) eng.popTime = 0.7;
     if (eng.popTime > 0){ eng.popTime -= dt; if (Math.random() < dt * 14) noiseBurst(t + Math.random() * 0.02, a.popF, 0.1 + Math.random() * 0.14, 0.03 + Math.random() * 0.03); }
