@@ -146,15 +146,16 @@ The city is a hand-built model of the real Baixa, not map data loaded by the gam
 | Far behind | a police car more than 140 m away drives 20 % faster; one more than 230 m away in the city, or 320 m on the open roads, is sent back near you with full health |
 | Hills | police slow down uphill and speed up downhill as you do; other traffic keeps its speed |
 | **Bust meter** | fills while a police car is **within 7 m** and you are **slower than 4.5 m/s** (about 16 km/h): full in 3.5 s. Otherwise it drains (empty from full in 2 s). |
+| **Head start with the witness** | while Marta gets in, and for 5 s after you close her card, the bust meter does not fill (it only drains), and every police car in the chase loses 2.5 s |
 | **Busted** | bust meter at 100 %: game over |
 
 | Stars | Police cars | Police speed | New car every | Wrecked car returns after | Health |
 |---|---|---|---|---|---|
 | ★ | 1 | 100 % | 3 s | 9 s | 3 |
-| ★★ | 2 | 100 % | 3 s | 9 s | 3 |
-| ★★★ | 3 | 102 % | 3 s | 8 s | 3 |
+| ★★ | 1 | 100 % | 3 s | 9 s | 3 |
+| ★★★ | 2 | 102 % | 3 s | 8 s | 3 |
 | ★★★★ | 3 | 104 % | 2.5 s | 6 s | 3.5 |
-| ★★★★★ | 4 | 106 % | 2 s | 4.5 s | 4 |
+| ★★★★★ | 3 | 106 % | 2 s | 4.5 s | 4 |
 
 **Helicopter.** After 60 seconds on the run (or sooner with the fifth star), a police helicopter joins the chase for the rest of the run and hunts you with its searchlight. Its searchlight follows you at 94 % of the police speed. While you are in the light (within 9 m of its centre), the police drive 6 % faster, and in the city they see you from 170 m instead of 110 m. It cannot bust you or damage you. An undamaged car or motorcycle at full speed on a clear, level road stays ahead of the light; the truck, and a badly damaged car, cannot.
 

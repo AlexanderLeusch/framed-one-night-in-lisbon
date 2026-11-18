@@ -107,7 +107,7 @@
   // ### away (and inside the map); she gets in when the player stops next to her (closer than 7 m and slower than 3 m/s, about
   // ### 11 km/h, either way), and goes back to wait if the player drives off more than 12 m before she has reached the door.
   const WITNESS = Object.freeze({ name: 'Marta Silva', job: 'a night-shift nurse', found: 'Marta Silva is in the car. She saw a man climb out of the museum window that night, and she will say so in court. That is the last piece of evidence. Drive to the golden gate at the south-west corner of the Baixa, the way out to the 25 de Abril bridge: follow the golden beam.' });
-  const WITNESS_RULE = Object.freeze({ reach: 7, slow: 3, leave: 12, near: 70, far: 200, edge: 8 });
+  const WITNESS_RULE = Object.freeze({ reach: 7, slow: 3, leave: 12, near: 70, far: 200, edge: 8, grace: 5, stun: 2.5 });
   const witnessGetsIn = (dist, speed) => Number.isFinite(dist) && Number.isFinite(speed) && dist < WITNESS_RULE.reach && Math.abs(speed) < WITNESS_RULE.slow;
   const witnessGivesUp = dist => !(dist <= WITNESS_RULE.leave);
   function witnessSpotOk(x, z, carX, carZ, limit){
@@ -604,10 +604,10 @@
   // ### so one short stop next to a cop is not the end.
   const PURSUIT = Object.freeze([
     Object.freeze({ cops: 1, speed: 1, spawn: 3, respawn: 9, hp: 3 }),
-    Object.freeze({ cops: 2, speed: 1, spawn: 3, respawn: 9, hp: 3 }),
-    Object.freeze({ cops: 3, speed: 1.02, spawn: 3, respawn: 8, hp: 3 }),
+    Object.freeze({ cops: 1, speed: 1, spawn: 3, respawn: 9, hp: 3 }),
+    Object.freeze({ cops: 2, speed: 1.02, spawn: 3, respawn: 8, hp: 3 }),
     Object.freeze({ cops: 3, speed: 1.04, spawn: 2.5, respawn: 6, hp: 3.5 }),
-    Object.freeze({ cops: 4, speed: 1.06, spawn: 2, respawn: 4.5, hp: 4 })
+    Object.freeze({ cops: 3, speed: 1.06, spawn: 2, respawn: 4.5, hp: 4 })
   ]);
   const MAX_STARS = PURSUIT.length, SPOT_RADIUS = 9, HELI_AFTER = 60;
   const BUST = Object.freeze({ radius: 7, slow: 4.5, fill: 3.5, drain: 2 });
@@ -628,9 +628,10 @@
     return [x + dx / d * step, z + dz / d * step];
   }
   const inSpotlight = (sx, sz, x, z) => Math.hypot(x - sx, z - sz) <= SPOT_RADIUS;
-  function bustStep(bust, nearestCop, speed, dt){
+  // ### grace: true while the witness gets in and for WITNESS_RULE.grace seconds after; the meter only drains then
+  function bustStep(bust, nearestCop, speed, dt, grace){
     dt = clamp(dt, 0, MAX_DT);
-    bust = nearestCop < BUST.radius && Math.abs(speed) < BUST.slow ? bust + dt / BUST.fill : Math.max(0, bust - dt / BUST.drain);
+    bust = !grace && nearestCop < BUST.radius && Math.abs(speed) < BUST.slow ? bust + dt / BUST.fill : Math.max(0, bust - dt / BUST.drain);
     if (bust >= 1) return { bust: 1, busted: true };
     return { bust, busted: false };
   }

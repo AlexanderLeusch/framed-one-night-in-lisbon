@@ -3559,7 +3559,7 @@ const policeTex = (() => {
   }
 })();
 let endReason = '', bumpQuiet = 0;
-let spawnTimer = 0, bust = 0, copsWrecked = 0, copsWarned = false, nearestCop = Infinity, stars = 1;
+let spawnTimer = 0, bust = 0, bustGrace = 0, copsWrecked = 0, copsWarned = false, nearestCop = Infinity, stars = 1;
 // ### Works out the wanted stars from the time on the run, the progress and the wrecked police cars.
 function updateWanted(){
   let progress;
@@ -3758,7 +3758,9 @@ function updatePolice(dt){
     }
   }
   if (live){
-    const b = Core.bustStep(bust, nearestCop, car.speed, dt);
+    // ### No bust while Marta gets in and for a few seconds after, so you can get going again with her on board
+    if (bustGrace > 0) bustGrace -= dt;
+    const b = Core.bustStep(bust, nearestCop, car.speed, dt, bustGrace > 0 || (witness.boarding > 0 && !witness.inCar));
     bust = b.bust;
     if (b.busted) gameOver('busted');
   }
@@ -3778,7 +3780,7 @@ function updatePoliceVisuals(){
 }
 function resetPolice(){
   police.forEach(p => { p.active = false; p.respawn = 0; p.wreck = 0; p.g.visible = false; p.light.intensity = 0; });
-  spawnTimer = 4; bust = 0; copsWrecked = 0; copsWarned = false; nearestCop = Infinity; stars = 1;
+  spawnTimer = 4; bust = 0; bustGrace = 0; copsWrecked = 0; copsWarned = false; nearestCop = Infinity; stars = 1;
   heli.runTime = 0; heli.on = false; heli.spotted = false; heli.g.visible = false; heli.beam.visible = false; heli.lamp.intensity = 0;
 }
 
@@ -6127,6 +6129,9 @@ function updateWitness(dt, live){
   if (W.phase === 'done'){
     W.phase = 'seated'; W.lock = null;
     W.active = false; W.inCar = true;
+    // a head start: the police can't box you in for a few seconds, and the cars around you lose a moment
+    bustGrace = Core.WITNESS_RULE.grace;
+    police.forEach(p => { if (p.active) p.stun = Math.max(p.stun, Core.WITNESS_RULE.stun); });
     sfx.collect();
     const [bx, bz] = toWorld(px, pz); burst(bx, car.y + py + 0.8, bz, GOLD, 18);
     renderChips();
@@ -6143,7 +6148,7 @@ function witnessCard(){
     <div class="eyebrow">The witness · ${WITNESS.name}</div>
     <h2>“I saw him climb out of that window.”</h2>
     <p>${WITNESS.name}, ${WITNESS.job}, is in the car. She saw a man climb out of the museum window that night, and she will say so in court. That is the last piece of evidence: with the photos, the fingerprints, the torch, the lockpick, the clothes and the balaclava, it proves you did not take the necklace.</p>
-    <p><b>Now get out of the city.</b> Follow the yellow arrows on the road to the golden gate at the south-west corner of the Baixa. Behind it is the 25 de Abril bridge.${COARSE ? ' Tap the radar to see the map.' : ' Press <kbd>M</kbd> for the map.'}</p>
+    <p><b>Now get out of the city.</b> Follow the yellow arrows on the road to the golden gate at the south-west corner of the Baixa. Behind it is the 25 de Abril bridge. For the next ${Core.WITNESS_RULE.grace} seconds the police can't box you in: get moving.${COARSE ? ' Tap the radar to see the map.' : ' Press <kbd>M</kbd> for the map.'}</p>
     <div class="actions">
       <button class="btn" data-action="resume">Drive on <small class="desk-only">Enter</small></button>
     </div>`, 'story');
