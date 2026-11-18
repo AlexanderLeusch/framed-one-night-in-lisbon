@@ -309,12 +309,69 @@ const corridorTex = canvasTex(256, 256, (g, w, h) => {
   const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#cfe7ff'); gr.addColorStop(1, '#5d7da6');
   g.fillStyle = gr; g.fillRect(0, 0, w, h);
 });
-const guardTex = canvasTex(256, 256, (g, w, h) => {
-  g.fillStyle = '#05070a';
-  g.beginPath(); g.arc(w * .52, h * .38, w * .17, 0, 7); g.fill();
-  g.beginPath(); g.moveTo(w * .1, h); g.quadraticCurveTo(w * .12, h * .6, w * .52, h * .58); g.quadraticCurveTo(w * .92, h * .6, w * .94, h); g.fill();
-  g.fillRect(w * .3, h * .2, w * .44, h * .06);
-  g.fillRect(w * .36, h * .1, w * .32, h * .12);
+// ### Officer Hale's outline, for the two places where only his shadow shows: his dark figure behind the window of the door
+// ### and the shadow he throws into the room while he holds the door open. It follows the 3D figure (buildHale) part by
+// ### part: boots, legs, the duty belt with the radio and the baton, the tapered shirt, shoulders, arms and hands, neck,
+// ### head and ears, and the peaked cap. Points are in his own metres (x across, y up, z forwards, as in buildHale); `to`
+// ### turns a point into a spot on the canvas and `px` a radius there into pixels, so the same body can be seen from the
+// ### front or thrown flat onto the floor by a light. reach: one arm out to the door handle, as while he holds the door.
+function haleOutline(g, to, px, reach){
+  // a limb: round at both ends, r0 thick at a and r1 at b
+  const limb = (a, b, r0, r1) => {
+    const [ax, ay] = to(a), [bx, by] = to(b), ra = px(a, r0), rb = px(b, r1), l = Math.hypot(bx - ax, by - ay) || 1, nx = (ay - by) / l, ny = (bx - ax) / l;
+    g.beginPath(); g.arc(ax, ay, ra, 0, 7); g.fill(); g.beginPath(); g.arc(bx, by, rb, 0, 7); g.fill();
+    g.beginPath(); g.moveTo(ax + nx * ra, ay + ny * ra); g.lineTo(bx + nx * rb, by + ny * rb); g.lineTo(bx - nx * rb, by - ny * rb); g.lineTo(ax - nx * ra, ay - ny * ra); g.fill();
+  };
+  // an oval round c through ex (its side) and ey (its top), so it stretches and leans with the view
+  const oval = (c, ex, ey) => {
+    const [cx, cy] = to(c), [xx, xy] = to(ex), [yx, yy] = to(ey);
+    g.save(); g.transform(xx - cx, xy - cy, yx - cx, yy - cy, cx, cy); g.beginPath(); g.arc(0, 0, 1, 0, 7); g.restore(); g.fill();
+  };
+  // a body of revolution seen from the front: its [radius, height] profile down one side and back up the other
+  const profile = (pts, z) => {
+    g.beginPath();
+    [...pts.map(([r, y]) => [r, y, z]), ...[...pts].reverse().map(([r, y]) => [-r, y, z])].forEach((p, i) => { const [x, y] = to(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+    g.fill();
+  };
+  for (const s of [-1, 1]){
+    const x = s * .1;
+    limb([x, .03, -.08], [x, .03, .19], .05, .045);                      // the boot on the floor, heel to toe
+    limb([x, .06, 0], [x, .21, 0], .058, .054);                           // boot shaft
+    limb([x, .17, 0], [x * 1.05, .52, .01], .062, .066);                  // lower leg
+    limb([x * 1.05, .52, .01], [x, .93, 0], .066, .088);                  // thigh
+  }
+  // the seat of the trousers, the belt and the shirt up to the collar
+  profile([[.16, .82], [.18, .9], [.187, .96], [.187, 1.006], [.186, 1.12], [.2, 1.26], [.208, 1.36], [.205, 1.44], [.19, 1.5], [.15, 1.54], [.1, 1.57], [.076, 1.6], [.068, 1.63]], 0);
+  limb([-.18, .94, -.045], [-.18, .99, -.045], .032, .032);              // radio pack on the belt
+  limb([.185, .99, -.02], [.2, .55, -.03], .016, .014);                  // baton
+  for (const s of [-1, 1]) oval([s * .2, 1.455, 0], [s * .27, 1.455, 0], [s * .2, 1.525, 0]);   // shoulders
+  // shoulder, elbow, wrist and finger tips: one arm hangs, the other one hangs too or reaches out to the door
+  const arm = (sh, el, wr, tip) => { limb(sh, el, .058, .05); limb(el, wr, .05, .04); limb(wr, tip, .03, .022); };
+  arm([-.205, 1.45, 0], [-.235, 1.17, -.02], [-.241, .918, .043], [-.245, .81, .06]);
+  if (reach) arm([.205, 1.45, 0], [.32, 1.29, .24], [.393, 1.197, .51], [.42, 1.18, .61]);
+  else arm([.205, 1.45, 0], [.235, 1.17, -.02], [.241, .918, .043], [.245, .81, .06]);
+  limb([0, 1.57, -.008], [0, 1.68, 0], .066, .058);                      // neck
+  oval([0, 1.745, .01], [.078, 1.745, .01], [0, 1.857, .01]);            // head
+  for (const s of [-1, 1]) oval([s * .076, 1.737, -.008], [s * .088, 1.737, -.008], [s * .076, 1.764, -.008]);   // ears
+  // the peaked cap: the band, the crown widening to its top, and the visor in front
+  profile([[.087, 1.783], [.087, 1.826], [.11, 1.853], [.122, 1.866], [.118, 1.873], [.06, 1.879], [0, 1.88]], .01);
+  oval([0, 1.784, .07], [.092, 1.784, .07], [0, 1.796, .07]);
+}
+// ### A shape drawn by draw(g) on a w x h canvas, its edges softened by r pixels. A canvas's own drop shadow does the
+// ### blurring (every browser has it): the shape is drawn one canvas width off to the left and only its shadow lands.
+function softShape(w, h, r, color, draw){
+  const m = document.createElement('canvas'); m.width = w; m.height = h;
+  const mg = m.getContext('2d'); mg.fillStyle = color; draw(mg);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'); g.shadowColor = color; g.shadowBlur = r; g.shadowOffsetX = w; g.drawImage(m, -w, 0);
+  return c;
+}
+// ### Hale behind the window, from the front: his dark figure against the corridor light, soft through the glass. The
+// ### picture holds all of him, 0.68 m across and from 2 cm below his soles to 2.02 m (256 pixels to 0.68 m both ways);
+// ### updateGuard shows the part that fits the window and makes it smaller as he walks off.
+const guardTex = canvasTex(256, 768, (g, w, h) => {
+  const PX = w / .68;
+  g.drawImage(softShape(w, h, 4, '#07090c', c => haleOutline(c, p => [(p[0] + .34) * PX, (2.02 - p[1]) * PX], (p, r) => r * PX, false)), 0, 0);
 });
 // ### Paints a digit for the wheels of the combination lock.
 const digitTex = () => { const c = document.createElement('canvas'); c.width = c.height = 64; const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t; };
@@ -1673,9 +1730,26 @@ function buildHale(){
   { const b = new THREE.ExtrudeGeometry(shield, { depth: .003, bevelEnabled: true, bevelThickness: .0015, bevelSize: .0015, bevelSegments: 1 }); b.scale(.75, .75, 1); b.rotateX(-.2); b.translate(0, .05, .105); put(b, metal, cap); }
   return { g, mats };
 }
-const shadowTex = canvasTex(128, 256, (g, w, h) => {
-  const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(0,0,0,.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = gr; g.beginPath(); g.moveTo(w * .3, 0); g.lineTo(w * .7, 0); g.lineTo(w, h); g.lineTo(0, h); g.fill();
+// ### The shadow Hale throws through the open door: his outline (haleOutline, the arm out to the door) thrown flat onto
+// ### the floor by a light high up and well back in the corridor, so it runs from his boots over the threshold into the
+// ### room, stretched as a real shadow is: legs short, the body and the cap longer and wider. Like a real one it is sharp
+// ### and dark where his boots stand and softer and paler towards his head, the farther the light has to travel past him.
+// ### The picture covers the floor from x -0.7 to 0.9 and z 1 to 3.6 (160 pixels to the metre); top is the room side.
+const HALE_AT = { x: .14, z: 3.42 };
+const shadowTex = canvasTex(256, 416, (g, w, h) => {
+  const L = { x: 0, y: 4.05, z: 5.96 }, PX = 160;
+  // a point of his body (his own metres; he faces into the room) to where its shadow falls, and a radius there
+  const to = p => { const s = L.y / (L.y - p[1]); return [(L.x + s * (HALE_AT.x - p[0] - L.x) + .7) * PX, (L.z + s * (HALE_AT.z - p[2] - L.z) - 1) * PX]; };
+  const px = (p, r) => r * L.y / (L.y - p[1]) * PX;
+  const body = r => softShape(w, h, r, '#000', c => haleOutline(c, to, px, true));
+  const near = body(2), far = body(10);
+  // from his boots (0) to the top of his cap (1)
+  const along = (c, a, b) => { const gr = c.createLinearGradient(0, (HALE_AT.z - 1) * PX, 0, .22 * PX); gr.addColorStop(0, a); gr.addColorStop(1, b); return gr; };
+  g.drawImage(near, 0, 0);
+  g.globalCompositeOperation = 'destination-out'; g.fillStyle = along(g, 'rgba(0,0,0,0)', '#000'); g.fillRect(0, 0, w, h);
+  const fg = far.getContext('2d'); fg.globalCompositeOperation = 'destination-in'; fg.fillStyle = along(fg, 'rgba(0,0,0,0)', '#000'); fg.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = 'lighter'; g.drawImage(far, 0, 0);
+  g.globalCompositeOperation = 'destination-in'; g.fillStyle = along(g, 'rgba(0,0,0,.85)', 'rgba(0,0,0,.6)'); g.fillRect(0, 0, w, h);
 });
 const hall = new THREE.Group(); room.add(hall);
 { const m = new THREE.Mesh(new THREE.PlaneGeometry(8, 3), new THREE.MeshBasicMaterial({ map: hallTex })); m.position.set(0, 1.5, 4.6); m.rotation.y = Math.PI; hall.add(m);
@@ -1686,9 +1760,9 @@ const hale = buildHale();
 // Fades Hale in or out; he is only drawn while he can be seen
 function haleFade(o){ for (const m of hale.mats) m.opacity = o; hale.g.visible = o > .01; }
 hall.visible = false;
-hale.g.position.set(.14, 0, 3.42); hale.g.rotation.y = Math.PI; hale.g.visible = false; room.add(hale.g);
-const haleShadow = new THREE.Mesh(new THREE.PlaneGeometry(.7, 1.9), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, opacity: 0, depthWrite: false }));
-haleShadow.position.set(.12, .004, 2.05); haleShadow.rotation.set(-Math.PI / 2, 0, Math.PI); room.add(haleShadow);
+hale.g.position.set(HALE_AT.x, 0, HALE_AT.z); hale.g.rotation.y = Math.PI; hale.g.visible = false; room.add(hale.g);
+const haleShadow = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.6), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, opacity: 0, depthWrite: false }));
+haleShadow.position.set(.1, .004, 2.3); haleShadow.rotation.x = -Math.PI / 2; room.add(haleShadow);
 // the cold light that falls in through the open door
 const doorLight = new THREE.SpotLight(0xd4e6ff, 0, 9, .62, .55, 1.3);
 doorLight.position.set(0, 2.3, 4.1); doorLight.target.position.set(0, 0, .3); room.add(doorLight, doorLight.target);
@@ -4715,12 +4789,12 @@ function updateCine(dt){
   doorPivot.rotation.y = DOOR_OPEN * open;
   doorLight.intensity = 4 * open;
   haleFade(Math.min(1, t * 2.5) * (open > .02 ? 1 : 0));
-  hale.g.position.z = 3.42 + k * .12;
-  haleShadow.material.opacity = .5 * open * Math.min(1, t * 2.5);
+  hale.g.position.z = HALE_AT.z + k * .12; haleShadow.position.z = 2.3 + k * .12;   // his shadow steps back with him
+  haleShadow.material.opacity = .75 * open * Math.min(1, t * 2.5);
   for (const [s, html] of LINES) if (s > 0 && at(s)) cineLine(html);
   if (at(1.7)) cue('open');
   if (at(2.65)){ cue('bang'); shake = .45; hall.visible = false; }
-  if (at(3.05)){ cue('clunk'); guardShow = 5; }
+  if (at(3.05)){ cue('clunk'); guardShow = 2.6; }   // his figure at the window: he says his words, then walks off
   if (at(3.25)) cue('rattle');
   if (at(3.4)){ const c = card.querySelector('#cineClock'); if (c) c.classList.add('on'); }
 }
@@ -5182,6 +5256,29 @@ function leaveLadder(){
 // ### Runs once per screen refresh: the clock (rules.tick), then animations (camera, steam, guard, tile, hatch), then the
 // ### markers and the picture. The clock only runs while playing, not paused and not in the briefing.
 let clock = 0, last = performance.now(), guardShow = 0, tileVel = 0;
+// ### Hale behind the window of the door. When something calls him (he has just shut the door on you, you rattle it, the
+// ### time runs short, a wrong code) his dark figure is at the glass, backlit by the corridor, for as long as guardShow
+// ### lasts. Then he turns and walks off down the corridor: the figure bobs with his steps and grows smaller towards the
+// ### far end, where it fades into the light and is gone. Called back while he walks off, he comes back to the window.
+// ### With reduced motion he simply fades where he stands. The figure is guardTex; only the part of it that fits the
+// ### window is shown, k metres of glass to a metre of him at the window (his shoulders at ay above the window's bottom
+// ### edge), and it shrinks towards the far end of the corridor at (vx, vy), the height of your eyes. All of it moves
+// ### the picture on the glass, so walking off costs no more than standing there.
+const GUARD = { k: .58, ay: .074, vx: .03, vy: .08, gone: 4.5, steps: 1.8 };
+let guardAway = GUARD.gone, guardIn = 0;
+function updateGuard(dt){
+  const here = guardShow > 0 || S.ending === 'B';
+  if (here) guardAway = guardAway >= GUARD.gone ? 0 : Math.max(0, guardAway - dt * 2);
+  else guardAway = Math.min(GUARD.gone, guardAway + dt);
+  guardIn = guardAway >= GUARD.gone ? 0 : Math.min(1, guardIn + dt * 3);
+  const a = REDUCED ? 0 : guardAway, s = 1 / (1 + a), fade = REDUCED ? clamp(1 - guardAway / .8, 0, 1) : 1 - clamp((a - 1.6) / (GUARD.gone - 1.6), 0, 1);
+  M.guard.opacity = .95 * guardIn * fade * fade;
+  if (!M.guard.opacity) return;
+  // his head rises and sinks with every step, and his body sways a little from one foot to the other
+  const stride = Math.sin(a * Math.PI * GUARD.steps), bob = .025 * Math.abs(stride), sway = .012 * stride;
+  guardTex.repeat.set(.3 / (s * GUARD.k * .68), .34 / (s * GUARD.k * 2.04));
+  guardTex.offset.set((((-.15 - GUARD.vx) / s + GUARD.vx) / GUARD.k - sway + .34) / .68, ((GUARD.vy - GUARD.vy / s - GUARD.ay) / GUARD.k + 1.5 - bob) / 2.04);
+}
 // ### The room loop each frame: clock, camera, markers and drawing.
 function frame(now){
   requestAnimationFrame(frame);
@@ -5209,9 +5306,9 @@ function frame(now){
   if (ac){ updateTap(dt); updateApiVent(); }
   tapStream.update(dt, clock);
   steamPuffs.forEach(s => { s.userData.t = (s.userData.t + dt * .25) % 1; const t = s.userData.t; s.position.set(-3.73 + Math.sin(t * 9 + s.id) * .05, .9 + t * 1.1, -.65 + Math.cos(t * 7 + s.id) * .08); s.scale.setScalar(.15 + t * .5); s.material.opacity = S.steam ? Math.sin(t * Math.PI) * .35 : Math.max(0, s.material.opacity - dt); s.visible = s.material.opacity > .003; });
-  // the guard's silhouette in the window
+  // the guard's dark figure in the window, and how he walks off
   guardShow = Math.max(0, guardShow - dt);
-  M.guard.opacity += ((guardShow > 0 || S.ending === 'B' ? .95 : 0) - M.guard.opacity) * Math.min(1, dt * 3);
+  updateGuard(dt);
   // the tile falls off the wall when pried
   if (tile.userData.fall !== undefined && tile.position.y > .01){
     tileVel += dt * 4; tile.position.y = Math.max(.01, tile.position.y - tileVel * dt); tile.position.z = Math.min(-2.75, tile.position.z + dt * .5);
