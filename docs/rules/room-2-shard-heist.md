@@ -145,8 +145,8 @@ The city is a hand-built model of the real Baixa, not map data loaded by the gam
 | **Police wreck** | stays where it stopped: lights out, dented and dull, sagging to one side and smoking for about 14 s. Traffic stops behind it, and you and the police can crash into it. It is cleared when you are more than 260 m away, or after 30 s once you are more than 70 m away. When that car is sent back into the chase, it comes back clean |
 | Far behind | a police car more than 140 m away drives 20 % faster; one more than 230 m away in the city, or 320 m on the open roads, is sent back near you with full health |
 | Hills | police slow down uphill and speed up downhill as you do; other traffic keeps its speed |
-| **Bust meter** | fills while a police car is **within 6 m** and you are **slower than 3.5 m/s** (about 13 km/h): full in 4.2 s. Otherwise it drains (empty from full in 1.5 s). |
-| **Head start with the witness** | while Marta gets in, and for 10 s after you close her card, the bust meter does not fill (it only drains), and every police car in the chase loses 2.5 s |
+| **Bust meter** | fills while a police car is **within 7 m** and you are **slower than 4.5 m/s** (about 16 km/h): full in 3.5 s. Otherwise it drains (empty from full in 2 s). |
+| **Head start with the witness** | while Marta gets in, and for 5 s after you close her card, the bust meter does not fill (it only drains), and every police car in the chase loses 2.5 s |
 | **Busted** | bust meter at 100 %: game over |
 
 | Stars | Police cars | Police speed | New car every | Wrecked car returns after | Health |
