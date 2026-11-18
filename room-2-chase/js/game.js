@@ -6164,7 +6164,7 @@ function witnessCard(){
 // ### light comes up behind the towers: no police, no helicopter, heroic music. Then the result card. A black plane in front of the
 // ### camera does the fades. In the story, this ends act 1 (the bridge leads out of the city towards the highway); in a free ride
 // ### it is the end of the run.
-const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 14.2, dawnFrom: 1.2, dawnTo: 11.5, shot: 5, cruise: 0.45, accel: 1.3 });
+const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 10.2, dawnFrom: 0.8, dawnTo: 8.4, shot: 3.8, cruise: 0.45, accel: 1.6 });
 const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false, ramp: false, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0, cut: false, shot: 0 };
 const fader = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 fader.position.z = -0.6; fader.renderOrder = 9999; fader.frustumCulled = false; camera.add(fader); scene.add(camera);
@@ -6184,13 +6184,13 @@ function startFinale(){
 // ### your lane, and eases into its own. Nobody is put on the bridge: if you let go of every key for RAMP.idle seconds, or are not
 // ### up there after RAMP.auto seconds, the vehicle drives itself up the rest of the road (keys.up and the steering are worked
 // ### for you, aiming RAMP.look metres ahead in your lane, at RAMP.autoSpeed), and any key you press takes the wheel back.
-const RAMP = Object.freeze({ edge: 1.1, median: 1.3, knock: 6, settle: 1.2, idle: 3, auto: 30, look: 9, autoSpeed: 22, autoLane: 4.2 });
+const RAMP = Object.freeze({ edge: 1.1, median: 1.3, knock: 6, settle: 1.2, idle: 1.2, auto: 15, look: 9, autoSpeed: 22, autoLane: 4.2 });
 // ### The long straight along the river is not shown in full. RAMP_CUT.at seconds behind the gate the picture cuts, as in a film,
 // ### to a helicopter shot high outside the loop: the vehicle is now RAMP_CUT.before metres before the loop, in your lane and at
 // ### your speed (at least RAMP_CUT.speed), and the camera, RAMP_CUT.up metres up and RAMP_CUT.out metres outside the road,
 // ### follows it into the curve for RAMP_CUT.shot seconds, then cuts back behind it. You keep the wheel the whole time. Only a
 // ### vehicle still at least RAMP_CUT.min metres short of the cut point is moved, so a fast driver is never sent back.
-const RAMP_CUT = Object.freeze({ at: 3, before: 40, min: 30, speed: 18, shot: 4, out: 34, up: 17 });
+const RAMP_CUT = Object.freeze({ at: 2.5, before: 25, min: 30, speed: 18, shot: 4, out: 34, up: 17 });
 function rampCut(A){
   const f = finale, s = A.loop - RAMP_CUT.before, side = (f.lane > 0 ? 1 : -1) * RAMP.autoLane, p = A.at(s, side);
   Object.assign(car, { x: p.x, z: p.z, y: p.y, heading: p.h, camHeading: p.h, speed: Math.max(car.speed, RAMP_CUT.speed), steer: 0, yaw: 0, pitch: 0, roll: 0, shake: 0 });
@@ -6306,7 +6306,7 @@ function onTheBridge(along, side, speed){
   resetPolice(); clearEffects(); if (!witness.inCar) hideWitness();  // Marta rides over the bridge in the passenger seat
   playAnthem();
   toast(`${WITNESS.name}: “I saw him climb out of that window. I will tell them everything.”`, 'gold', 5200);
-  setTimeout(() => { if (finale.on && !finale.done) toast('HALE: Across the bridge and you are out of the city. Well done, detective.', 'hale', 5200); }, 5600);
+  setTimeout(() => { if (finale.on && !finale.done) toast('HALE: Across the bridge and you are out of the city. Well done, detective.', 'hale', 4600); }, 4200);
 }
 // ### Ends the finale and its morning light: before a new run or the menu.
 function endFinale(){
@@ -6367,7 +6367,7 @@ function updateFinale(dt){
 
 // ### Heroic music for the finale, synthesised like the radio: a brass choir and strings on a rising progression in D major
 // ### (D, A, B minor, G, then D, G, A and a long D), a trumpet melody on top, timpani at each change, a roll and a cymbal into the
-// ### last chord, all in a little hall reverb. About 14 seconds. It plays on the music volume.
+// ### last chord, all in a little hall reverb. About 10 seconds (112 beats a minute). It plays on the music volume.
 const anthem = { out: null };
 function playAnthem(){
   if (!audio || muted) return;
@@ -6378,7 +6378,7 @@ function playAnthem(){
   hall.buffer = ir;
   out.connect(comp).connect(audio.musicVol); out.connect(hall).connect(wet).connect(audio.musicVol);
   anthem.out = out;
-  const beat = 60 / 88, t0 = ctx.currentTime + 0.1;
+  const beat = 60 / 112, t0 = ctx.currentTime + 0.1;
   const brass = (n, at, dur, v) => [-8, 0, 8].forEach(d => radioOsc('sawtooth', mtof(n), at, dur, v, out, { lp: 1900, detune: d, attack: 0.07, hold: true, release: 0.35 }));
   const strings = (n, at, dur, v) => [-5, 5].forEach(d => radioOsc('sawtooth', mtof(n), at, dur, v, out, { lp: 2400, detune: d, attack: 0.25, hold: true, release: 0.6 }));
   const timp = (n, at, v) => { radioOsc('sine', mtof(n), at, 0.9, v, out, { to: mtof(n) * 0.94, glide: 0.5, attack: 0.004 }); radioNoise('lowpass', 380, 0.8, at, 0.25, v * 0.6, out); };
