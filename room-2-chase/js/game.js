@@ -2108,6 +2108,8 @@ function buildCity(){
     // half the width of the road: as wide as the river avenue at the gate, as wide as the bridge deck further up
     const hw = s => 7 + 1.5 * sstep(8, 60, s);
     CITY.approach = { len: LEN, at, hw };
+    // where the loop begins: the finale cuts from the river straight to here (see RAMP_CUT)
+    CITY.approach.loop = L1;
     // pulls a cross-section ([side, up] points, up measured from the road) along the road and returns the triangles
     const sweep = (out, s0, s1, step, section, open) => {
       let prev = null;
@@ -6153,12 +6155,12 @@ function witnessCard(){
 // ### camera does the fades. In the story, this ends act 1 (the bridge leads out of the city towards the highway); in a free ride
 // ### it is the end of the run.
 const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 14.2, dawnFrom: 1.2, dawnTo: 11.5, shot: 5, cruise: 0.45, accel: 1.3 });
-const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false, ramp: false, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0 };
+const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false, ramp: false, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0, cut: false, shot: 0 };
 const fader = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 fader.position.z = -0.6; fader.renderOrder = 9999; fader.frustumCulled = false; camera.add(fader); scene.add(camera);
 function startFinale(){
   state = 'finale';
-  Object.assign(finale, { on: true, done: false, t: 0, placed: false, throttle: 0, level: 1, kick: false, ramp: !!CITY.approach, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0 });
+  Object.assign(finale, { on: true, done: false, t: 0, placed: false, throttle: 0, level: 1, kick: false, ramp: !!CITY.approach, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0, cut: false, shot: 0 });
   hud.classList.add('off');
   // the police give up at the gate; the keys stay held, so you drive straight on up the approach road
   resetPolice();
@@ -6173,6 +6175,26 @@ function startFinale(){
 // ### up there after RAMP.auto seconds, the vehicle drives itself up the rest of the road (keys.up and the steering are worked
 // ### for you, aiming RAMP.look metres ahead in your lane, at RAMP.autoSpeed), and any key you press takes the wheel back.
 const RAMP = Object.freeze({ edge: 1.1, median: 1.3, knock: 6, settle: 1.2, idle: 3, auto: 30, look: 9, autoSpeed: 22, autoLane: 4.2 });
+// ### The long straight along the river is not shown in full. RAMP_CUT.at seconds behind the gate the picture cuts, as in a film,
+// ### to a helicopter shot high outside the loop: the vehicle is now RAMP_CUT.before metres before the loop, in your lane and at
+// ### your speed (at least RAMP_CUT.speed), and the camera, RAMP_CUT.up metres up and RAMP_CUT.out metres outside the road,
+// ### follows it into the curve for RAMP_CUT.shot seconds, then cuts back behind it. You keep the wheel the whole time. Only a
+// ### vehicle still at least RAMP_CUT.min metres short of the cut point is moved, so a fast driver is never sent back.
+const RAMP_CUT = Object.freeze({ at: 3, before: 40, min: 30, speed: 18, shot: 4, out: 34, up: 17 });
+function rampCut(A){
+  const f = finale, s = A.loop - RAMP_CUT.before, side = (f.lane > 0 ? 1 : -1) * RAMP.autoLane, p = A.at(s, side);
+  Object.assign(car, { x: p.x, z: p.z, y: p.y, heading: p.h, camHeading: p.h, speed: Math.max(car.speed, RAMP_CUT.speed), steer: 0, yaw: 0, pitch: 0, roll: 0, shake: 0 });
+  // with no key held the vehicle drives on by itself at once, so it does not roll to a stop in the shot; any key takes over
+  f.s = s; f.cut = true; f.shot = 0; f.idle = Math.max(f.idle, RAMP.idle + 0.01);
+  clearEffects(); resetSkids();
+}
+// the helicopter: high outside the loop, drifting along it, always on the vehicle
+function heliCam(){
+  const A = CITY.approach, k = finale.shot / RAMP_CUT.shot, c = A.at(A.loop + 10 + k * 35, -RAMP_CUT.out);
+  camera.position.set(c.x, c.y + RAMP_CUT.up, c.z);
+  camera.lookAt(car.x, car.y + 1, car.z);
+  if (camera.fov !== 50){ camera.fov = 50; camera.updateProjectionMatrix(); }
+}
 // where a point lies on the approach road: s, metres along it (searched near s0), and side, metres right of its middle
 function rampLocal(A, x, z, s0){
   const d2 = s => { const p = A.at(s); return (p.x - x) ** 2 + (p.z - z) ** 2; };
@@ -6185,6 +6207,7 @@ function rampLocal(A, x, z, s0){
 function updateRamp(dt){
   const A = CITY.approach, f = finale;
   f.rt += dt;
+  if (!f.cut && f.rt >= RAMP_CUT.at){ if (A.loop && f.s < A.loop - RAMP_CUT.before - RAMP_CUT.min) rampCut(A); else { f.cut = true; f.shot = RAMP_CUT.shot; } }
   let q = rampLocal(A, car.x, car.z, f.s);
   // through the gate at any angle: the first moment turns the vehicle onto the road
   if (f.rt < RAMP.settle) car.heading += wrapAngle(q.h - car.heading) * Math.min(1, dt * 5) * (1 - f.rt / RAMP.settle);
@@ -6241,7 +6264,11 @@ function updateRamp(dt){
   car.pitch += (Math.atan(q.slope * Math.cos(rel)) - car.pitch) * Math.min(1, 10 * dt);
   car.roll += (Math.atan(q.bank * Math.cos(rel)) - car.roll) * Math.min(1, 10 * dt);
   car.wheelRot += car.speed * dt;
-  chaseCam(dt);
+  if (f.cut && f.shot < RAMP_CUT.shot){
+    f.shot += dt; heliCam();
+    // and back behind the vehicle with a cut, not a swoop
+    if (f.shot >= RAMP_CUT.shot){ look.snap = true; car.camHeading = car.heading; }
+  } else chaseCam(dt);
   // up on the deck: the drive over the bridge takes over where you are
   if (q.s >= A.len - 0.5){
     f.ramp = false;
