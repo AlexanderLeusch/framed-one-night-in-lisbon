@@ -107,7 +107,12 @@ function setDawn(a){
   mix('hemiSky', hemi.color); mix('hemiGround', hemi.groundColor); hemi.intensity = NIGHT.hemiI + (DAWN.hemiI - NIGHT.hemiI) * a;
   mix('sunC', sun.color); sun.intensity = NIGHT.sunI + (DAWN.sunI - NIGHT.sunI) * a;
 }
-const SUN_OFF = [-90, 60, -40];
+const SUN_NIGHT = Object.freeze([-90, 60, -40]), SUN_OFF = SUN_NIGHT.slice();
+// ### Down in the garage the moon is replaced by the light of the strip lights: the same two lights (hemi and sun) turn white
+// ### and even, and the sun comes from almost straight above, so it lights the floor and the vehicles cast their shadows under
+// ### them, but it never falls across the walls in bright wedges. GARAGE_LIGHT.k is how far it has gone (1 in the garage); on
+// ### the way out it fades back to the night as the roller door rolls up (garageLight).
+const GARAGE_LIGHT = { hemiSky: C(0xdfe4ec), hemiGround: C(0x6a6c70), hemiI: 0.56, sunC: C(0xf2f5ff), sunI: 0.5, off: [-4, 60, -9], k: 0 };
 
 const glowTexture = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -7021,8 +7026,11 @@ function updateShowroom(){
   // on the way out they fade as the roller door rolls up, so the street takes over the light without a jump
   // on the ramp the tubes light the way, so the key light that follows the vehicle steps back and does not wash out the floor
   const upRamp = gar && car.z > Core.GARAGE.z1 + 1 ? 0.35 : 1;
-  showKey.intensity = gar ? 5 * upRamp * (1 - 0.8 * garage.open) : on ? 3.2 : 0;
-  showRim.intensity = gar ? 0.7 * (1 - 0.8 * garage.open) : on ? 2.4 : 0;
+  // in the garage the key light is softer and wider (no bright disc on the back wall), and the rim light is white, not cyan
+  showKey.intensity = gar ? 2.6 * upRamp * (1 - 0.8 * garage.open) : on ? 3.2 : 0;
+  showKey.angle = gar ? 0.8 : 0.55; showKey.penumbra = gar ? 1 : 0.6;
+  showRim.color.setHex(gar ? 0xfff1dc : 0x55ecff);
+  showRim.intensity = gar ? 0.45 * (1 - 0.8 * garage.open) : on ? 2.4 : 0;
   if (!on) return;
   const s = V.key === 'truck' ? 1.65 : V.key === 'bike' ? 0.62 : 1;
   // the ring lies on the street like the vehicle does; kept level on a slope it would cut through the tyres on the low side
@@ -7659,8 +7667,9 @@ return { create };
 // ### and the vehicle drives straight out onto the street in the Baixa (no cut: see garageSwap), where the map of the
 // ### evidence opens and the run begins. No clock runs down here and no police come.
 // ### The sizes, the floor, the walls and the order of the vehicles are rules in Core (GARAGE, garageFloor, garageWalls, ...).
-// ### The garage lies 30 m under the city and has no lights of its own: its concrete glows a little, as under strip lights,
-// ### and the two showroom lights follow the vehicle.
+// ### The garage lies 30 m under the city, so the moon does not reach it: down here the light comes from the strip lights under
+// ### the ceiling (garageLight: a soft light from straight above, white and even, so the vehicles stand in their own shadows),
+// ### the concrete glows a little, and the two showroom lights follow the vehicle.
 const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.garageWalls(), slots: {}, end: Core.GARAGE.z1 + Core.GARAGE.ramp + Core.GARAGE.top, walk: 3, kerb: 0.6, sill: 0, clear: 3, shutter: null };
 (function buildGarage(){
   const G = Core.GARAGE, Y = G.y, end = G.z1 + G.ramp + G.top, grp = GAR.group, rnd = mulberry32(4471);
@@ -7670,21 +7679,34 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
     if (rx){ t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); }
     return t;
   };
-  // concrete: a flat grey with fine specks, a few stains, and the joints between the slabs
-  const concrete = (base, joints) => (g, w, h) => {
+  // ### Concrete: a flat grey with fine specks and the joints between the slabs. Only the floor gets a few small, faint stains
+  // ### (stains): on the walls and the ceiling, stretched over a whole wall, they looked like dark blotches.
+  const concrete = (base, joints, stains) => (g, w, h) => {
     g.fillStyle = base; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 2600; i++){ const d = rnd() < 0.5 ? 0 : 255; g.fillStyle = `rgba(${d},${d},${d},${(rnd() * 0.07).toFixed(3)})`; g.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2.5, 1 + rnd() * 2.5); }
-    for (let i = 0; i < 7; i++){ const x = rnd() * w, y = rnd() * h, r = 14 + rnd() * 38, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(0,0,0,.2)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
-    if (joints){ g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 2; g.strokeRect(1, 1, w - 2, h - 2); }
+    for (let i = 0; i < 2600; i++){ const d = rnd() < 0.5 ? 0 : 255; g.fillStyle = `rgba(${d},${d},${d},${(rnd() * 0.06).toFixed(3)})`; g.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
+    for (let i = 0; i < (stains || 0); i++){ const x = 30 + rnd() * (w - 60), y = 30 + rnd() * (h - 60), r = 8 + rnd() * 18, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(0,0,0,.09)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+    if (joints){ g.strokeStyle = 'rgba(0,0,0,.32)'; g.lineWidth = 2; g.strokeRect(1, 1, w - 2, h - 2); }
+  };
+  // ### Texture coordinates from the position, so a texture keeps its size in metres on every face (tile metres a tile)
+  // ### instead of being stretched over a whole wall. With h, a wall's texture runs from y0 at the bottom to y0 + h at the top
+  // ### once, so the painted band sits at the foot of every wall.
+  const worldUV = (geo, tile, y0, h) => {
+    const P = geo.attributes.position, N = geo.attributes.normal, U = geo.attributes.uv;
+    for (let i = 0; i < P.count; i++){
+      const x = P.getX(i), y = P.getY(i), z = P.getZ(i), ax = Math.abs(N.getX(i)), ay = Math.abs(N.getY(i)), az = Math.abs(N.getZ(i));
+      if (ay >= ax && ay >= az) U.setXY(i, x / tile, z / tile);
+      else U.setXY(i, (ax > az ? z : x) / tile, h ? (y - y0) / h : y / tile);
+    }
+    U.needsUpdate = true; return geo;
   };
   const mat = (map, rough, glow, env) => { const m = new THREE.MeshStandardMaterial({ map, roughness: rough, metalness: 0, emissive: C(glow), emissiveMap: map }); m.userData.env = env || 0.25; return m; };
-  const floorMat = mat(tex(256, 256, concrete('#6e7176', true), 9, 9), 0.48, 0x3a3a3a, 0.7);
+  const floorMat = mat(tex(256, 256, concrete('#63666a', true, 4), 9, 9), 0.5, 0x262626, 0.6);
   // ### The floor of the ramp: darker, rougher concrete than the hall, with fine anti-slip grooves across it, the two worn dark
   // ### tracks the tyres have polished into it, black rubber where cars have braked, and a few oil drips. One tile spans the full
   // ### width of the ramp, so the tracks lie where the wheels run; along it, a tile is about 4 m.
   const rampTex = (g, w, h) => {
     concrete('#53565a', false)(g, w, h);
-    for (let y = 0; y < h; y += 8){ g.fillStyle = 'rgba(0,0,0,.26)'; g.fillRect(0, y, w, 1.6); g.fillStyle = 'rgba(255,255,255,.045)'; g.fillRect(0, y + 1.6, w, 1); }
+    for (let y = 0; y < h; y += 8){ g.fillStyle = 'rgba(0,0,0,.13)'; g.fillRect(0, y, w, 1.6); g.fillStyle = 'rgba(255,255,255,.03)'; g.fillRect(0, y + 1.6, w, 1); }
     for (const cx of [0.4, 0.6]){
       const x = cx * w, gr = g.createLinearGradient(x - 22, 0, x + 22, 0);
       gr.addColorStop(0, 'rgba(8,8,10,0)'); gr.addColorStop(0.5, 'rgba(8,8,10,.34)'); gr.addColorStop(1, 'rgba(8,8,10,0)');
@@ -7695,13 +7717,16 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   };
   const rampMat = mat(tex(256, 256, rampTex, 1, 8), 0.86, 0x1c1c1e, 0.35);
   const topMat = mat(tex(256, 256, rampTex, 1, 4), 0.86, 0x1c1c1e, 0.35);
+  // ### The walls: fair-faced concrete in panels with their tie holes, painted blue up to about 1.3 m with a white line over it.
+  // ### One tile is 4 m wide and as high as the hall (worldUV).
   const wallMat = mat(tex(256, 256, (g, w, h) => {
-    concrete('#a3a5a6', false)(g, w, h);
-    g.fillStyle = '#27506f'; g.fillRect(0, h * 0.74, w, h * 0.26); g.fillStyle = '#e9e9e2'; g.fillRect(0, h * 0.72, w, h * 0.03);
-    g.fillStyle = 'rgba(0,0,0,.12)'; for (let x = 0; x < w; x += 32) g.fillRect(x, 0, 1.5, h * 0.72);
-  }), 0.85, 0x4a4a4a);
-  const plainMat = mat(tex(256, 256, concrete('#8d8f91', false), 4, 2), 0.9, 0x383838);
-  const roofMat = mat(tex(256, 256, concrete('#7c7e80', true), 7, 6), 0.9, 0x2c2c2c);
+    concrete('#a9abac', false)(g, w, h);
+    g.fillStyle = 'rgba(0,0,0,.14)'; g.fillRect(0, 0, 1.5, h * 0.72); g.fillRect(w / 2, 0, 1.2, h * 0.72); g.fillRect(0, h * 0.36, w, 1.2);
+    g.fillStyle = 'rgba(0,0,0,.28)'; for (const x of [0.25, 0.75]) for (const y of [0.16, 0.52]){ g.beginPath(); g.arc(x * w, y * h, 2.2, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = '#2a587a'; g.fillRect(0, h * 0.75, w, h * 0.25); g.fillStyle = '#e9e9e2'; g.fillRect(0, h * 0.73, w, h * 0.025);
+  }, 1, 1), 0.85, 0x3c3c3c);
+  const plainMat = mat(tex(256, 256, concrete('#9a9c9e', false), 1, 1), 0.9, 0x343434);
+  const roofMat = mat(tex(256, 256, concrete('#76787a', true), 7, 6), 0.9, 0x2e2e2e);
   const paint = hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.7, emissive: C(hex).multiplyScalar(0.3) });
   // yellow and black stripes, on the pillars and the kerbs of the ramp
   const hazard = new THREE.MeshStandardMaterial({ map: tex(64, 64, (g, w, h) => { g.fillStyle = '#e8b21c'; g.fillRect(0, 0, w, h); g.fillStyle = '#15161a'; for (let i = -64; i < 128; i += 32){ g.beginPath(); g.moveTo(i, h); g.lineTo(i + 16, h); g.lineTo(i + 16 + h, 0); g.lineTo(i + h, 0); g.fill(); } }), roughness: 0.7, emissive: C(0x3a3020) });
@@ -7710,30 +7735,33 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
 
   // the hall: floor, ceiling and the walls (the same boxes the vehicle collides with), the opening to the ramp with its lintel
   add(box(-G.x, G.x, Y - 0.4, Y, G.z0, G.z1), floorMat);
-  add(box(-G.x - 1, G.x + 1, Y + G.h, Y + G.h + 0.4, G.z0 - 1, G.z1 + 1), roofMat, true);
+  add(box(-G.x - 1, G.x + 1, Y + G.h, Y + G.h + 0.4, G.z0 - 1, G.z1 + 1), roofMat);
   const W = GAR.colliders, hall = W.slice(0, 5), sides = W.slice(5, 7), head = G.z1 + G.ramp;
-  add(mergeGeos(hall.map(c => box(c.x0, c.x1, Y, Y + G.h, c.z0, c.z1))), wallMat);
-  add(box(-G.door, G.door, Y + G.tunnel, Y + G.h, G.z1, G.z1 + 1), plainMat);
-  add(mergeGeos(sides.map(c => box(c.x0, c.x1, Y, Y + G.rise + G.tunnel + 0.4, c.z0, head))), plainMat);
+  add(mergeGeos(hall.map(c => worldUV(box(c.x0, c.x1, Y, Y + G.h, c.z0, c.z1), 4, Y, G.h))), wallMat);
+  add(worldUV(box(-G.door, G.door, Y + G.tunnel, Y + G.h, G.z1, G.z1 + 1), 3), plainMat);
+  add(mergeGeos(sides.map(c => worldUV(box(c.x0, c.x1, Y, Y + G.rise + G.tunnel + 0.4, c.z0, head), 3))), plainMat);
   // the ramp with its ceiling
   const a = Math.atan2(G.rise, G.ramp), len = Math.hypot(G.ramp, G.rise), slab = up => {
     const g = new THREE.BoxGeometry(G.door * 2, 0.4, len + 0.4); g.translate(0, up, 0); g.rotateX(-a); g.translate(0, Y + G.rise / 2, G.z1 + G.ramp / 2); return g;
   };
   add(slab(-0.2), rampMat);
-  add(slab(G.tunnel * Math.cos(a) + 0.2), roofMat, true);
+  add(slab(G.tunnel * Math.cos(a) + 0.2), roofMat);
   // ### On the ramp: a kerb along each wall with yellow and black paint, a yellow line inside it, and fluorescent tubes down the
   // ### middle of the ceiling, each with its pool of light on the floor. onRamp puts a piece made flat (x across, up from the
   // ### floor, d metres along the slope from its foot) onto the slope.
   const onRamp = (geo, x, up, d) => geo.translate(x, up, d - len / 2).rotateX(-a).translate(0, Y + G.rise / 2, G.z1 + G.ramp / 2);
   add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.32, 0.16, len), sd * (G.door - 0.16), 0.08, len / 2))), hazard);
   add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.13, 0.02, len - 0.6), sd * (G.door - 0.62), 0.011, len / 2))), paint(0xe8b21c));
+  // the blue band and the white line of the hall walls go on up the ramp
+  add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.02, 1.2, len + 0.4), sd * (G.door - 0.01), 0.76, len / 2))), paint(0x2a587a));
+  add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.025, 0.13, len + 0.4), sd * (G.door - 0.012), 1.42, len / 2))), paint(0xe9e9e2));
   const rampTubes = [], rampPools = [];
   for (let d = 3; d < len - 1; d += 6){
     rampTubes.push(onRamp(new THREE.BoxGeometry(0.16, 0.07, 1.8), 0, G.tunnel * Math.cos(a) - 0.06, d), onRamp(new THREE.BoxGeometry(0.3, 0.05, 1.9), 0, G.tunnel * Math.cos(a) - 0.02, d));
     rampPools.push(onRamp(new THREE.PlaneGeometry(G.door * 2 - 0.8, 6.4).rotateX(-Math.PI / 2), 0, 0.025, d));
   }
   // pillars with a yellow and black band at bumper height
-  add(mergeGeos(G.pillars.map(([x, z]) => box(x - G.pillar, x + G.pillar, Y, Y + G.h, z - G.pillar, z + G.pillar))), plainMat, true);
+  add(mergeGeos(G.pillars.map(([x, z]) => worldUV(box(x - G.pillar, x + G.pillar, Y, Y + G.h, z - G.pillar, z + G.pillar), 2))), plainMat, true);
   add(mergeGeos(G.pillars.map(([x, z]) => box(x - G.pillar - 0.03, x + G.pillar + 0.03, Y + 0.15, Y + 1.25, z - G.pillar - 0.03, z + G.pillar + 0.03))), hazard);
   // paint on the floor: the lines of the three bays, and two arrows to the ramp
   const WIDE = { car: [3.6, 7.2], bike: [2.4, 4.4], truck: [4.6, 9.4] }, lines = [];
@@ -7746,11 +7774,15 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   const arrow = new THREE.Shape(); [[-0.28, -1.5], [0.28, -1.5], [0.28, 0.3], [0.85, 0.3], [0, 1.6], [-0.85, 0.3], [-0.28, 0.3]].forEach(([x, y], i) => i ? arrow.lineTo(x, y) : arrow.moveTo(x, y));
   add(mergeGeos([1, 8].map(z => new THREE.ShapeGeometry(arrow).rotateX(-Math.PI / 2).rotateY(Math.PI).translate(0, Y + 0.012, z))), paint(0xe8b21c));
   // strip lights under the ceiling, each with its pool of light on the floor; amber lamps along the ramp
-  const tubes = [], pools = [], amber = [];
-  for (const x of [-11, 0, 11]) for (const z of [-11, -3, 5]){
-    tubes.push(boxG(2.6, 0.07, 0.2, x, Y + G.h - 0.05, z));
-    pools.push(new THREE.PlaneGeometry(13, 13).rotateX(-Math.PI / 2).translate(x, Y + 0.02, z));
+  // ### The strip lights: twin tubes in a grey metal fitting hung a little under the ceiling, in three rows from the back wall to
+  // ### the ramp, each with its pool of light on the floor.
+  const tubes = [], pools = [], amber = [], fittings = [];
+  for (const x of [-11, 0, 11]) for (const z of [-12.5, -6, 0.5, 7]){
+    fittings.push(boxG(0.36, 0.09, 2.9, x, Y + G.h - 0.16, z), boxG(0.03, 0.12, 0.03, x, Y + G.h - 0.06, z - 1.2), boxG(0.03, 0.12, 0.03, x, Y + G.h - 0.06, z + 1.2));
+    for (const sd of [-1, 1]) tubes.push(boxG(0.07, 0.07, 2.7, x + sd * 0.08, Y + G.h - 0.24, z));
+    pools.push(new THREE.PlaneGeometry(9, 11).rotateX(-Math.PI / 2).translate(x, Y + 0.02, z));
   }
+  add(mergeGeos(fittings), new THREE.MeshStandardMaterial({ color: 0x9a9fa6, roughness: 0.45, metalness: 0.6, emissive: C(0x1c1e22) }));
   for (let z = G.z1 + 4; z < head; z += 7) for (const sd of [-1, 1]){
     amber.push(boxG(0.08, 0.12, 0.34, sd * (G.door - 0.05), Core.garageFloor(0, z) + 2.4, z));
     const gl = glowSprite(C(0xffb866), 0.8, 0.45); gl.position.set(sd * (G.door - 0.14), Core.garageFloor(0, z) + 2.4, z); grp.add(gl);
@@ -7759,7 +7791,7 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   const rampPool = new THREE.Mesh(mergeGeos(rampPools), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0xb4c2de, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }));
   rampPool.renderOrder = 2; grp.add(rampPool);
   grp.add(new THREE.Mesh(mergeGeos(amber), new THREE.MeshBasicMaterial({ color: 0xffc27a })));
-  const pool = new THREE.Mesh(mergeGeos(pools), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0x9fb2d8, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const pool = new THREE.Mesh(mergeGeos(pools), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0xc4cedf, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false }));
   pool.renderOrder = 2; grp.add(pool);
   // the exit sign over the ramp ("Saída" is Portuguese for exit), pipes under the ceiling, and the steel door of the tunnel she came through
   const sign = tex(512, 64, (g, w, h) => { g.fillStyle = '#0d7a44'; g.fillRect(0, 0, w, h); g.fillStyle = '#f4fff8'; g.font = '800 44px "Segoe UI", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SAÍDA  ↑  EXIT', w / 2, h / 2 + 2); });
@@ -7767,6 +7799,24 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   add(mergeGeos([-14.6, -14.1].map(z => new THREE.CylinderGeometry(0.09, 0.09, G.x * 2, 10).rotateZ(Math.PI / 2).translate(0, Y + G.h - 0.4, z))), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.5, metalness: 0.6, emissive: C(0x1a1410) }));
   add(mergeGeos([box(-14.1, -12.9, Y, Y + 2.15, G.z0, G.z0 + 0.08), box(-14.22, -12.78, Y, Y + 2.27, G.z0, G.z0 + 0.05)]), new THREE.MeshStandardMaterial({ color: 0x3f4a44, roughness: 0.5, metalness: 0.6, emissive: C(0x121614) }));
   grp.add(new THREE.Mesh(boxG(0.5, 0.16, 0.06, -13.5, Y + 2.5, G.z0 + 0.05), new THREE.MeshBasicMaterial({ color: 0x4dff9a })));
+  // ### A few things every car park has: a galvanised air duct under the ceiling between the rows of lights, with its hangers;
+  // ### the numbers of the three bays painted on the back wall; a fire extinguisher in its red box and a grey fuse box by the
+  // ### steel door; and the level, "-2", on each pillar.
+  const steel = new THREE.MeshStandardMaterial({ color: 0xb4b8be, roughness: 0.5, metalness: 0.25, emissive: C(0x2a2c30) });
+  add(mergeGeos([boxG(0.9, 0.55, G.z1 - G.z0 - 0.4, -5.5, Y + G.h - 0.5, (G.z0 + G.z1) / 2),
+    ...[-12, -5, 2, 9].map(z => boxG(0.04, 0.24, 0.04, -5.5, Y + G.h - 0.12, z))]), steel);
+  const label = (text, w, h, fg, bg, font) => tex(w, h, (g, cw, ch) => { if (bg){ g.fillStyle = bg; g.fillRect(0, 0, cw, ch); } g.fillStyle = fg; g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, cw / 2, ch / 2 + 4); });
+  G.order.forEach((k, i) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), new THREE.MeshStandardMaterial({ map: label('0' + (i + 1), 128, 128, '#f2f2ea', null, '800 92px "Segoe UI", Arial, sans-serif'), transparent: true, roughness: 0.8, emissive: C(0x404040) }));
+    m.position.set(G.bays[k][0], Y + 2.5, G.z0 + 0.02); grp.add(m);
+  });
+  add(box(-11.6, -11.0, Y + 0.9, Y + 1.7, G.z0, G.z0 + 0.22), paint(0xb3201c));
+  add(box(-10.6, -9.9, Y + 1.1, Y + 2.0, G.z0, G.z0 + 0.16), new THREE.MeshStandardMaterial({ color: 0x8e9196, roughness: 0.5, metalness: 0.5, emissive: C(0x16171a) }));
+  const levelMat = new THREE.MeshStandardMaterial({ map: label('-2', 128, 128, '#15161a', '#e8b21c', '800 80px "Segoe UI", Arial, sans-serif'), roughness: 0.7, emissive: C(0x3a3020) });
+  for (const [x, z] of G.pillars) for (const [dx, dz, ry] of [[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]]){
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), levelMat);
+    m.position.set(x + dx * (G.pillar + 0.01), Y + 2.3, z + dz * (G.pillar + 0.01)); m.rotation.y = ry; grp.add(m);
+  }
   // ### The level stretch at the top of the ramp and the roller door at its end are one piece of their own (GAR.top), built
   // ### around the middle of the door's sill: z runs from -top at the head of the ramp to 0 at the door. Down in the garage it
   // ### closes the ramp. In the city the very same piece stands in the house at GARAGE.street, its last half metre out of the
@@ -7790,7 +7840,10 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
     top.add(new THREE.Mesh(mergeGeos(topTubes), new THREE.MeshBasicMaterial({ color: 0xf1f6ff })));
     const topPool = new THREE.Mesh(mergeGeos(topPools), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0xb4c2de, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }));
     topPool.renderOrder = 2; top.add(topPool);
-    put(mergeGeos([-1, 1].map(sd => box(sd > 0 ? G.door : -G.door - 1, sd > 0 ? G.door + 1 : -G.door, -0.5, G.tunnel + 0.4, -T, 0))), plainMat);
+    put(mergeGeos([-1, 1].map(sd => worldUV(box(sd > 0 ? G.door : -G.door - 1, sd > 0 ? G.door + 1 : -G.door, -0.5, G.tunnel + 0.4, -T, 0), 3))), plainMat);
+    // the blue band and the white line of the ramp go on to the roller door
+    put(mergeGeos([-1, 1].map(sd => box(sd * G.door - 0.02, sd * G.door + 0.02, 0.16, 1.36, -T, -0.6))), paint(0x2a587a));
+    put(mergeGeos([-1, 1].map(sd => box(sd * G.door - 0.025, sd * G.door + 0.025, 1.36, 1.49, -T, -0.6))), paint(0xe9e9e2));
     put(box(-G.door - 1, G.door + 1, G.tunnel, G.tunnel + 0.4, -T, 0), roofMat, true);
     put(box(-G.door, G.door, G.tunnel - 0.3, G.tunnel, -0.6, -0.1), paint(0x3a3d44));
     const lamps = [];
@@ -7957,6 +8010,19 @@ function garageTop(inCity){
 }
 // ### How far the roller door is rolled up: 0 shut, 1 open.
 function garageShutter(k){ garage.open = k; GAR.shutter.scale.y = 1 - 0.97 * k; }
+// ### The light of the garage (GARAGE_LIGHT) instead of the moon, from 1 down in the garage to 0 once the roller door is up. It
+// ### only writes the lights (and the direction of the sun, SUN_OFF) when that changes, and leaves them to the finale's dawn
+// ### (setDawn) otherwise. Returns how far it is.
+function garageLight(){
+  const L = GARAGE_LIGHT, k = garage.on && !finale.on ? 1 - garage.open : 0;
+  if (k === L.k) return k;
+  L.k = k;
+  hemi.color.copy(NIGHT.hemiSky).lerp(L.hemiSky, k); hemi.groundColor.copy(NIGHT.hemiGround).lerp(L.hemiGround, k);
+  hemi.intensity = NIGHT.hemiI + (L.hemiI - NIGHT.hemiI) * k;
+  sun.color.copy(NIGHT.sunC).lerp(L.sunC, k); sun.intensity = NIGHT.sunI + (L.sunI - NIGHT.sunI) * k;
+  SUN_NIGHT.forEach((v, i) => { SUN_OFF[i] = v + (L.off[i] - v) * k; });
+  return k;
+}
 // ### The ground under the vehicle while the garage is on. Down in the garage it is the floor and the ramp (Core.garageFloor).
 // ### Once the vehicle is in the city (garage.shift) it is the level floor behind the roller door, then the driveway across
 // ### the pavement and down the kerb, then the street itself.
@@ -8630,6 +8696,7 @@ function frame(now){
 
   sky.position.copy(camera.position);
   // the shadow box travels with the player, in height too, or high ground would fall out of it and lose its shadows
+  garageLight();
   const [sx, sy, sz] = Core.snapShadow(car.x, car.y, car.z, SUN_OFF, (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x);
   sun.position.set(sx + SUN_OFF[0], sy + SUN_OFF[1], sz + SUN_OFF[2]);
   sun.target.position.set(sx, sy, sz);
