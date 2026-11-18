@@ -1365,18 +1365,52 @@ function updateLights(dt){
 
 // The door with its barred window; Officer Hale's silhouette appears in it. It hangs on hinges on the west side (x -0.52)
 // and swings into the room; doorPivot turns it. Closed (rotation 0) it is exactly where it always was.
+// ### Door and frame are dark steel: a real scanned steel plate (Poly Haven's "Blue Metal Plate", Rob Tuytel, CC0), the
+// ### stretch between its seams that fits a door, cut once from the 2k files and greyed (textures/door-steel-*.jpg): old
+// ### paint worn thin over the metal, scratches and scuffs that catch the vault reflections, a duller haze where hands
+// ### push. The picture spans the leaf from edge to edge; the frame, the hinges and the window frame read the same plate at
+// ### their own size (steelUV). Until the three pictures arrive, or if they never do, the plain grey steel of M.door shows.
+const doorSteel = (() => {
+  const m = M.door.clone(), maps = {}, loader = new THREE.TextureLoader();
+  for (const [k, file] of [['map', 'door-steel-color.jpg'], ['normalMap', 'door-steel-normal.jpg'], ['roughnessMap', 'door-steel-rough.jpg']])
+    loader.load('textures/' + file, t => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = ANISO; if (k === 'map') t.encoding = THREE.sRGBEncoding;
+      maps[k] = t;
+      if (Object.keys(maps).length < 3) return;
+      Object.assign(m, maps, { metalness: .9, roughness: .8, envMapIntensity: 1.4 });
+      m.color.setRGB(5.6, 5.8, 6.1); m.normalScale.set(.9, .9); m.needsUpdate = true; shadowsMoved();
+    });
+  return m;
+})();
+// a box whose faces show the door's steel at their real size: one picture is the 1.04 x 2.14 m leaf; ou, ov shift it
+const steelUV = (geo, w, h, d, ou = 0, ov = 0) => {
+  const uv = geo.attributes.uv, dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  for (let f = 0; f < 6; f++) for (let i = f * 4; i < f * 4 + 4; i++) uv.setXY(i, ou + uv.getX(i) * dims[f][0] / 1.04, ov + uv.getY(i) * dims[f][1] / 2.14);
+  return geo;
+};
+const steelBlock = (w, h, d, x, y, z, ou, ov) => { const m = new THREE.Mesh(steelUV(new THREE.BoxGeometry(w, h, d), w, h, d, ou, ov), doorSteel); m.position.set(x, y, z); return add(m); };
 const doorPivot = new THREE.Group(), doorLeaf = new THREE.Group();
 doorPivot.position.set(-.52, 0, 2.95); doorLeaf.position.set(.52, 0, -2.95); doorPivot.add(doorLeaf); room.add(doorPivot);
 const onDoor = (...ms) => ms.forEach(m => doorLeaf.add(m));
-onDoor(box(1.04, 2.14, .1, M.door, 0, 1.07, 2.95));
-box(1.16, .06, .14, M.dullSteel, 0, 2.17, 2.95); box(.06, 2.17, .14, M.dullSteel, -.55, 1.08, 2.95); box(.06, 2.17, .14, M.dullSteel, .55, 1.08, 2.95);
+onDoor(steelBlock(1.04, 2.14, .1, 0, 1.07, 2.95));
+// the frame: a head and two jambs, with the stop the leaf closes against
+steelBlock(1.16, .06, .14, 0, 2.17, 2.95, .1, .3); steelBlock(.06, 2.17, .14, -.55, 1.08, 2.95, .37); steelBlock(.06, 2.17, .14, .55, 1.08, 2.95, .71, .2);
 onDoor(plane(.3, .34, M.corridor, 0, 1.68, 2.895, Math.PI));
 const guard = plane(.3, .34, M.guard, 0, 1.66, 2.89, Math.PI); onDoor(guard);
 for (let i = -1; i <= 1; i++) onDoor(cyl(.008, .008, .34, M.steel, i * .075, 1.68, 2.885, 8));
-for (const [w, h, x, y] of [[.36, .03, 0, 1.865], [.36, .03, 0, 1.495], [.03, .4, -.165, 1.68], [.03, .4, .165, 1.68]]) onDoor(box(w, h, .03, M.dullSteel, x, y, 2.885));
+for (const [w, h, x, y] of [[.36, .03, 0, 1.865], [.36, .03, 0, 1.495], [.03, .4, -.165, 1.68], [.03, .4, .165, 1.68]]) onDoor(steelBlock(w, h, .03, x, y, 2.885, .3 + x, y / 2.14));
 const handle = cyl(.022, .022, .16, M.steel, .38, 1.02, 2.86, 10); handle.rotation.z = Math.PI / 2; onDoor(handle);
 onDoor(box(.06, .14, .04, M.steel, .44, 1.02, 2.89));
-for (const y of [.35, 1.07, 1.8]) onDoor(box(.04, .14, .05, M.steel, -.5, y, 2.88));
+// a lock cylinder in a round escutcheon above the handle
+const lockRose = cyl(.026, .028, .012, M.steel, .44, 1.17, 2.895, 16); lockRose.rotation.x = Math.PI / 2; onDoor(lockRose);
+onDoor(box(.006, .022, .004, M.dark, .44, 1.17, 2.888));
+// three hinges: two leaves on the leaf and the frame and a round knuckle with its pin between them
+for (const y of [.35, 1.07, 1.8]){
+  const k = cyl(.017, .017, .15, doorSteel, -.52, y, 2.885, 12); onDoor(k);
+  onDoor(cyl(.007, .007, .02, M.steel, -.52, y + .085, 2.885, 8), steelBlock(.05, .13, .006, -.485, y, 2.893, .1, y / 2.14));
+}
+// a brushed steel kick plate along the bottom, where boots have kicked the door for years
+onDoor(box(.96, .26, .004, M.worn, 0, .17, 2.898));
 hot('wedge', handle);
 
 // The corridor outside and Officer Hale in the doorway. Only seen in the briefing, while he shuts the door on you.

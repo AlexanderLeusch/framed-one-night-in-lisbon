@@ -407,6 +407,16 @@ test('escape room: the fire extinguisher is the Poly Haven model, shipped with i
   for (const f of ['color', 'normal', 'arm']) assert.ok(room.includes(`'fire-extinguisher-${f}.jpg'`), f);
 });
 
+test('escape room: the cell door is dark scanned steel, with its plain grey steel as the fallback', () => {
+  const room = fs.readFileSync(path.join(ROOT, 'room-1-escape', 'js', 'room.js'), 'utf8');
+  for (const f of ['color', 'normal', 'rough']){
+    assert.ok(room.includes(`'door-steel-${f}.jpg'`), f);
+    assert.ok(fs.existsSync(path.join(ROOT, 'room-1-escape', 'textures', `door-steel-${f}.jpg`)), f);
+  }
+  assert.match(room, /const m = M\.door\.clone\(\)/, 'the door shows M.door until the scans arrive');
+  assert.match(room, /onDoor\(steelBlock\(1\.04, 2\.14, \.1,/, 'the leaf is the scanned steel');
+});
+
 test('escape room: the fluorescent lamps are the Poly Haven fitting with a clear glass tube, shipped with its licence', () => {
   const dir = path.join(ROOT, 'room-1-escape', 'models');
   const buf = fs.readFileSync(path.join(dir, 'fluorescent-fitting.glb'));
