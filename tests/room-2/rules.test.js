@@ -230,6 +230,15 @@ test('wanted stars rise with time or progress, never fall, stay within 1-5, and 
   assert.equal(Core.wantedStars(99, 0, 180, 0, 0), 5);
 });
 
+test('bust meter: the witness head start stops it filling, but it still drains', () => {
+  assert.ok(Core.WITNESS_RULE.grace >= 8, 'a few seconds to get going with the witness on board');
+  assert.equal(Core.bustStep(0.5, 2, 0, 0.05, true).bust < 0.5, true, 'pinned next to a cop during the head start: the meter drains');
+  assert.equal(Core.bustStep(0.5, 2, 0, 0.05, false).bust > 0.5, true, 'without the head start it fills');
+  let b = { bust: 0.9, busted: false };
+  for (let i = 0; i < 600; i++) b = Core.bustStep(b.bust, 2, 0, 1 / 60, true);
+  assert.deepEqual(b, { bust: 0, busted: false }, 'ten seconds pinned during the head start: never busted');
+});
+
 test('every star makes the chase at least as hard', () => {
   for (let s = 2; s <= Core.MAX_STARS; s++){
     const a = Core.pursuit(s - 1), b = Core.pursuit(s);
