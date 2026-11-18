@@ -431,6 +431,18 @@
   const keepSpeed = share => 0.25 + 0.7 * clamp(Number.isFinite(share) ? share : 0, 0, 1);
   // the turn rate (rad/s, positive turns towards +x like a heading) from a push (dx, dz) of dv at (rx, rz) from the vehicle's middle
   const shoveSpin = (rx, rz, dx, dz, dv, mTarget) => -(rx * dz - rz * dx) * dv * SHOVE.spin / Math.sqrt(Math.max(1, mTarget));
+  // ### Parked cars along the kerbs can be pushed too. Their handbrake is on, so they weigh PARKED.brake times their MASS and the
+  // ### push dies out faster than for traffic (grip, turnGrip). They never drive back: where you leave a parked car, it stays,
+  // ### at most PARKED.max metres from its place, until the next run. parkedBox is the half size (along x and z) of the box that
+  // ### holds a parked car of half size (hx, hz) turned by `turn` radians, trimmed a little at the corners where the box is
+  // ### emptier than the car.
+  const PARKED = Object.freeze({ brake: 1.6, grip: 3.4, turnGrip: 3.6, max: 7, rest: 0.08 });
+  function parkedBox(hx, hz, turn){
+    if (![hx, hz, turn].every(Number.isFinite)) return [hx, hz];
+    const c = Math.abs(Math.cos(turn)), s = Math.abs(Math.sin(turn)), trim = 1 - 0.18 * Math.abs(Math.sin(2 * turn));
+    const ex = c * hx + s * hz, ez = s * hx + c * hz;
+    return [Math.max(Math.min(hx, hz), ex * trim), Math.max(Math.min(hx, hz), ez * trim)];
+  }
 
   // ---------- Scraping ----------
   // ### Sliding along a wall or another vehicle is a scrape: sparks fly, metal grinds and the paint leaves a scratch on the wall.
@@ -1073,7 +1085,7 @@
     MODES, VEH, REV_SPEED, REPAIR_AMOUNT, MAX_DT, STORY_ACTS, KEY_MAP, BAIXA, streetAt, TRAM_LOOP, tramNext, RAIL, trackOffset, railCrossings, railShake, routeTo, routeMarks,
     EVIDENCE, WITNESS, WITNESS_RULE, witnessGetsIn, witnessGivesUp, witnessSpotOk, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
     parsePick, parseBest, applyPick, actionAllowed, GARAGE, garageFloor, garageGrade, garageOut, garageWalls, garageWay, wayAim,
-    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, SCRAPE, scrapeLevel, sparkCount, LOOK, lookingBack, lookBackView, NITRO, newNitro, nitroPickup, nitroFire, nitroOn, nitroStep, nitroTop, nitroPush, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
+    vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, PARKED, parkedBox, SCRAPE, scrapeLevel, sparkCount, LOOK, lookingBack, lookBackView, NITRO, newNitro, nitroPickup, nitroFire, nitroOn, nitroStep, nitroTop, nitroPush, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
     crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, KIT_GUIDE_AT, kitToGuide, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, BUST, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
     driveTime, runStars, isNewBest,

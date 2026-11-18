@@ -2223,18 +2223,21 @@ function buildCity(){
       const along = m * PITCH + slot + (rng() - 0.5) * 2, across = k * PITCH + side * 5.6;
       const x = axis === 'x' ? along : across, z = axis === 'x' ? across : along;
       if (Math.hypot(x, z) < 24 || (Math.abs(x) < 8 && z > 66 && z < 137)) continue;
-      parked.push({ x, z, h: (axis === 'x' ? Math.PI / 2 : 0) + (rng() < 0.5 ? Math.PI : 0), suv: rng() < 0.3 });
+      // each parked car keeps its collider box and radar block, so a push (see pushParked) moves them with it
       const hx = axis === 'x' ? 2.3 : 0.95, hz = axis === 'x' ? 0.95 : 2.3;
-      colliders.push({ t: 'p', x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz });
-      radarRects.push({ x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz, c: 'rgba(255,255,255,.3)' });
+      const pc = { x, z, h: (axis === 'x' ? Math.PI / 2 : 0) + (rng() < 0.5 ? Math.PI : 0), suv: rng() < 0.3, hx, hz };
+      pc.col = { t: 'p', x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz, car: pc };
+      pc.rr = { x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz, c: 'rgba(255,255,255,.3)' };
+      resetShove(pc); parked.push(pc); colliders.push(pc.col); radarRects.push(pc.rr);
     }
   }
   for (const suv of [false, true]){
     const list = parked.filter(p => p.suv === suv);
     const f = new Fleet(grp, suv ? PARTS.suv : PARTS.sedan, list.length, rng);
-    list.forEach((p, i) => f.set(i, p.x, 0, p.z, p.h, true));
+    list.forEach((p, i) => { p.fleet = f; p.i = i; f.set(i, p.x, 0, p.z, p.h, true); });
     f.commit();
   }
+  CITY.parked = parked;
 
   const add = (mesh, cast, recv) => { mesh.castShadow = !!cast; mesh.receiveShadow = !!recv; grp.add(mesh); return mesh; };
   for (const s of ['pombal', 'tileB', 'tileG', 'shop', 'arcade']) add(FB[s].mesh(MAT[s]), true, true);
@@ -2391,6 +2394,8 @@ function npcGap(n, fx, fz){
   for (const o of npcs) if (o !== n && o.on) test(o.x, o.z, o.tram || o.bus ? 2.6 : 2.2, o.half);
   test(car.x, car.z, 2.6, 2.3);
   for (const p of police) if (p.active || p.g.visible) test(p.x, p.z, 2.4, 2.3);
+  // a parked car pushed out into the lane
+  if (CITY.parked) for (const p of CITY.parked) if (p.moved) test(p.x + p.px, p.z + p.pz, 2.2, 2.3);
   return gap;
 }
 // ### Moves the city traffic each frame: follows lanes, turns on arcs, obeys signals, and keeps its distance.
@@ -3966,6 +3971,62 @@ function stepShove(o, dt){
 }
 function resetShove(o){ o.px = o.pz = o.pvx = o.pvz = o.ph = o.pw = 0; }
 
+// ### Pushing parked cars. A parked car hit by the player slides away like traffic (Core.shoveImpulse, with the handbrake's
+// ### weight PARKED.brake), turns when hit off its middle, stops at houses, lamp posts and other parked cars (and shoves those
+// ### on), and stays where it comes to rest until the next run. Its collider box and radar block move with it.
+const { PARKED } = Core;
+const parkedMoving = new Set();
+// pushes the parked car p along (dx, dz) after a hit with this closing speed at (hx, hz); returns the share of the momentum
+function pushParked(p, dx, dz, impact, hx, hz, mp){
+  const m = (p.suv ? MASS.suv : MASS.sedan) * PARKED.brake, { share, dv } = Core.shoveImpulse(impact, mp, m);
+  if (!dv) return 0;
+  p.pvx += dx * dv; p.pvz += dz * dv;
+  p.pw += Core.shoveSpin(hx - (p.x + p.px), hz - (p.z + p.pz), dx, dz, dv, m);
+  p.moved = true; parkedMoving.add(p);
+  return share;
+}
+// puts the collider box, the radar block and the drawn car where the parked car is now
+function placeParked(p){
+  const x = p.x + p.px, z = p.z + p.pz, [ex, ez] = Core.parkedBox(p.hx, p.hz, p.ph);
+  Object.assign(p.col, { x0: x - ex, x1: x + ex, z0: z - ez, z1: z + ez });
+  Object.assign(p.rr, { x0: x - ex, x1: x + ex, z0: z - ez, z1: z + ez });
+  p.fleet.set(p.i, x, 0, z, p.h + p.ph, true);
+}
+function stepParked(dt){
+  if (!parkedMoving.size) return;
+  const fleets = new Set();
+  for (const p of parkedMoving){
+    p.px += p.pvx * dt; p.pz += p.pvz * dt; p.ph += p.pw * dt;
+    const grip = Math.exp(-dt * PARKED.grip); p.pvx *= grip; p.pvz *= grip; p.pw *= Math.exp(-dt * PARKED.turnGrip);
+    // its nose and tail against houses, posts and the other parked cars
+    const fx = Math.sin(p.h + p.ph), fz = Math.cos(p.h + p.ph);
+    for (const s of [-1.35, 0, 1.35]) for (const c of CITY.colliders){
+      if (c === p.col) continue;
+      const hit = collidePoint(p.x + p.px + fx * s, p.z + p.pz + fz * s, 0.95, c);
+      if (!hit) continue;
+      const into = -(p.pvx * hit[0] + p.pvz * hit[1]);
+      p.px += hit[0] * hit[2]; p.pz += hit[1] * hit[2];
+      if (into > 0){
+        // another parked car takes half of the push, a house or a post stops it
+        if (c.car && into > 0.6) pushParked(c.car, -hit[0], -hit[1], into, p.x + p.px + fx * s, p.z + p.pz + fz * s, (p.suv ? MASS.suv : MASS.sedan) * PARKED.brake);
+        p.pvx += hit[0] * into; p.pvz += hit[1] * into; p.pvx *= 0.7; p.pvz *= 0.7; p.pw *= 0.6;
+      }
+    }
+    const L = Math.hypot(p.px, p.pz); if (L > PARKED.max){ p.px *= PARKED.max / L; p.pz *= PARKED.max / L; p.pvx = p.pvz = 0; }
+    if (Math.hypot(p.pvx, p.pvz) < PARKED.rest && Math.abs(p.pw) < 0.02){ p.pvx = p.pvz = p.pw = 0; parkedMoving.delete(p); }
+    placeParked(p); fleets.add(p.fleet);
+  }
+  for (const f of fleets) f.commit();
+}
+// a new run: every parked car back in its place
+function resetParked(){
+  parkedMoving.clear();
+  if (!CITY.parked) return;
+  const fleets = new Set();
+  for (const p of CITY.parked){ if (!p.moved) continue; resetShove(p); p.moved = false; placeParked(p); fleets.add(p.fleet); }
+  for (const f of fleets) f.commit();
+}
+
 // ---------- Pickups (placed fresh every run) ----------
 // ### placeRun places the star shards, the green repair kits and the finish gate for the current map.
 // ### City: shards in parks, on the squares and on roads, gate at the south-west corner of the Baixa, on the way to the bridge. Highway/countryside: shards along the route,
@@ -4050,7 +4111,7 @@ function glowSprite(color, size, opacity){
 
 // ### Sets up one run: places the shards, repair kits and finish gate for the current map.
 function placeRun(){
-  dropHaleCollider(); hale = null;
+  dropHaleCollider(); hale = null; resetParked();
   if (runGroup){
     scene.remove(runGroup);
     runGroup.traverse(o => {
@@ -4404,7 +4465,8 @@ function scrapeEffects(dt){
   if (!sc.level){ scratches.last = null; sparks.acc = 0; return; }
   sparks.acc += Core.sparkCount(sc.level, dt);
   const n = Math.floor(sparks.acc); sparks.acc -= n; emitSparks(sc, n);
-  const c = sc.c, wall = c && (c.t === 'b' || c.t === 'p' || (c.t === 'w' && c.x0 === -0.5));
+  // a parked car that has been pushed gets no more scratches, as they would stay behind where it stood
+  const c = sc.c, wall = c && (c.t === 'b' || (c.t === 'p' && !(c.car && c.car.moved)) || (c.t === 'w' && c.x0 === -0.5));
   if (!wall){ scratches.last = null; return; }
   const at = SCRAPE_AT[V.key] || SCRAPE_AT.car, y = c.t === 'w' ? car.y + 0.2 : car.y + at[1], last = scratches.last;
   const now = { x: sc.x, z: sc.z, nx: sc.nx, nz: sc.nz, c };
@@ -6659,6 +6721,14 @@ function updateCar(dt){
     for (const c of nearC){
       const hit = collidePoint(car.x + fx * s, car.z + fz * s, V.r, c);
       if (!hit) continue;
+      if (c.car){
+        // a parked car gives way: it is pushed, and you keep more speed than against a wall
+        const p = c.car, impact = hitWith(hit, p.pvx, p.pvz);
+        scrapeAt(hit, s, p.pvx, p.pvz, c);
+        const share = impact > 0.5 ? pushParked(p, -hit[0], -hit[1], impact, car.x + fx * s, car.z + fz * s, PLAYER_MASS[V.key] || 1) : 0;
+        if (impact > 2){ worst = Math.max(worst, impact); car.speed *= Core.keepSpeed(share); sfx.hit(impact, MASS.sedan * PARKED.brake); } else car.speed *= 0.985;
+        continue;
+      }
       const impact = hitWith(hit);
       scrapeAt(hit, s, 0, 0, c);
       if (impact > 2){ worst = Math.max(worst, impact); car.speed *= 0.3; } else car.speed *= 0.985;
@@ -8515,7 +8585,7 @@ function frame(now){
   if (!paused){
     if (mode === 'highway' && state !== 'menu') updateTraffic(dt);
     if (mode === 'country' && state !== 'menu') updateCountryTraffic(dt);
-    if (mode === 'city' && !garage.on){ updateSignals(); updateNpcs(dt); }
+    if (mode === 'city' && !garage.on){ updateSignals(); updateNpcs(dt); stepParked(dt); }
     if (state !== 'menu' && !garage.on) updateHeli(dt);
     updateSmoke(dt); updateSparks(dt);
     updateNitroFx();

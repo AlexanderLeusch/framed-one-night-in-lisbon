@@ -832,6 +832,18 @@ test('rejected: a tram on its rails is not pushed, and bad values push nothing',
   assert.equal(Core.keepSpeed(NaN), 0.25);
 });
 
+test('parked cars: the handbrake makes them heavier than traffic, and a turned car keeps a box that holds it', () => {
+  const { MASS, PARKED } = Core, car = Core.shoveImpulse(20, 1, MASS.sedan * PARKED.brake), moving = Core.shoveImpulse(20, 1, MASS.sedan);
+  assert.ok(car.dv > 0 && car.dv < moving.dv, 'a parked car moves, but less than one that is driving');
+  assert.ok(PARKED.grip > Core.SHOVE.grip && PARKED.max > 0 && PARKED.max < Core.SHOVE.max, 'it stops sooner and stays near its place');
+  assert.deepEqual(Core.parkedBox(2.3, 0.95, 0), [2.3, 0.95], 'not turned: its own box');
+  const q = Core.parkedBox(2.3, 0.95, Math.PI / 2);
+  assert.ok(Math.abs(q[0] - 0.95) < 1e-9 && Math.abs(q[1] - 2.3) < 1e-9, 'a quarter turn swaps the sides');
+  const d = Core.parkedBox(2.3, 0.95, Math.PI / 4);
+  assert.ok(d[0] > 0.95 && d[0] < 2.3 * Math.SQRT2 && d[1] > 0.95, 'half way the box is wider, but trimmed at the corners');
+  assert.deepEqual(Core.parkedBox(2.3, 0.95, NaN), [2.3, 0.95], 'a bad turn keeps the box');
+});
+
 test('shoving: a hit off the middle turns the vehicle, a centred hit does not, and heavy vehicles turn less', () => {
   // a vehicle facing +z, hit at its nose and pushed towards +x: the nose swings to +x, so its heading grows
   assert.ok(Core.shoveSpin(0, 2, 1, 0, 10, 1) > 0, 'nose pushed to +x turns towards +x');
