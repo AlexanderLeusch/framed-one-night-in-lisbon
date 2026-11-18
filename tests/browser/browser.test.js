@@ -408,14 +408,15 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.match(await text('#card'), /inmate 4471/);
       await click('[data-do="next"]');
       assert.ok(await evaluate("document.getElementById('overlay').classList.contains('cine')"), 'card 3 is a scene in the room: Hale shuts the door');
-      await waitFor("/ten minutes have begun/.test(document.getElementById('cineLine').textContent)", 60000, 'Hale says the ten minutes have begun');
+      // Hale's scene is drawn frame by frame; a slow CI machine needed more than a minute for it, so the waits here are generous
+      await waitFor("/ten minutes have begun/.test(document.getElementById('cineLine').textContent)", 240000, 'Hale says the ten minutes have begun');
       for (let i = 0; i < 2; i++) await click('[data-do="next"]');
       assert.ok(!(await evaluate("document.getElementById('overlay').classList.contains('cine')")), 'the scene ends with card 3');
       assert.match(await text('#card'), /Drag/);
       assert.match(await text('#card'), /Arrow keys up and down: walk forwards and backwards/, 'the card explains walking with the arrow keys');
       assert.doesNotMatch(await text('#card'), /Buttons at the bottom/, 'no walk buttons on a computer with a keyboard');
       await click('[data-do="start"]');
-      await waitFor("document.getElementById('overlay').hidden && !document.getElementById('hud').classList.contains('off')", 10000, 'clock to start');
+      await waitFor("document.getElementById('overlay').hidden && !document.getElementById('hud').classList.contains('off')", 60000, 'clock to start');
       assert.equal(await text('#place'), 'The Door');
       assert.equal(await evaluate("document.getElementById('goBar').hidden"), true, 'the "Walk to" buttons are only shown on touch screens');
       await waitFor("document.getElementById('time').textContent !== '10:00'", 120000, 'clock to run');
@@ -425,7 +426,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
     await escape('escape room: the arrow keys walk you through the room; while a card is open they do not', async () => {
       // the clock starts at the door, facing it: walking backwards takes you to the sinks without any button
       await key('keydown', 'ArrowDown');
-      await waitFor("document.getElementById('place').textContent === 'The Sinks'", 60000, 'walking backwards into the sinks');
+      await waitFor("document.getElementById('place').textContent === 'The Sinks'", 180000, 'walking backwards into the sinks');
       await key('keyup', 'ArrowDown');
       await key('keydown', 'KeyP');
       await waitFor("!document.getElementById('overlay').hidden", 5000, 'pause card');
