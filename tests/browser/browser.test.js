@@ -115,7 +115,9 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
   base = `http://127.0.0.1:${server.address().port}/`;
   profile = fs.mkdtempSync(path.join(os.tmpdir(), 'shard-heist-'));
   chrome = spawn(CHROME, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
-    '--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--window-size=1280,800', '--autoplay-policy=no-user-gesture-required',
+    '--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--window-size=1280,800', '--force-device-scale-factor=0.5', '--autoplay-policy=no-user-gesture-required',
+    // (--force-device-scale-factor=0.5: the page keeps its 1280 x 800 layout but is drawn with a quarter of the pixels; without a
+    // graphics card every pixel is worked out by the processor, and the game's clock moves at most 50 ms per drawn frame)
     // a desktop with a mouse on every machine: on a laptop with a touchscreen, headless Chrome (no mouse) would report a touch
     // device, and the escape room would rightly show its touch controls instead of the arrow keys the tests use
     '--blink-settings=primaryPointerType=4,availablePointerTypes=4,primaryHoverType=2,availableHoverTypes=2',

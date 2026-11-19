@@ -4629,6 +4629,8 @@ function miniSound(n){
 // ### itself, in the same glare, so the door of the tunnel opens straight into the garage. Should the browser not follow,
 // ### a link appears in the glare after a few seconds. Ending B shows its card.
 const CHASE_URL = '../room-2-chase/?heist=1#arrive';
+// back from room 2 with the browser's Back button: a browser that kept this page as it was left (in the glare) loads it afresh
+addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
 function showEnding(){
   const A = S.ending === 'A', E = R.ENDINGS[S.ending];
   if (A){

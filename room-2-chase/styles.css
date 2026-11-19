@@ -643,7 +643,12 @@ body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:
 /* the game's name on the start page: "Framed", with "One night in Lisbon" as a smaller outlined line under it */
 .start-head .m-logo em.sub{display:block;margin-top:.14em;font-size:.34em;line-height:1.05;letter-spacing:.01em;-webkit-text-stroke:1.4px var(--spark)}
 /* arriving from room 1: the same headlight glare room 1 ended in (its #leave); under the error screen, and it lets clicks through */
-#arrive{display:none;position:fixed;inset:0;z-index:45;pointer-events:none;transition:opacity 1.4s ease-out;background:radial-gradient(ellipse at 50% 56%,#fff 0,#fff6dc 16%,#e9c98a 34%,#3a2a18 62%,#07090d 100%)}
+#arrive{display:none;position:fixed;inset:0;z-index:45;pointer-events:none;transition:opacity 1.4s ease-out;background:radial-gradient(circle at 50% 56%,#fff 0,#fff6dc 12vmin,#e9c98a 30vmin,#3a2a18 64vmin,#07090d 105vmin)}
 #arrive:target{display:block}
 #arrive.gone{opacity:0}
 @media (prefers-reduced-motion:reduce){#arrive{transition:none}}
+
+/* while room 2 is being built the light is not a still picture: a line of text breathes in it (opacity only, so it keeps moving while the page is busy) */
+#arrive::after{content:"Your eyes adjust to the light";position:absolute;left:0;right:0;bottom:12vh;text-align:center;font-family:var(--f-mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#fff3d6;text-shadow:0 0 10px #000,0 0 3px #000;animation:glare-breathe 1.5s ease-in-out infinite alternate}
+@keyframes glare-breathe{from{opacity:.25}to{opacity:.9}}
+@media (prefers-reduced-motion:reduce){#arrive::after{animation:none;opacity:.8}}
