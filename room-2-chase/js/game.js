@@ -1409,15 +1409,15 @@ function buildCity(){
   // ### round-arched openings and mouldings that all of them use.
   const sr = mulberry32(1147);
   // limestone ashlar: courses of blocks with staggered joints, each block a little different, darker with age near the joints
-  const ashlar = (() => {
+  const ashlarOf = (R, G, B) => {
     const cv = document.createElement('canvas'); cv.width = cv.height = 512;
     const g = cv.getContext('2d'), rows = 8, rh = 512 / rows;
-    g.fillStyle = '#c9b792'; g.fillRect(0, 0, 512, 512);
+    g.fillStyle = `rgb(${Math.round(R * 0.93)},${Math.round(G * 0.93)},${Math.round(B * 0.93)})`; g.fillRect(0, 0, 512, 512);
     for (let r = 0; r < rows; r++){
       const n = 4, bw = 512 / n, off = (r % 2) * bw / 2;
       for (let k = -1; k <= n; k++){
         const v = 0.86 + sr() * 0.22, x0 = k * bw + off;
-        g.fillStyle = `rgb(${Math.round(203 * v)},${Math.round(184 * v)},${Math.round(148 * v)})`;
+        g.fillStyle = `rgb(${Math.min(255, Math.round(R * v))},${Math.min(255, Math.round(G * v))},${Math.min(255, Math.round(B * v))})`;
         g.fillRect(x0 + 2, r * rh + 2, bw - 4, rh - 4);
         const sh = g.createLinearGradient(0, r * rh, 0, (r + 1) * rh); sh.addColorStop(0, 'rgba(255,255,255,.10)'); sh.addColorStop(1, 'rgba(0,0,0,.16)');
         g.fillStyle = sh; g.fillRect(x0 + 2, r * rh + 2, bw - 4, rh - 4);
@@ -1427,7 +1427,9 @@ function buildCity(){
     for (let i = 0; i < 26; i++){ const sx = sr() * 512, sy = sr() * 512, len = 30 + sr() * 110; const st = g.createLinearGradient(0, sy, 0, sy + len); st.addColorStop(0, 'rgba(40,30,18,.22)'); st.addColorStop(1, 'rgba(40,30,18,0)'); g.fillStyle = st; g.fillRect(sx, sy, 3 + sr() * 9, len); }
     const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = ANISO; t.wrapS = t.wrapT = THREE.RepeatWrapping;
     return t;
-  })();
+  };
+  // warm limestone for the cathedral and the castle, and a pale one for the white fronts of the theatre and the station
+  const ashlar = ashlarOf(203, 184, 148), paleAshlar = ashlarOf(236, 231, 220);
   // every stone lies in the same bond: the picture is laid over each face by its place in the world (one picture is 4 m by 4 m)
   const bond = geo => {
     const p = geo.attributes.position, n = geo.attributes.normal, uv = new Float32Array(p.count * 2);
@@ -1438,7 +1440,7 @@ function buildCity(){
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     return geo;
   };
-  const stoneMat = (tint, glow) => { const m = new THREE.MeshStandardMaterial({ map: ashlar, color: tint, roughness: 0.92, emissive: C(glow), emissiveMap: ashlar }); m.userData.env = 0.2; return m; };
+  const stoneMat = (tint, glow, pale) => { const map = pale ? paleAshlar : ashlar, m = new THREE.MeshStandardMaterial({ map, color: tint, roughness: 0.92, emissive: C(glow), emissiveMap: map }); m.userData.env = 0.2; return m; };
   // a round-arched opening, standing upright and facing west (w wide, h to the top of the arch), as a dark panel just in front of the wall
   // faceZ: nothing for a wall that faces west, 1 south, -1 north, 'e' east
   const archPanel = (w, h, px, py, pz, faceZ) => {
@@ -1502,9 +1504,15 @@ function buildCity(){
       for (const sd of [-1, 1]) parts.push(boxG(0.2, 7.6, 0.26, wx + sd * 0.72, 5.7, cz + 8.1));
     }
     for (const sx of [-1, 1]) parts.push(boxG(0.7, 1.5, 0.7, cx + sx * 11, 14.1, front + 2));
-    const body = new THREE.Mesh(mergeGeos(parts), stone); body.castShadow = true; grp.add(body);
+    // white stone, floodlit from the square like the other landmarks
+    const body = new THREE.Mesh(STONE.bond(mergeGeos(parts)), STONE.mat(0xffffff, 0x565248, true)); body.castShadow = true; grp.add(body);
+    for (let k = -3; k <= 3; k++) glowPts.push(cx + k * 5.2, 1.2, front + 6.5);
     for (let k = -2; k <= 2; k++){
-      neon.box(cx + k * 3.6 - 0.8, cx + k * 3.6 + 0.8, 1.1, 5.4, front - 0.05, front + 0.02, C(0xe0a868));
+      // a door of glass in a dark frame, the foyer lit behind it: two leaves and a fanlight
+      neon.box(cx + k * 3.6 - 0.8, cx + k * 3.6 + 0.8, 1.1, 5.4, front - 0.05, front + 0.02, C(0xa9773c));
+      neon.box(cx + k * 3.6 - 0.05, cx + k * 3.6 + 0.05, 1.1, 4.3, front + 0.02, front + 0.05, C(0x23170d));
+      neon.box(cx + k * 3.6 - 0.8, cx + k * 3.6 + 0.8, 4.25, 4.37, front + 0.02, front + 0.05, C(0x23170d));
+      for (const sd of [-1, 1]) neon.box(cx + k * 3.6 + sd * 0.42 - 0.03, cx + k * 3.6 + sd * 0.42 + 0.03, 1.1, 4.3, front + 0.02, front + 0.04, C(0x3a2616));
       neon.box(cx + k * 3.6 - 0.55, cx + k * 3.6 + 0.55, 7, 10, front - 0.05, front + 0.02, C(0x38261a));
     }
     for (const sx of [-1, 1]) for (let k = 0; k < 2; k++){
@@ -1556,7 +1564,9 @@ function buildCity(){
     }
     for (const sd of [-1, 1]) for (const y of [3.2, 10.6, 18]) for (let z = fz - 19; z < fz - 2; z += 4.2) dark.push(STONE.archPanel(1.4, 3.8, cx + sd * 13.07, y, z, sd > 0 ? 'e' : undefined));
     grp.add(new THREE.Mesh(mergeGeos(dark), new THREE.MeshBasicMaterial({ color: 0x15100a, side: THREE.DoubleSide })));
-    const body = new THREE.Mesh(mergeGeos(parts), stone); body.castShadow = true; grp.add(body);
+    // dressed stone, floodlit from the square like the cathedral and the castle
+    const body = new THREE.Mesh(STONE.bond(mergeGeos(parts)), STONE.mat(0xf0e9d8, 0x4e4636, true)); body.castShadow = true; grp.add(body);
+    for (const sx of [-9, -3, 3, 9]) glowPts.push(cx + sx, 1.2, fz + 3.5);
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const cg = c.getContext('2d');
     cg.fillStyle = '#fff4d8'; cg.beginPath(); cg.arc(64, 64, 60, 0, 7); cg.fill();
@@ -1794,7 +1804,35 @@ function buildCity(){
       col[i * 3] = c[0] * s; col[i * 3 + 1] = c[1] * s; col[i * 3 + 2] = c[2] * s;
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-    grp.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false })));
+    // ### Seen from the city a slope in one flat colour looks like a painted backdrop with houses stuck on it. So the colours
+    // ### above are laid over a picture of what really covers such a hill: small plots, yards and flat roofs in slightly
+    // ### different tones with dark lanes between them, and the dark crowns of trees. It repeats every 44 m.
+    const quarter = (() => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 512;
+      const g = cv.getContext('2d'), qr = mulberry32(2211);
+      g.fillStyle = '#6b655b'; g.fillRect(0, 0, 512, 512);
+      for (let gy = 0; gy < 512;){
+        const rh = 26 + Math.floor(qr() * 30);
+        for (let gx = 0; gx < 512;){
+          const rw = 22 + Math.floor(qr() * 44), v = 150 + Math.floor(qr() * 105), warm = qr();
+          g.fillStyle = `rgb(${v},${Math.round(v * (0.9 + 0.06 * warm))},${Math.round(v * (0.78 + 0.1 * warm))})`;
+          g.fillRect(gx + 2, gy + 2, rw - 4, rh - 4);
+          if (qr() < 0.3){ g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(gx + 5, gy + 5, (rw - 10) * (0.3 + qr() * 0.5), (rh - 10) * (0.3 + qr() * 0.5)); }
+          gx += rw;
+        }
+        gy += rh;
+      }
+      for (let i = 0; i < 90; i++){ const x = qr() * 512, y = qr() * 512, r = 5 + qr() * 11, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(20,34,22,.9)'); gr.addColorStop(1, 'rgba(20,34,22,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+      for (let i = 0; i < 4000; i++){ const d = qr() < 0.5 ? 0 : 255; g.fillStyle = `rgba(${d},${d},${d},${(qr() * 0.08).toFixed(3)})`; g.fillRect(qr() * 512, qr() * 512, 2, 2); }
+      const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = ANISO; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      return t;
+    })();
+    { const uv = new Float32Array(p.count * 2); for (let i = 0; i < p.count; i++){ uv[i * 2] = p.getX(i) / 44; uv[i * 2 + 1] = p.getZ(i) / 44; } geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); }
+    // the picture is darker than white, so the colours are raised to keep the slope a little brighter than before
+    for (let i = 0; i < col.length; i++) col[i] *= 2.3;
+    // still its own colours and no fog, as before; the picture only adds the detail
+    const hillMat = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }); hillMat.map = quarter;
+    grp.add(new THREE.Mesh(geo, hillMat));
     const lights = [], hr = mulberry32(77);
     for (const [hx, hz, rx, , rz] of HILLS) for (let k = 0; k < 170; k++){
       const a = hr() * Math.PI * 2, q = Math.sqrt(hr()) * 0.95, x = hx + Math.cos(a) * q * rx, z = hz + Math.sin(a) * q * rz;
@@ -1839,7 +1877,7 @@ function buildCity(){
     const hr = mulberry32(4471), gardenTrees = [], free = (x0, x1, z0, z1) => hillLots.every(([a, b, c, d]) => x1 + 2 < a || x0 - 2 > b || z1 + 2 < c || z0 - 2 > d);
     for (const [hx, hz, rx, ry, rz] of HILLS){
       const toCity = Math.hypot(hx, hz);
-      for (let gx = hx - rx; gx < hx + rx; gx += 15) for (let gz = hz - rz; gz < hz + rz; gz += 15){
+      for (let gx = hx - rx; gx < hx + rx; gx += 12.5) for (let gz = hz - rz; gz < hz + rz; gz += 12.5){
         const x = gx + (hr() - 0.5) * 6, z = gz + (hr() - 0.5) * 6, q = Math.hypot((x - hx) / rx, (z - hz) / rz);
         if (q > 0.97 || Math.max(Math.abs(x), Math.abs(z)) < 198 || z > 122) continue;
         if ((x > 186 && x < 280 && Math.abs(z) < 32) || Math.hypot(x - 300, z + 115) < 60) continue;
@@ -1857,11 +1895,26 @@ function buildCity(){
         hillLots.push([x - w / 2, x + w / 2, z - d / 2, z + d / 2]);
       }
     }
-    const crown = treeCrown(4, 0, 1.9, 4.4, 41), trunk = treeTrunk(2.8, 0.3, 2, 42);
+    // ### Two kinds of tree, as on Lisbon's hills: broad crowns of several rounded lumps, and about a third dark cypresses,
+    // ### tall and narrow, which break the line of the roofs.
+    const crown = treeCrown(6, 1, 1.9, 4.4, 41), trunk = treeTrunk(2.8, 0.3, 2, 42);
+    const cypress = (() => {
+      const g = new THREE.ConeGeometry(0.95, 7.6, 9, 4).translate(0, 4.6, 0), q = g.attributes.position, col = new Float32Array(q.count * 3);
+      for (let i = 0; i < q.count; i++){
+        const y = q.getY(i), k = 1 + 0.16 * (hash3(q.getX(i) * 3, y, q.getZ(i) * 3) - 0.5), sh = 0.55 + 0.45 * (y - 0.8) / 7.6;
+        q.setX(i, q.getX(i) * k * (y < 2 ? 0.8 : 1)); q.setZ(i, q.getZ(i) * k * (y < 2 ? 0.8 : 1));
+        col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = sh;
+      }
+      g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
+      return g;
+    })();
+    const broad = gardenTrees.filter(o => o.v >= 0.32), slim = gardenTrees.filter(o => o.v < 0.32);
     const placeG = (o, dm) => { dm.position.set(o.x, o.y - 0.3, o.z); dm.rotation.set(0, o.rot, 0); dm.scale.setScalar(o.s); };
-    const gt = instanced(grp, trunk, barkMat(), gardenTrees, placeG), gc = instanced(grp, crown, leafMat(), gardenTrees, placeG, (o, t) => t.set(0x3f6e45).offsetHSL((o.v - 0.5) * 0.08, 0, (o.v - 0.5) * 0.12));
+    const placeC = (o, dm) => { dm.position.set(o.x, o.y - 0.4, o.z); dm.rotation.set(0, o.rot, 0); dm.scale.set(o.s * 0.95, o.s * (1.05 + o.v), o.s * 0.95); };
+    const gt = instanced(grp, trunk, barkMat(), broad, placeG), gc = instanced(grp, crown, leafMat(), broad, placeG, (o, t) => t.set(0x3f6e45).offsetHSL((o.v - 0.5) * 0.08, 0, (o.v - 0.5) * 0.12));
+    const cy = instanced(grp, cypress, leafMat(), slim, placeC, (o, t) => t.set(0x27432f).offsetHSL(0, 0, (o.v - 0.16) * 0.2));
     // far away: no shadows needed, which keeps them cheap
-    for (const m of [gt, gc]) if (m){ m.castShadow = false; m.receiveShadow = false; }
+    for (const m of [gt, gc, cy]) if (m){ m.castShadow = false; m.receiveShadow = false; }
   }
   // ### The Se, Lisbon's cathedral, on the slope at the end of Rua da Conceicao, facing west down the street, after the real
   // ### one: a Romanesque front of pale limestone, two square towers with a string course, two round-arched bell openings on
@@ -1871,7 +1924,8 @@ function buildCity(){
   // ### every night. All of it is scenery beyond the edge of the map: nothing here can be driven on or hit.
   {
     const x = 222, under = [], { bond, archPanel, archivolt } = STONE, stoneMat = STONE.mat;
-    for (let gx = x - 3; gx <= x + 43; gx += 4) for (let gz = -20; gz <= 20; gz += 4) under.push(hillSurf(gx, gz));
+    // the terrace is as high as the slope under the towers; further back the church stands in the hill, which rises behind it
+    for (let gx = x - 3; gx <= x + 10; gx += 4) for (let gz = -20; gz <= 20; gz += 4) under.push(hillSurf(gx, gz));
     const b = Math.max(...under) - 2.5, T = b + 3;
     const lime = [], dark = [], sill = [], treads = [];
     for (const sz of [-8.5, 8.5]){
@@ -1917,15 +1971,17 @@ function buildCity(){
     cope.push(boxG(tx1 - tx0 + 0.8, 0.35, 0.9, (tx0 + tx1) / 2, T + 1.05, -tz), boxG(tx1 - tx0 + 0.8, 0.35, 0.9, (tx0 + tx1) / 2, T + 1.05, tz));
     terr.push(boxG(tx1 - tx0, 0.9, 0.6, (tx0 + tx1) / 2, T + 0.45, -tz), boxG(tx1 - tx0, 0.9, 0.6, (tx0 + tx1) / 2, T + 0.45, tz));
     for (const sd of [-1, 1]){ terr.push(boxG(0.6, 0.9, tz - 7, tx0, T + 0.45, sd * (tz + 7) / 2)); cope.push(boxG(0.9, 0.35, tz - 6.6, tx0, T + 1.05, sd * (tz + 7) / 2)); }
-    // the steps down to the street: 14 m wide, each step 0.5 m high and 1 m deep, until they meet the slope; low walls at their sides
-    for (let k = 0; k < 70; k++){
-      const sx = tx0 - 0.5 - k, y = T - 0.5 * (k + 1), g0 = Math.min(hillSurf(sx, -7), hillSurf(sx, 0), hillSurf(sx, 7));
+    // the steps down to the street, 14 m wide, until they meet the ground: flights of thirteen steep steps (0.6 m high, 0.7 m
+    // deep) with a landing after each, low walls at their sides, and a lamp on a post at both ends of every landing. They end
+    // on the last stretch of Rua da Conceicao, about 30 m beyond the edge of the map (LIMIT), where no vehicle drives.
+    for (let k = 0, edge = tx0, y = T; k < 110; k++){
+      const landing = k % 14 === 13, len = landing ? 3.2 : 0.7, sx = edge - len / 2; y -= 0.6; edge -= len;
+      const g0 = Math.min(hillSurf(sx, -7), hillSurf(sx, 0), hillSurf(sx, 7));
       if (y <= g0 + 0.1) break;
-      treads.push(boxG(1, 0.5, 14, sx, y + 0.25, 0));
-      // a lamp on each side wall every eighth step
-      if (k % 8 === 4) for (const sd of [-1, 1]) glowPts.push(sx, y + 2.6, sd * 7.35);
-      terr.push(boxG(1, Math.max(0.5, y - g0 + 2), 14, sx, (y + g0 - 2) / 2, 0));
-      for (const sd of [-1, 1]) terr.push(boxG(1, Math.max(1.4, y - g0 + 3.3), 0.7, sx, (y + 1.3 + g0 - 2) / 2, sd * 7.35));
+      treads.push(boxG(len, 0.6, 14, sx, y + 0.3, 0));
+      terr.push(boxG(len, Math.max(0.5, y - g0 + 2), 14, sx, (y + g0 - 2) / 2, 0));
+      for (const sd of [-1, 1]) terr.push(boxG(len, Math.max(1.4, y - g0 + 3.5), 0.7, sx, (y + 1.5 + g0 - 2) / 2, sd * 7.35));
+      if (landing) for (const sd of [-1, 1]){ cope.push(boxG(0.16, 3.4, 0.16, sx, y + 3.2, sd * 7.35), boxG(0.9, 0.3, 0.9, sx, y + 1.65, sd * 7.35)); glowPts.push(sx, y + 5.1, sd * 7.35); }
     }
     const church = new THREE.Mesh(bond(mergeGeos(lime)), stoneMat(0xf2e3c2, 0x5a4a30)); grp.add(church);
     grp.add(new THREE.Mesh(bond(mergeGeos(sill)), stoneMat(0xfff2d6, 0x6a583a)));

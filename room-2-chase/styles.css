@@ -599,3 +599,28 @@ body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:
 .card.garage .btn{padding:10px 14px}
 .gar-note{margin:0;color:var(--muted);font-size:13.5px;line-height:1.4;min-height:2.8em}
 @media (max-width:820px){#overlay.garage{place-items:start center}.card.garage{width:min(520px,100%);padding:12px 14px;gap:7px}.card.garage h2{font-size:18px}.card.garage .vtab img{max-width:72px}.gar-note{font-size:12.5px;min-height:0}}
+
+/* a phone held upright is narrow: the pursuit panel shrinks to its stars, the radar and the cockpit to their small sizes, and
+   the touch pads to a width at which all of them fit, so the panels no longer lie on each other or on the car */
+@media (pointer:coarse) and (max-width:560px) and (orientation:portrait){
+  .pur-title,.pursuit .bust-row,.pursuit .units,.pursuit .pur-label,.pursuit .btrack{display:none}
+  .pursuit{width:auto;padding:6px 10px;border-radius:12px;gap:3px}
+  .pur-line{justify-content:center}
+  .stars i{width:14px;height:14px}
+  #radar{width:104px;height:104px}
+  .radar-wrap .signal{display:none}
+  .dash{padding:6px 9px;gap:4px;border-radius:14px}
+  .dmg-label,.dtrack,.dmg .pill,.gearbox,.nos .dmg-label,.ntrack,.nos-key{display:none}
+  .gauge{width:84px;height:84px}
+  .g-read b{font-size:19px}
+  #touch{padding-inline:10px}
+  #touch .grp{gap:6px}
+  .pad{width:56px;height:56px}
+  .pad.brake{width:54px;height:62px}
+  .pad.gas{width:54px;height:78px}
+  .pad.look,.pad.nitro{width:40px;height:40px}
+  .guide{top:calc(176px + env(safe-area-inset-top,0px))}
+  .guide.kit,.guide.kit.low{top:calc(224px + env(safe-area-inset-top,0px))}
+  .guide.kit.low{top:calc(176px + env(safe-area-inset-top,0px))}
+  #toast{top:calc(414px + env(safe-area-inset-top,0px))}
+}
