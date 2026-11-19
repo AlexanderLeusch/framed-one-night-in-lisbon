@@ -2115,15 +2115,16 @@ function buildCity(){
   // ### taller blocks in the centre, with lit windows at night. The land is one grid bent over southBank(x, z); it is lit like
   // ### everything else, so it is a dark shape with lights at night and shows its colours in the morning light of the finale. The
   // ### road of the bridge meets the top of the cliff at its south end.
-  const CRISTO = { x: -150, z: 748 }, BR_END = { x: -273, z: 736 };
+  // ### QUAY: the top of the quay along the water, high enough above the river that the houses on it do not seem to stand in it
+  const CRISTO = { x: -150, z: 748 }, BR_END = { x: -273, z: 736 }, QUAY = 4.2, shoreZ = x => 648 + 14 * Math.sin(x * 0.004 + 1);
   const southBank = (x, z) => {
-    const d = z - (648 + 14 * Math.sin(x * 0.004 + 1));
+    const d = z - shoreZ(x);
     if (d < 0) return -6;
     let top = 44 + 9 * Math.sin(x * 0.006) + 5 * Math.sin(x * 0.017 + 2);
     const wb = Math.exp(-((x - BR_END.x) ** 2 + (z - BR_END.z) ** 2) / 8100); top = top * (1 - wb) + 42.4 * wb;
     top += 15 * Math.exp(-((x - CRISTO.x) ** 2 + (z - CRISTO.z) ** 2) / 2000);
     const up = clamp((d - 36) / 44, 0, 1), rise = up * up * (3 - 2 * up);
-    return 2.2 + (top - 2.2) * rise - clamp((d - 260) / 300, 0, 1) * 12;
+    return QUAY + (top - QUAY) * rise - clamp((d - 260) / 300, 0, 1) * 12;
   };
   const bankGeo = new THREE.PlaneGeometry(2600, 370, 130, 62).rotateX(-Math.PI / 2).translate(0, 0, 815);
   {
@@ -2133,7 +2134,7 @@ function buildCity(){
       const x = P.getX(i), z = P.getZ(i), h = southBank(x, z), slope = Math.abs(southBank(x, z + 5) - southBank(x, z - 5)) / 10;
       P.setY(i, h);
       const n = 0.5 + 0.5 * Math.sin(x * 0.031 + z * 0.047) * Math.sin(x * 0.011 - z * 0.019);
-      if (h < 3) c.copy(quay); else if (slope > 0.35) c.copy(rock).lerp(grass, 0.6 + n * 0.3); else c.copy(grass).lerp(town, n * 0.8);
+      if (h < QUAY + 0.8) c.copy(quay); else if (slope > 0.35) c.copy(rock).lerp(grass, 0.6 + n * 0.3); else c.copy(grass).lerp(town, n * 0.8);
       c.multiplyScalar(0.8 + 0.3 * n);
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
     }
@@ -2141,6 +2142,22 @@ function buildCity(){
   }
   const farLit = o => new THREE.MeshLambertMaterial(Object.assign({ fog: false }, o));
   const bank = new THREE.Mesh(bankGeo, farLit({ vertexColors: true, emissive: 0x0a0c16 }));
+  // ### The quay wall: a straight face of stone blocks out of the water, a little in front of the edge of the land (whose grid
+  // ### would otherwise show as a muddy slope), darker and wet at the foot, with a pale coping and a paved walk along the top.
+  {
+    const pos = [], col = [], wet = C(0x4a4640), stone = C(0x8e877b), cope = C(0xc4bcac), walk = C(0xa69f92);
+    const quad = (a, b, c, d, ca, cb) => { for (const [p, k] of [[a, ca], [b, ca], [c, cb], [a, ca], [c, cb], [d, cb]]){ pos.push(...p); col.push(k.r, k.g, k.b); } };
+    for (let x = -1300; x < 1300; x += 8){
+      const za = shoreZ(x) - 7, zb = shoreZ(x + 8) - 7;
+      quad([x, -1.5, za], [x + 8, -1.5, zb], [x + 8, 0.6, zb], [x, 0.6, za], wet, stone);
+      quad([x, 0.6, za], [x + 8, 0.6, zb], [x + 8, QUAY, zb], [x, QUAY, za], stone, stone);
+      quad([x, QUAY, za], [x + 8, QUAY, zb], [x + 8, QUAY + 0.5, zb - 0.1], [x, QUAY + 0.5, za - 0.1], cope, cope);
+      quad([x, QUAY + 0.5, za - 0.1], [x + 8, QUAY + 0.5, zb - 0.1], [x + 8, QUAY + 0.5, zb + 0.7], [x, QUAY + 0.5, za + 0.7], cope, cope);
+      quad([x, QUAY + 0.06, za + 0.7], [x + 8, QUAY + 0.06, zb + 0.7], [x + 8, QUAY + 0.06, zb + 13], [x, QUAY + 0.06, za + 13], walk, walk);
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
+    grp.add(new THREE.Mesh(g, farLit({ vertexColors: true, emissive: 0x0a0c16, side: THREE.DoubleSide })));
+  }
   // ### The houses of Almada, three kinds, after the real town: small two-storey houses, town houses of three or four floors
   // ### with a shop or a door on the ground floor and iron balconies, and a few apartment blocks of eight floors with a balcony
   // ### band on every floor. Each kind has a facade painted once on a canvas (plinth, cornice, windows with stone frames and
@@ -2225,7 +2242,7 @@ function buildCity(){
     for (let tries = 0; tries < 30000 && n < 1250; tries++){
       const water = rng() < 0.14, centre = rng() < 0.6;
       const x0 = centre ? -120 + (rng() + rng() - 1) * 640 : (rng() - 0.5) * 2400;
-      const shore = 648 + 14 * Math.sin(x0 * 0.004 + 1), z0 = shore + (water ? 12 + rng() * 16 : 92 + rng() * (centre ? 235 : 200));
+      const shore = shoreZ(x0), z0 = shore + (water ? 18 + rng() * 12 : 92 + rng() * (centre ? 235 : 200));
       // on the plot grid, so the houses line up along streets
       const x = Math.round(x0 / 13) * 13, z = water ? z0 : Math.round(z0 / 13) * 13;
       // keep the bridge's way and the hill of the statue free
