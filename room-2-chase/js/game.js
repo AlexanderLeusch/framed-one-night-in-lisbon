@@ -8487,12 +8487,21 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   grp.add(new THREE.Mesh(mergeGeos(amber), new THREE.MeshBasicMaterial({ color: 0xffc27a })));
   const pool = new THREE.Mesh(mergeGeos(pools), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0xc4cedf, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false }));
   pool.renderOrder = 2; grp.add(pool);
-  // the exit sign over the ramp ("Saída" is Portuguese for exit), pipes under the ceiling, and the steel door of the tunnel she came through
+  // the exit sign over the ramp ("Saída" is Portuguese for exit) and pipes under the ceiling
   const sign = tex(512, 64, (g, w, h) => { g.fillStyle = '#0d7a44'; g.fillRect(0, 0, w, h); g.fillStyle = '#f4fff8'; g.font = '800 44px "Segoe UI", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SAÍDA  ↑  EXIT', w / 2, h / 2 + 2); });
   grp.add(new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.45).rotateY(Math.PI).translate(0, Y + (G.tunnel + G.h) / 2, G.z1 - 0.02), new THREE.MeshBasicMaterial({ map: sign })));
   add(mergeGeos([-14.6, -14.1].map(z => new THREE.CylinderGeometry(0.09, 0.09, G.x * 2, 10).rotateZ(Math.PI / 2).translate(0, Y + G.h - 0.4, z))), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.5, metalness: 0.6, emissive: C(0x1a1410) }));
-  add(mergeGeos([box(-14.1, -12.9, Y, Y + 2.15, G.z0, G.z0 + 0.08), box(-14.22, -12.78, Y, Y + 2.27, G.z0, G.z0 + 0.05)]), new THREE.MeshStandardMaterial({ color: 0x3f4a44, roughness: 0.5, metalness: 0.6, emissive: C(0x121614) }));
-  grp.add(new THREE.Mesh(boxG(0.5, 0.16, 0.06, -13.5, Y + 2.5, G.z0 + 0.05), new THREE.MeshBasicMaterial({ color: 0x4dff9a })));
+  // ### The steel door of the tunnel from Cell Block D, where the player comes in: in the wall beside the ramp, opposite the
+  // ### three bays, so the vehicles stand across the hall. It has just been opened: the leaf stands wide open into the hall
+  // ### on its hinges (west side), the doorway behind it is dark, and a green light glows over the frame.
+  {
+    const ex = G.entry, zw = G.z1, doorMat = new THREE.MeshStandardMaterial({ color: 0x3f4a44, roughness: 0.5, metalness: 0.6, emissive: C(0x121614) });
+    add(mergeGeos([box(ex - 0.72, ex - 0.6, Y, Y + 2.27, zw - 0.06, zw), box(ex + 0.6, ex + 0.72, Y, Y + 2.27, zw - 0.06, zw), box(ex - 0.72, ex + 0.72, Y + 2.15, Y + 2.27, zw - 0.06, zw)]), doorMat);
+    grp.add(new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.15).rotateY(Math.PI).translate(ex, Y + 1.075, zw - 0.012), new THREE.MeshBasicMaterial({ color: 0x030405 })));
+    const leaf = new THREE.Mesh(mergeGeos([boxG(1.2, 2.13, 0.06, 0.6, 1.065, 0), boxG(0.04, 0.16, 0.1, 1.06, 1.05, -0.07)]), doorMat);
+    leaf.position.set(ex - 0.6, Y, zw - 0.05); leaf.rotation.y = 1.9; leaf.castShadow = true; grp.add(leaf);
+    grp.add(new THREE.Mesh(boxG(0.5, 0.16, 0.06, ex, Y + 2.5, zw - 0.05), new THREE.MeshBasicMaterial({ color: 0x4dff9a })));
+  }
   // ### A few things every car park has: a galvanised air duct under the ceiling between the rows of lights, with its hangers;
   // ### the numbers of the three bays painted on the back wall; a fire extinguisher in its red box and a grey fuse box by the
   // ### steel door; and the level, "-2", on each pillar.
@@ -8504,8 +8513,8 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), new THREE.MeshStandardMaterial({ map: label('0' + (i + 1), 128, 128, '#f2f2ea', null, '800 92px "Segoe UI", Arial, sans-serif'), transparent: true, roughness: 0.8, emissive: C(0x404040) }));
     m.position.set(G.bays[k][0], Y + 2.5, G.z0 + 0.02); grp.add(m);
   });
-  add(box(-11.6, -11.0, Y + 0.9, Y + 1.7, G.z0, G.z0 + 0.22), paint(0xb3201c));
-  add(box(-10.6, -9.9, Y + 1.1, Y + 2.0, G.z0, G.z0 + 0.16), new THREE.MeshStandardMaterial({ color: 0x8e9196, roughness: 0.5, metalness: 0.5, emissive: C(0x16171a) }));
+  add(box(G.entry - 2.6, G.entry - 2.0, Y + 0.9, Y + 1.7, G.z1 - 0.22, G.z1), paint(0xb3201c));
+  add(box(G.entry - 3.7, G.entry - 3.0, Y + 1.1, Y + 2.0, G.z1 - 0.16, G.z1), new THREE.MeshStandardMaterial({ color: 0x8e9196, roughness: 0.5, metalness: 0.5, emissive: C(0x16171a) }));
   const levelMat = new THREE.MeshStandardMaterial({ map: label('-2', 128, 128, '#15161a', '#e8b21c', '800 80px "Segoe UI", Arial, sans-serif'), roughness: 0.7, emissive: C(0x3a3020) });
   for (const [x, z] of G.pillars) for (const [dx, dz, ry] of [[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]]){
     const m = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), levelMat);
@@ -8612,7 +8621,7 @@ function enterGarage(){
   garagePick(false);
 }
 
-// ### On foot in the garage: at the start in front of the three vehicles, or beside the door after Esc at the wheel. The card
+// ### On foot in the garage: at the start in the tunnel door, with the three vehicles across the hall, or beside the vehicle's door after Esc at the wheel. The card
 // ### shows the three vehicles (a tap walks you to one), "Get in" and the way round.
 function garagePick(fromWheel){
   const G = Core.GARAGE;
@@ -8622,7 +8631,7 @@ function garagePick(fromWheel){
   held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
   garagePlace();
   const d = garageDoor(V.key);
-  if (fromWheel) walker.place(d.pos, d.look); else walker.place([0, G.y + walker.EYE, 7.5], [car.x * 0.5, G.y + 1.1, car.z]);
+  if (fromWheel) walker.place(d.pos, d.look); else walker.place([G.start[0], G.y + walker.EYE, G.start[1]], [car.x * 0.6, G.y + 1.1, car.z]);
   walker.setActive(true);
   if (camera.fov !== 66){ camera.fov = 66; camera.updateProjectionMatrix(); }
   showCard(`

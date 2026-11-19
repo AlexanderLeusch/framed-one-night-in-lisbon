@@ -293,6 +293,9 @@
   const GARAGE = Object.freeze({
     y: -30, x: 17, z0: -16, z1: 12, h: 5.2, door: 4.6, tunnel: 4.7, ramp: 34, rise: 4.8, top: 16, speed: 9, pillar: 0.4, walk: 3.4, run: 5.6, out: 6, away: 8,
     street: Object.freeze([30, -10]), way: Object.freeze([[0, 1.5], [0, 8], [1.5, 12.5], [7, 12.5]].map(q => Object.freeze(q))),
+    // the steel door of the tunnel from Cell Block D: x of its middle, in the wall beside the opening of the ramp (z1), opposite
+    // the bays; and where the player stands when they come through it, [x, z]
+    entry: -8, start: Object.freeze([-8, 10.4]),
     order: Object.freeze(['car', 'bike', 'truck']),
     bays: Object.freeze({ car: Object.freeze([-8, -8.5, 0.34]), bike: Object.freeze([0, -9, 0]), truck: Object.freeze([8.5, -8, -0.36]) }),
     pillars: Object.freeze([[-12.5, -2], [12.5, -2], [-12.5, 6], [12.5, 6]].map(q => Object.freeze(q)))

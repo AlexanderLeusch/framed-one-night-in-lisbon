@@ -1076,3 +1076,16 @@ test('the heist leaderboard keeps each driver\'s best heist, fastest first, and 
   assert.equal(Core.heistRows(list, 'D1')[1].me, true);
   assert.equal(Core.heistRows(list, 'D1').length, 5);
 });
+
+test('the garage: you come in through the tunnel door, in the wall opposite the vehicles, and stand clear of every wall and pillar', () => {
+  const G = Core.GARAGE, [x, z] = G.start;
+  // the door is in the wall of the ramp, beside its opening, and the player stands just inside it
+  assert.ok(Math.abs(G.entry) > G.door + 1.5 && Math.abs(G.entry) < G.x - 1.5, 'the door is in the wall beside the opening, clear of the corner');
+  assert.equal(x, G.entry);
+  assert.ok(G.z1 - z > 0.8 && G.z1 - z < 2.5, 'just inside the door');
+  // every vehicle stands across the hall, at least 15 m away, on the far side
+  for (const k of G.order) assert.ok(z - G.bays[k][1] > 15, k + ' stands on the other side');
+  // not inside a wall or a pillar, with room to turn
+  for (const c of Core.garageWalls()) assert.ok(x < c.x0 - 0.5 || x > c.x1 + 0.5 || z < c.z0 - 0.5 || z > c.z1 + 0.5, 'clear of ' + JSON.stringify(c));
+  assert.equal(Core.garageFloor(x, z), G.y, 'on the level floor of the hall');
+});

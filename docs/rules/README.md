@@ -24,7 +24,7 @@ In April 2012 the Starfall necklace, lent by the Ashford family to Lisbon's nava
 
 - The start page has one main button, **Start the heist**, which opens room 1. Below it, each room can still be played on its own.
 - **Ending A** of room 1 hands over the **escape time** (the time used on the clock, wrong codes included) and leads into room 2 without a stop: when the door at the end of the tunnel swings open, the headlights behind it fill the screen and room 2 opens by itself in the same light. There is no card and nothing to click. Ending B stays in room 1 (try again).
-- Room 2 then skips its menu: the light clears and you stand in the garage, on foot, in front of the three vehicles. A message shows the escape time. From there it is a free ride through Lisbon.
+- Room 2 then skips its menu: the light clears and you stand in the garage, on foot, in the open door of the tunnel, with the three vehicles across the hall. A message shows the escape time. From there it is a free ride through Lisbon.
 - When that drive is finished, **heist time = escape time + drive time**. The escape does not change the drive in any way.
 - The heist time goes on the **heist leaderboard** (each driver's best heist, fastest first), on this device and, when signed in, online. See room 2, *The whole heist*.
 - The two pages stay separate. The escape time travels in the browser's storage and is checked by the rules when it is read: a broken, impossible or old one (over six hours) is refused and room 2 opens its menu as usual.
