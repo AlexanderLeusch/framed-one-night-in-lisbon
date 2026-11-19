@@ -4773,7 +4773,7 @@ function engineRpm(){ return eng.rpm; }
 // ### Runs the gearbox and rpm each frame, crossfades the engine loops, and sets road, wind, tyre, turbo and rotor levels.
 function updateEngine(dt){
   const sp = Math.abs(car.speed), live = state === 'play' || garage.live || (finale.on && finale.ramp), E = ENGINES[V.key];
-  // on the bridge of the finale nobody holds a key: updateFinale works the throttle, and the engine is heard at full level
+  // on the bridge of the finale nobody holds a key: updateFinale works the throttle; under the music the engine is quieter (finale.level)
   const cine = finale.on && finale.placed;
   const pedal = live ? (keys.up || (keys.down && car.speed <= 0.5) ? 1 : 0) : cine ? finale.throttle : 0;
   const braking = live && Core.isBraking(car.speed, keys.down, keys.up, keys.brake);
@@ -4811,7 +4811,7 @@ function updateEngine(dt){
   if (live && damage >= 50 && Math.random() < dt * (damage - 40) / 10) eng.miss = 0.05;
   if (eng.miss > 0){ eng.miss -= dt; vol *= 0.4; }
   // on foot in the garage the engines are off: the chosen one is first heard when the player sits in it and starts it
-  a.bus.gain.setTargetAtTime(state === 'menu' || state === 'pause' || muted || (garage.on && !garage.live) || (state === 'over' && endReason === 'wrecked') ? 0 : on ? vol * (cine ? finale.level : 1) : vol * 0.3, t, 0.03);
+  a.bus.gain.setTargetAtTime(state === 'menu' || state === 'pause' || muted || (garage.on && !garage.live) || (state === 'over' && endReason === 'wrecked') ? 0 : on ? vol * (finale.on ? finale.level : 1) : vol * 0.3, t, 0.03);
   if (on && E.pops){
     if (eng.prevPedal && !pedal && norm > 0.45) eng.popTime = 0.7;
     if (eng.popTime > 0){ eng.popTime -= dt; if (Math.random() < dt * 14) noiseBurst(t + Math.random() * 0.02, a.popF, 0.1 + Math.random() * 0.14, 0.03 + Math.random() * 0.03); }
@@ -6164,13 +6164,15 @@ function witnessCard(){
 // ### light comes up behind the towers: no police, no helicopter, heroic music. Then the result card. A black plane in front of the
 // ### camera does the fades. In the story, this ends act 1 (the bridge leads out of the city towards the highway); in a free ride
 // ### it is the end of the run.
-const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 10.2, dawnFrom: 0.8, dawnTo: 8.4, shot: 3.8, cruise: 0.45, accel: 1.6 });
+// ### music: the anthem starts this many metres before the deck, so it is already playing as you come up onto the bridge; from
+// ### then on the engine drops to quiet of its level over duck seconds, and at the end it fades out under the result card.
+const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 10.2, dawnFrom: 0.8, dawnTo: 8.4, shot: 3.8, cruise: 0.45, accel: 1.6, music: 80, quiet: 0.2, duck: 2.5 });
 const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false, ramp: false, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0, cut: false, shot: 0 };
 const fader = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 fader.position.z = -0.6; fader.renderOrder = 9999; fader.frustumCulled = false; camera.add(fader); scene.add(camera);
 function startFinale(){
   state = 'finale';
-  Object.assign(finale, { on: true, done: false, t: 0, placed: false, throttle: 0, level: 1, kick: false, ramp: !!CITY.approach, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0, cut: false, shot: 0 });
+  Object.assign(finale, { on: true, done: false, t: 0, placed: false, throttle: 0, level: 1, kick: false, ramp: !!CITY.approach, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0, cut: false, shot: 0, music: false });
   hud.classList.add('off');
   // the police give up at the gate; the keys stay held, so you drive straight on up the approach road
   resetPolice();
@@ -6279,6 +6281,8 @@ function updateRamp(dt){
     // and back behind the vehicle with a cut, not a swoop
     if (f.shot >= RAMP_CUT.shot){ look.snap = true; car.camHeading = car.heading; }
   } else chaseCam(dt);
+  // the last stretch up to the deck: the music begins
+  if (q.s >= A.len - FINALE.music) startAnthem();
   // up on the deck: the drive over the bridge takes over where you are
   if (q.s >= A.len - 0.5){
     f.ramp = false;
@@ -6304,7 +6308,7 @@ function onTheBridge(along, side, speed){
   const E = ENGINES[V.key], pull = Math.min(E.gears.length, E.gears.findIndex(g => g * 0.97 > speed) + 1 || E.gears.length);
   eng.gear = Math.min(E.gears.length, pull + 1); eng.shift = 0; eng.rpm = Core.engineTarget(E, eng.gear, speed, 1); f.throttle = F.cruise;
   resetPolice(); clearEffects(); if (!witness.inCar) hideWitness();  // Marta rides over the bridge in the passenger seat
-  playAnthem();
+  startAnthem();
   toast(`${WITNESS.name}: “I saw him climb out of that window. I will tell them everything.”`, 'gold', 5200);
   setTimeout(() => { if (finale.on && !finale.done) toast('HALE: Across the bridge and you are out of the city. Well done, detective.', 'hale', 4600); }, 4200);
 }
@@ -6317,6 +6321,8 @@ function endFinale(){
 function onBridge(along, side, up){ return CITY.bridge.localToWorld(new THREE.Vector3(along, finale.deckY + (up || 0), side)); }
 function updateFinale(dt){
   const F = FINALE, f = finale;
+  // with the music playing the engine steps back (its level goes to the engine sound in updateEngine)
+  if (f.music && !f.done) f.level = Math.max(F.quiet, f.level - dt * (1 - F.quiet) / F.duck);
   if (f.ramp) return updateRamp(dt);
   f.t += dt;
   const t = f.t;
@@ -6331,7 +6337,7 @@ function updateFinale(dt){
   // across the bridge at a steady speed; after the last fade it rolls to a stop under the card
   // With the second shot the driver puts the foot down: a gear down, the engine pulls through to the next change and on. At the
   // end the foot comes off, the exhaust crackles, and the engine falls back to its idle while the vehicle rolls out.
-  if (f.done){ car.speed *= Math.exp(-dt * 0.9); f.throttle = 0; f.level = Math.max(0.45, f.level - dt * 0.14); }
+  if (f.done){ car.speed *= Math.exp(-dt * 0.9); f.throttle = 0; f.level = Math.max(0, f.level - dt * 0.15); }
   else if (t >= F.shot){
     if (!f.kick){ f.kick = true; eng.gear = Math.max(1, eng.gear - 1); f.throttle = 1; }
     car.speed += F.accel * dt;
@@ -6367,8 +6373,9 @@ function updateFinale(dt){
 
 // ### Heroic music for the finale, synthesised like the radio: a brass choir and strings on a rising progression in D major
 // ### (D, A, B minor, G, then D, G, A and a long D), a trumpet melody on top, timpani at each change, a roll and a cymbal into the
-// ### last chord, all in a little hall reverb. About 10 seconds (112 beats a minute). It plays on the music volume.
+// ### last chord, all in a little hall reverb. About 14 seconds. It plays on the music volume, once per finale (startAnthem).
 const anthem = { out: null };
+function startAnthem(){ if (finale.music) return; finale.music = true; playAnthem(); }
 function playAnthem(){
   if (!audio || muted) return;
   const ctx = audio.ctx, out = ctx.createGain(), comp = ctx.createDynamicsCompressor(), wet = ctx.createGain(), hall = ctx.createConvolver();
@@ -6378,7 +6385,7 @@ function playAnthem(){
   hall.buffer = ir;
   out.connect(comp).connect(audio.musicVol); out.connect(hall).connect(wet).connect(audio.musicVol);
   anthem.out = out;
-  const beat = 60 / 112, t0 = ctx.currentTime + 0.1;
+  const beat = 60 / 88, t0 = ctx.currentTime + 0.1;
   const brass = (n, at, dur, v) => [-8, 0, 8].forEach(d => radioOsc('sawtooth', mtof(n), at, dur, v, out, { lp: 1900, detune: d, attack: 0.07, hold: true, release: 0.35 }));
   const strings = (n, at, dur, v) => [-5, 5].forEach(d => radioOsc('sawtooth', mtof(n), at, dur, v, out, { lp: 2400, detune: d, attack: 0.25, hold: true, release: 0.6 }));
   const timp = (n, at, v) => { radioOsc('sine', mtof(n), at, 0.9, v, out, { to: mtof(n) * 0.94, glide: 0.5, attack: 0.004 }); radioNoise('lowpass', 380, 0.8, at, 0.25, v * 0.6, out); };
@@ -7739,7 +7746,9 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   const W = GAR.colliders, hall = W.slice(0, 5), sides = W.slice(5, 7), head = G.z1 + G.ramp;
   add(mergeGeos(hall.map(c => worldUV(box(c.x0, c.x1, Y, Y + G.h, c.z0, c.z1), 4, Y, G.h))), wallMat);
   add(worldUV(box(-G.door, G.door, Y + G.tunnel, Y + G.h, G.z1, G.z1 + 1), 3), plainMat);
-  add(mergeGeos(sides.map(c => worldUV(box(c.x0, c.x1, Y, Y + G.rise + G.tunnel + 0.4, c.z0, head), 3))), plainMat);
+  // the sides of the ramp are drawn from 1 m in: the first metre is the end of the hall wall, and two faces in the same place
+  // would flicker against each other
+  add(mergeGeos(sides.map(c => worldUV(box(c.x0, c.x1, Y, Y + G.rise + G.tunnel + 0.4, c.z0 + 1, head), 3))), plainMat);
   // the ramp with its ceiling
   const a = Math.atan2(G.rise, G.ramp), len = Math.hypot(G.ramp, G.rise), slab = up => {
     const g = new THREE.BoxGeometry(G.door * 2, 0.4, len + 0.4); g.translate(0, up, 0); g.rotateX(-a); g.translate(0, Y + G.rise / 2, G.z1 + G.ramp / 2); return g;
@@ -7753,8 +7762,9 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.32, 0.16, len), sd * (G.door - 0.16), 0.08, len / 2))), hazard);
   add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.13, 0.02, len - 0.6), sd * (G.door - 0.62), 0.011, len / 2))), paint(0xe8b21c));
   // the blue band and the white line of the hall walls go on up the ramp
-  add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.02, 1.2, len + 0.4), sd * (G.door - 0.01), 0.76, len / 2))), paint(0x2a587a));
-  add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.025, 0.13, len + 0.4), sd * (G.door - 0.012), 1.42, len / 2))), paint(0xe9e9e2));
+  // (from where the hall wall ends, 1 m up the ramp, so they do not stick out round its corner)
+  add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.02, 1.2, len - 0.8), sd * (G.door - 0.01), 0.76, (len + 1.2) / 2))), paint(0x2a587a));
+  add(mergeGeos([-1, 1].map(sd => onRamp(new THREE.BoxGeometry(0.025, 0.13, len - 0.8), sd * (G.door - 0.012), 1.42, (len + 1.2) / 2))), paint(0xe9e9e2));
   const rampTubes = [], rampPools = [];
   for (let d = 3; d < len - 1; d += 6){
     rampTubes.push(onRamp(new THREE.BoxGeometry(0.16, 0.07, 1.8), 0, G.tunnel * Math.cos(a) - 0.06, d), onRamp(new THREE.BoxGeometry(0.3, 0.05, 1.9), 0, G.tunnel * Math.cos(a) - 0.02, d));
