@@ -1968,6 +1968,26 @@ function buildCity(){
     const cy = instanced(grp, cypress, leafMat(), slim, placeC, (o, t) => t.set(0x27432f).offsetHSL(0, 0, (o.v - 0.16) * 0.2));
     // far away: no shadows needed, which keeps them cheap
     for (const m of [gt, gc, cy]) if (m){ m.castShadow = false; m.receiveShadow = false; }
+    // ### The side of the west hill that turns away from the city faces the bridge and its loop, and from there it was bare,
+    // ### painted ground. Like Monsanto park above the real bridge it is wooded: umbrella pines, broad crowns and cypresses close
+    // ### together between the houses that stand there. Own random numbers, so the rest of the hill stays as it was.
+    {
+      const wr = mulberry32(1966), pines = [], broads = [], slims = [], [hx, hz, rx, , rz] = HILLS[1], toCity = Math.hypot(hx, hz);
+      for (let gx = hx - rx; gx < hx + rx; gx += 7) for (let gz = hz - rz; gz < hz + rz; gz += 7){
+        const x = gx + (wr() - 0.5) * 5, z = gz + (wr() - 0.5) * 5, v = wr(), s = 0.95 + wr() * 0.7, rot = wr() * 6.28;
+        if (Math.hypot((x - hx) / rx, (z - hz) / rz) > 0.97 || z > 118 || Math.max(Math.abs(x), Math.abs(z)) < 205) continue;
+        if (((x - hx) * -hx + (z - hz) * -hz) / (Math.hypot(x - hx, z - hz) * toCity + 1e-6) >= -0.35 || !free(x - 1.5, x + 1.5, z - 1.5, z + 1.5)) continue;
+        const y = hillSurf(x, z); if (y < 1) continue;
+        (v < 0.45 ? pines : v < 0.8 ? broads : slims).push({ x, z, y, s, rot, v });
+      }
+      const tint = base => (o, t) => t.set(base).offsetHSL((o.v - 0.5) * 0.06, (o.v - 0.5) * 0.08, (o.v - 0.5) * 0.12);
+      const wood = [
+        instanced(grp, treeTrunk(2.4, 0.27, 0, 51), barkMat(), pines, placeG), instanced(grp, treePine(4, 2.2, 1.6, 8.2, 52), leafMat(), pines, placeG, tint(0x35614a)),
+        instanced(grp, trunk, barkMat(), broads, placeG), instanced(grp, crown, leafMat(), broads, placeG, tint(0x3f6e45)),
+        instanced(grp, cypress, leafMat(), slims, placeC, (o, t) => t.set(0x27432f).offsetHSL(0, 0, (o.v - 0.9) * 0.2))
+      ];
+      for (const m of wood) if (m){ m.castShadow = false; m.receiveShadow = false; }
+    }
   }
   // ### The Se, Lisbon's cathedral, on the slope at the end of Rua da Conceicao, facing west down the street, after the real
   // ### one: a Romanesque front of pale limestone, two square towers with a string course, two round-arched bell openings on
@@ -2353,6 +2373,20 @@ function buildCity(){
   // ### fits the view. x runs along the bridge, z across it, y is up; the road surface is at y = 42.12.
   // ### The concrete of the piers: the colour of the viaduct, darker towards the water (the bottom 18 m), as the foot of a real
   // ### pier is wet and dirty, which also shows how tall they are. parts are geometries or flat lists of triangle corners.
+  // ### A block whose corners are chamfered by c and whose walls may lean in: w0 x d0 at y0, w1 x d1 at y1, centred on x (along
+  // ### the bridge) and z = 0. It goes into list as plain triangle corners, each face turned outwards, for pierMesh.
+  const chamfered = (list, x, w0, d0, w1, d1, c, y0, y1) => {
+    const ring = (w, d, y) => { const a = w / 2, b = d / 2, k = Math.min(c, a, b); return [[a, -b + k], [a, b - k], [a - k, b], [-a + k, b], [-a, b - k], [-a, -b + k], [-a + k, -b], [a - k, -b]].map(([px, pz]) => [x + px, y, pz]); };
+    const lo = ring(w0, d0, y0), hi = ring(w1, d1, y1), my = (y0 + y1) / 2;
+    const tri = (p, q, r) => {
+      const u = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], v = [r[0] - p[0], r[1] - p[1], r[2] - p[2]];
+      const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+      const o = [(p[0] + q[0] + r[0]) / 3 - x, (p[1] + q[1] + r[1]) / 3 - my, (p[2] + q[2] + r[2]) / 3];
+      list.push(...p, ...(n[0] * o[0] + n[1] * o[1] + n[2] * o[2] < 0 ? [...r, ...q] : [...q, ...r]));
+    };
+    for (let i = 0; i < 8; i++){ const j = (i + 1) % 8; tri(lo[i], lo[j], hi[j]); tri(lo[i], hi[j], hi[i]); }
+    for (let i = 1; i < 7; i++){ tri(hi[0], hi[i], hi[i + 1]); tri(lo[0], lo[i], lo[i + 1]); }
+  };
   const pierMesh = parts => {
     const pos = [];
     for (const g of parts){ if (g.isBufferGeometry){ const a = (g.index ? g.toNonIndexed() : g).attributes.position.array; for (let i = 0; i < a.length; i++) pos.push(a[i]); } else pos.push(g); }
@@ -2402,13 +2436,17 @@ function buildCity(){
         piers.push(boxG(4.4, 2.2, 2 * TRUSS_Z + 2, x, BOT - 1.5, 0));
         for (const y of [BOT * 0.36, BOT * 0.7]) piers.push(boxG(2.4, 1.6, 9.2, x, y, 0));
       }
-      // ### The anchor block ends under the road, which runs on over it; the cables go into a saddle on each side. It stands on a
-      // ### wider plinth, has shallow vertical ribs on all four sides, so it does not read as one flat box, and a ledge under the
-      // ### road; it darkens towards the water like the piers.
+      // ### The anchor block ends under the road, which runs on over it; the cables go into a saddle on each side. After the real
+      // ### anchorage it is a mass of concrete that steps in twice as it rises: three tiers whose walls lean in a little, with
+      // ### chamfered corners, a band at each step, a footing and plinth below and a flared cornice under the road. It darkens
+      // ### towards the water like the piers.
       const ax = sx * (HALF + 8), AW = 2 * CZ + 8;
-      piers.push(boxG(26, 6, AW + 4, ax, 3, 0), boxG(22, 35.4, AW, ax, 6 + 35.4 / 2, 0), boxG(23.6, 1.4, AW + 1.6, ax, 40.7, 0));
-      for (let z = -AW / 2 + 3; z <= AW / 2 - 3; z += 4.5) for (const fx of [-11.3, 11.3]) piers.push(boxG(0.6, 34, 1.6, ax + fx, 6 + 17, z));
-      for (let x = -8; x <= 8; x += 4) for (const fz of [-AW / 2 - 0.3, AW / 2 + 0.3]) piers.push(boxG(1.6, 34, 0.6, ax + x, 6 + 17, fz));
+      for (const [w0, d0, w1, d1, c, y0, y1] of [
+        [30, AW + 8, 30, AW + 8, 2.4, 0, 3], [27, AW + 5, 26, AW + 4, 2.4, 3, 6],
+        [24, AW + 2, 23, AW + 1, 2.2, 6, 18], [23.8, AW + 1.8, 23.8, AW + 1.8, 2.2, 18, 18.8],
+        [22.4, AW + 0.4, 21.6, AW - 0.4, 2, 18.8, 30], [22.4, AW + 0.4, 22.4, AW + 0.4, 2, 30, 30.8],
+        [21, AW - 1, 20.4, AW - 1.6, 1.8, 30.8, 39.6], [20.4, AW - 1.6, 23, AW + 1, 1.8, 39.6, 40.6], [23, AW + 1, 23, AW + 1, 1.8, 40.6, 41.4]
+      ]) chamfered(piers, ax, w0, d0, w1, d1, c, y0, y1);
       for (const z of [-CZ, CZ]) concrete.push(boxG(9, 6, 2.6, sx * (HALF + 3), 44, z));
     }
     bridge.add(new THREE.Mesh(mergeGeos(steel), steelMat), new THREE.Mesh(mergeGeos(concrete), concreteMat), pierMesh(piers));
