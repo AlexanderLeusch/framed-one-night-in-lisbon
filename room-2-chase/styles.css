@@ -642,3 +642,8 @@ body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:
 .start-or{margin:0}
 /* the game's name on the start page: "Framed", with "One night in Lisbon" as a smaller outlined line under it */
 .start-head .m-logo em.sub{display:block;margin-top:.14em;font-size:.34em;line-height:1.05;letter-spacing:.01em;-webkit-text-stroke:1.4px var(--spark)}
+/* arriving from room 1: the same headlight glare room 1 ended in (its #leave); under the error screen, and it lets clicks through */
+#arrive{display:none;position:fixed;inset:0;z-index:45;pointer-events:none;transition:opacity 1.4s ease-out;background:radial-gradient(ellipse at 50% 56%,#fff 0,#fff6dc 16%,#e9c98a 34%,#3a2a18 62%,#07090d 100%)}
+#arrive:target{display:block}
+#arrive.gone{opacity:0}
+@media (prefers-reduced-motion:reduce){#arrive{transition:none}}

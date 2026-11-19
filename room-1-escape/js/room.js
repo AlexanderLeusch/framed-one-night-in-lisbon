@@ -22,8 +22,6 @@ const saved = R.restore(readStore(R.SAVE_KEY));
 const COARSE = matchMedia('(pointer: coarse)').matches;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-// the escape time on the Ending A card, to a tenth of a second, as room 2 shows it
-const fmtExact = t => { t = Math.round(Math.max(0, t) * 10) / 10; const m = Math.floor(t / 60); return m + ':' + (t - m * 60).toFixed(1).padStart(4, '0'); };
 const fmt = t => { t = Math.max(0, Math.ceil(t)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
 function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
@@ -4626,17 +4624,20 @@ function miniSound(n){
   }
 }
 
-// ### Shows one of the two endings. Ending A is the way into room 2: the escape time is handed over (Rules.handover, kept
-// ### in the browser's storage) and the card's main button opens the chase, where the drive is added to it.
+// ### Ends the game. Ending A has no card: it is the way into room 2. The escape time is handed over (Rules.handover, kept in
+// ### the browser's storage), the headlights of the car behind the door fill the screen (#leave) and the chase opens by
+// ### itself, in the same glare, so the door of the tunnel opens straight into the garage. Should the browser not follow,
+// ### a link appears in the glare after a few seconds. Ending B shows its card.
+const CHASE_URL = '../room-2-chase/?heist=1#arrive';
 function showEnding(){
   const A = S.ending === 'A', E = R.ENDINGS[S.ending];
   if (A){
     writeStore(R.HEIST_KEY, R.handover(S, Date.now()));
-    return showCard(`<div class="eyebrow">Room 1 complete · Ending A of 2</div>
-    <h1>To the <em>car</em></h1><p>${esc(E.text)}</p>
-    <p>Escape time: <b>${fmtExact(R.escapeTime(S))}</b> · Clues: <b>${S.clues.length} of 3</b> · Wrong codes: <b>${S.wrongTries}</b>${S.wedged ? ' · You jammed the door' : ''}</p>
-    <div class="next">Room 2 · The chase · your escape time goes with you and the drive is added to it</div>
-    <div class="actions"><a class="btn" href="../room-2-chase/?heist=1">Start the chase <small>Enter</small></a><button class="btn ghost" data-do="new">Play room 1 again</button></div>`, 'ending-a');
+    const g = $('leave');
+    $('leaveLink').href = CHASE_URL;
+    g.hidden = false; void g.offsetWidth; g.classList.add('on');
+    setTimeout(() => { location.assign(CHASE_URL); }, REDUCED ? 50 : 1100);
+    return;
   }
   showCard(`<div class="eyebrow">${A ? 'Ending A of 2' : 'Ending B of 2'}</div>
     <h1>${A ? 'Out <em>below</em>' : 'Back to <em>the cell</em>'}</h1><p>${esc(E.text)}</p>
@@ -4995,7 +4996,7 @@ function updateCine(dt){
 // ### the tunnel yourself, as in the washroom, tearing through the cobwebs across the vault, to the old plank door at
 // ### its far end; on a touch screen a button walks you there. Click the door (or its marker) when you stand in front
 // ### of it: the latch clacks, the door creaks open on its old hinges and swings out, the headlights of the car waiting
-// ### in the garage behind it shine in, and only then comes the ending card.
+// ### in the garage behind it shine in, fill the screen, and room 2 opens in that light (showEnding).
 // ### Ending B: the door is flung open, white corridor light floods in, then the card.
 let hatchAnim = -1, doorFlash = 0, endingShown = false, climb = null, endStep = 0, tunnelWalk = null;
 const CLIMB = { mount: 1.4, step: .74, steps: 8, off: 2.2, eye: .55 };

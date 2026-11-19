@@ -234,7 +234,10 @@ test('the story runs on from room 1 into room 2', () => {
   // Ending A leads into room 2 and takes the escape time along; the start page begins the heist in room 1
   const room = read('room-1-escape/js/room.js');
   assert.match(room, /writeStore\(R\.HEIST_KEY, R\.handover\(S, Date\.now\(\)\)\)/, 'Ending A hands the escape time over');
-  assert.match(room, /<a class="btn" href="\.\.\/room-2-chase\/\?heist=1">/, 'the Ending A card opens room 2');
+  assert.match(room, /const CHASE_URL = '\.\.\/room-2-chase\/\?heist=1#arrive';/, 'Ending A leads into room 2');
+  assert.match(room, /location\.assign\(CHASE_URL\)/, 'room 2 opens by itself, with no card in between');
+  assert.match(read('room-2-chase/styles.css'), /#arrive:target\{display:block\}/, 'room 2 opens in the glare room 1 ended in');
+  assert.doesNotMatch(game, /data-action="heist"/, 'no card stands between the tunnel and the garage');
   assert.match(game, /Core\.parseHeist\(readStore\(Core\.HEIST\.key\), Date\.now\(\)\)/, 'room 2 reads the handover through the rules');
   assert.match(read('index.html'), /<a class="start-heist" href="room-1-escape\/">/, 'the start page starts the heist in room 1');
   const sql = read('supabase/schema.sql');

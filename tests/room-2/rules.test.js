@@ -1046,9 +1046,6 @@ test('the heist: the escape time from room 1 is read only when it is possible an
   assert.equal(Core.parseHeist(ok, NaN), null);
   assert.equal(Core.heistTotal(200.46, 99.5), 299.96);
   for (const [e, d] of [[0, 60], [661, 60], [200, 9], [200, 901], [NaN, 60], [200, '60']]) assert.equal(Core.heistTotal(e, d), null, e + ' + ' + d);
-  assert.equal(Core.actionAllowed('heist', { state: 'menu' }), true);
-  assert.equal(Core.actionAllowed('heist', { state: 'play' }), false);
-  assert.equal(Core.actionAllowed('heist', { state: 'done' }), false);
 });
 
 test('the heist leaderboard keeps each driver\'s best heist, fastest first, and drops what cannot be', () => {

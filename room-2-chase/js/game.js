@@ -5970,31 +5970,27 @@ function setDriver(raw){
 }
 
 // ---------- The whole heist: room 1 and room 2 as one time ----------
-// ### A player who comes from room 1 (its Ending A card links here with ?heist=1) brings their escape time along (Core.parseHeist
-// ### reads what room 1 left in the browser's storage). They are met by a short card instead of the menu and go straight to the
-// ### garage. When that Lisbon run is finished, the escape and the drive are added up to the heist time, which goes on the
+// ### A player who comes from room 1 (after Ending A it opens this page with ?heist=1#arrive) brings their escape time along
+// ### (Core.parseHeist reads what room 1 left in the browser's storage). There is no menu and no card for them: the page opens
+// ### in the glare of the headlights they walked into (#arrive, shown by the address alone) and it clears on the garage. When that Lisbon run is finished, the escape and the drive are added up to the heist time, which goes on the
 // ### heist leaderboard: on this device and, when signed in, online. A failed drive can be tried again and the heist stays
 // ### open; going back to the menu ends it. heist.run: the heist being played; last: the one just finished, for the end
 // ### screen; pending: waiting for a driver name; list: this device's board; online: everybody's, once loaded.
-const heist = { arrived: null, run: null, last: null, pending: null, rank: null, list: Core.parseHeistBoard(readStore(Core.HEIST.store)), online: null, net: null };
+const heist = { cold: false, run: null, last: null, pending: null, rank: null, list: Core.parseHeistBoard(readStore(Core.HEIST.store)), online: null, net: null };
 // ### Reads the handover from room 1; null when the page was not opened from there or the handover is not valid.
 function heistArrival(){
   return /[?&]heist=1(&|$)/.test(location.search) ? Core.parseHeist(readStore(Core.HEIST.key), Date.now()) : null;
 }
-// ### The card that meets a player who comes out of the tunnel: the escape time, and the way into the garage.
-function showHeistArrival(h){
-  heist.arrived = h;
-  state = 'menu';
-  hud.classList.add('off');
-  showCard(`<div class="eyebrow">Room 2 · The chase · 02:30</div>
-    <h1>Out of <em>the tunnel</em></h1>
-    <p>The door at the end of the tunnel opens into a lock-up garage under the Baixa. Three vehicles, and every police car in Lisbon looking for inmate 4471. Find the six pieces of evidence, pick up the witness and get out over the bridge.</p>
-    <div class="heist-sum"><div><span class="eyebrow">Escape · room 1</span><b>${fmtTimeExact(h.escape)}</b></div><i>+</i><div><span class="eyebrow">Drive · room 2</span><b>?</b></div><i>=</i><div class="total"><span class="eyebrow">Heist time</span><b>?</b></div></div>
-    <p class="note">Your drive time is added to your escape time. The total goes on the heist leaderboard.</p>
-    <div class="actions">
-      <button class="btn" data-action="heist">Into the garage <small class="desk-only">Enter</small></button>
-      <button class="btn ghost" data-action="menu">Main menu</button>
-    </div>`);
+// ### Straight from the tunnel into the garage: no menu and no card. The page was opened by room 1, not by a click here, so the
+// ### sound and (on a phone) the motion sensor may not be started yet: they start with the first key or tap in the garage.
+function heistBegin(h){
+  story = null; heist.run = { escape: h.escape }; heist.cold = true;
+  startRun('city', sel.veh, true);
+  enterGarage();
+  heist.cold = false;
+  toast(`Out of the tunnel. Escape time ${fmtTimeExact(h.escape)}, the drive is added.`, '', 7000);
+  const wake = () => { removeEventListener('pointerdown', wake, true); removeEventListener('keydown', wake, true); initAudio(); tiltAsk(); };
+  addEventListener('pointerdown', wake, true); addEventListener('keydown', wake, true);
 }
 // ### Loads everybody's heists. Fails quietly: this device's list stays.
 async function loadHeists(){
@@ -6289,8 +6285,7 @@ function resetCar(){
 function startRun(m, v, viaGarage){
   garageLeave();
   endFinale(); hideWitness();
-  initAudio();
-  tiltAsk();
+  if (!heist.cold){ initAudio(); tiltAsk(); }
   setVehicle(v || V.key);
   setMode(m || mode);
   placeRun();
@@ -7359,7 +7354,6 @@ card.addEventListener('click', e => {
   if (!Core.actionAllowed(a, { state, story })) return;
   initAudio();
   if (a === 'go'){ story = null; startRun(sel.mode, sel.veh, true); if (mode === 'city') enterGarage(); }
-  else if (a === 'heist'){ if (!heist.arrived) return; story = null; heist.run = { escape: heist.arrived.escape }; startRun('city', sel.veh, true); enterGarage(); }
   else if (a === 'board') garageBoard();
   else if (a === 'street') garageToStreet(false);
   else if (a === 'again') startRun(mode, V.key);
@@ -9424,9 +9418,14 @@ placeRun();
 resetCar();
 resetNpcs();
 renderChips();
-// from room 1 with a valid escape time: the arrival card; otherwise the menu
-{ const h = heistArrival(); if (h) showHeistArrival(h); else showMenu(); }
+showMenu();
 warmUp();
+// from room 1 with a valid escape time: straight into the garage; the glare of the headlights clears once it has been drawn
+{
+  const h = heistArrival(), glare = $('arrive');
+  if (h) heistBegin(h);
+  if (glare) requestAnimationFrame(() => requestAnimationFrame(() => glare.classList.add('gone')));
+}
 // a saved online login is checked only now: while the world is being built the page is too busy to answer in time
 if (net && net.user) setTimeout(afterSignIn, 0);
 requestAnimationFrame(frame);

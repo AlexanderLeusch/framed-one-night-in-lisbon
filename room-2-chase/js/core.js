@@ -267,7 +267,7 @@
     const state = ctx && ctx.state, story = ctx && ctx.story;
     if (state === 'play') return false;
     switch (action){
-      case 'go': case 'heist': return state === 'menu';
+      case 'go': return state === 'menu';
       case 'story': return state === 'menu' || (state === 'done' && !!story && story.act + 1 >= STORY_ACTS);
       case 'again': return state === 'done' || state === 'over' || state === 'pause';
       case 'resume': return state === 'pause';

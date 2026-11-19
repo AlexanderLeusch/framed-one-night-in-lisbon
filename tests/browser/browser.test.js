@@ -258,27 +258,25 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await evaluate('localStorage.clear(), true');
     });
 
-    await chase('the heist: from room 1 with an escape time you are met at the tunnel and go to the garage; rejected: a tampered or missing escape time opens the menu', async () => {
+    await chase('the heist: from room 1 with an escape time you stand in the garage at once, with no menu and no card; rejected: a tampered or missing escape time opens the menu', async () => {
       await evaluate("localStorage.setItem('shard-heist-handover', JSON.stringify({ escape: 187.7, at: Date.now() })), true");
       errors.length = 0;
-      await send('Page.navigate', { url: base + 'room-2-chase/?heist=1' });
-      await waitFor("!document.getElementById('overlay').hidden && !!document.querySelector('[data-action=\"heist\"]')", LOAD_MS, 'the arrival card');
-      assert.match(await text('.heist-sum'), /Escape · room 13:07\.7/, 'the escape time from room 1 is shown');
+      await send('Page.navigate', { url: base + 'room-2-chase/?heist=1#arrive' });
+      await waitFor(inGarage, LOAD_MS, 'the garage, straight from the tunnel');
       assert.equal(await evaluate("!!document.querySelector('[data-action=\"go\"]')"), false, 'the menu is skipped');
-      await click('[data-action="heist"]');
-      await waitFor(inGarage, 30000, 'the garage after the arrival card');
+      assert.match(await text('#toast'), /Escape time 3:07\.7, the drive is added/, 'the escape time from room 1 is shown');
+      await waitFor("document.getElementById('arrive').classList.contains('gone')", 10000, 'the glare of the headlights clears');
       assert.deepEqual(errors, []);
-      // rejected: an impossible escape time, and an old one, are not a heist
-      for (const bad of ["JSON.stringify({ escape: 5000, at: Date.now() })", "JSON.stringify({ escape: 187.7, at: Date.now() - 7 * 3600 * 1000 })", "'{'"]){
-        await evaluate("localStorage.setItem('shard-heist-handover', " + bad + "), true");
-        await send('Page.navigate', { url: base + 'room-2-chase/?heist=1' });
-        await waitFor(menuReady, LOAD_MS, 'main menu for ' + bad);
-        assert.equal(await evaluate("!!document.querySelector('[data-action=\"heist\"]')"), false, bad);
-      }
-      // a valid escape time alone is not enough: only the link from room 1 (?heist=1) starts a heist
+      // rejected: an impossible escape time is not a heist (old and broken ones are covered by the unit tests), and the glare still clears
+      await evaluate("localStorage.setItem('shard-heist-handover', JSON.stringify({ escape: 5000, at: Date.now() })), true");
+      await send('Page.navigate', { url: base + 'room-2-chase/?heist=1#arrive' });
+      await send('Page.reload');
+      await waitFor(menuReady, LOAD_MS, 'main menu for an impossible escape time');
+      await waitFor("document.getElementById('arrive').classList.contains('gone')", 10000, 'no glare over the menu');
+      // a valid escape time alone is not enough: only the way from room 1 (?heist=1) starts a heist
       await evaluate("localStorage.setItem('shard-heist-handover', JSON.stringify({ escape: 187.7, at: Date.now() })), true");
       await load();
-      assert.equal(await evaluate("!!document.querySelector('[data-action=\"heist\"]')"), false);
+      assert.equal(await evaluate(inGarage), false);
       await evaluate('localStorage.clear(), true');
     });
     await chase('error screen: a blocked library shows a clear message instead of a black page', async () => {
@@ -588,9 +586,14 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await key('keyup', 'ArrowUp');
       assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'still no card while the door is shut');
       await hs('open:door');
-      await waitFor("/Ending A/.test((document.querySelector('#card .eyebrow') || {}).textContent || '')", 60000, 'Ending A card');
-      assert.match(await text('#card'), /Took you long enough/);
+      // Ending A has no card: the headlights fill the screen and room 2 opens by itself, in the garage, with the escape time
+      await waitFor("location.pathname.endsWith('/room-2-chase/') && " + inGarage, 240000, 'room 2 opens in the garage after Ending A');
+      assert.equal(await evaluate("location.search + location.hash"), '?heist=1#arrive');
+      const handed = JSON.parse(await evaluate("localStorage.getItem('shard-heist-handover')"));
+      assert.ok(handed.escape >= 30 && handed.escape <= 600, 'the escape time went along: ' + handed.escape);
+      assert.match(await text('#toast'), /Out of the tunnel\. Escape time/);
       assert.deepEqual(errors, []);
+      await evaluate("localStorage.removeItem('shard-heist-handover'), true");
       await evaluate("localStorage.removeItem('escape-room-save'), true");
       await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: fixedRandom });
     });
