@@ -1,0 +1,14 @@
+Officer Hale (hale.glb) is built from the MakeHuman base mesh "hm08", its body targets, its default skeleton with
+its weights, and its high-poly eyes (hale-eye.jpg is MakeHuman's brown eye texture, made smaller). These
+MakeHuman assets were explicitly released as CC0 1.0 in September 2020 by their copyright holders (Data Collection AB,
+Joel Palmius, Jonas Hauquier); see http://www.makehumancommunity.org and
+https://github.com/makehumancommunity/makehuman. They were taken once from the makehuman 1.3.2 package and its
+GitHub repository and turned into this file offline: the body shaped as a man in his fifties, the face and hand bones
+folded into their parents (66 bones), the uniform, belt, cap and boots fitted to the body, and the skin painted
+(hale-skin.jpg and hale-skin-bump.jpg are our own work). Nothing from MakeHuman is installed or
+loaded at run time.
+
+CC0 1.0 Universal: the persons who associated a work with this deed have dedicated the work to the public domain by
+waiving all of their rights to the work worldwide under copyright law, including all related and neighbouring
+rights, to the extent allowed by law. You can copy, modify, distribute and perform the work, even for commercial
+purposes, all without asking permission. https://creativecommons.org/publicdomain/zero/1.0/
