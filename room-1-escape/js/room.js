@@ -1766,7 +1766,7 @@ haleShadow.position.set(.1, .004, 2.3); haleShadow.rotation.x = -Math.PI / 2; ro
 // ### Officer Hale as a real man. The figure above is only the stand-in until models/hale.glb has loaded (or if it cannot
 // ### be loaded). The model is made from the free MakeHuman base mesh (CC0, see models/LICENSE-hale.txt): a real male body
 // ### in his fifties, shaped by MakeHuman's own measurements, with its skeleton of 66 bones, real eyes and a painted skin
-// ### (textures/hale-skin.jpg and its bump map): stubble, grey cropped hair at the sides, eyebrows, the lines of his face.
+// ### (models/hale-skin.jpg and its bump map): stubble, grey cropped hair at the sides, eyebrows, the lines of his face.
 // ### Over it the uniform is fitted to the body: a navy wool tunic and trousers, a light blue shirt collar with a dark tie,
 // ### a duty belt with pouches, a buckle and keys, a badge, a name plate, boots and a peaked cap. Every piece of it is
 // ### bound to the skeleton, so he can move: his head turns to you, his right hand reaches for the edge of the door and
@@ -1791,7 +1791,7 @@ function readHuman(buf){
 function buildRealHale(buf){
   const h = readHuman(buf), g = new THREE.Group(), mats = [];
   const mat = o => { const m = new THREE.MeshStandardMaterial(Object.assign({ transparent: true, opacity: 0, skinning: true }, o)); mats.push(m); return m; };
-  const own = (file, srgb) => { const t = new THREE.TextureLoader().load('textures/' + file, shadowsMoved); t.flipY = false; t.anisotropy = ANISO; if (srgb) t.encoding = THREE.sRGBEncoding; return t; };
+  const own = (file, srgb) => { const t = new THREE.TextureLoader().load(file, shadowsMoved); t.flipY = false; t.anisotropy = ANISO; if (srgb) t.encoding = THREE.sRGBEncoding; return t; };
   // the scans of the old figure, in units of one scan: the cloth pieces carry their UVs in metres
   const tiled = (file, srgb, size) => SCAN(file, srgb, 1 / size, 1 / size);
   const scanned = ([color, normal, rough], size, o) => mat(Object.assign({ map: tiled(color, true, size), normalMap: tiled(normal, false, size), roughnessMap: tiled(rough, false, size), side: THREE.DoubleSide }, o));
@@ -1801,8 +1801,8 @@ function buildRealHale(buf){
   const cap = scanned(WOOL, .2, { roughness: 1, normalScale: new THREE.Vector2(.7, .7), envMapIntensity: .25 }); cap.color.setRGB(.07, .085, .13);
   const leather = scanned(LEATHER, .4, { roughness: .8, normalScale: new THREE.Vector2(.5, .5), envMapIntensity: .6 }); leather.color.setRGB(.13, .13, .14);
   const M = {
-    skin: mat({ map: own('hale-skin.jpg', true), bumpMap: own('hale-skin-bump.jpg', false), bumpScale: .0012, roughness: .58, envMapIntensity: .3 }),
-    eyes: mat({ map: own('hale-eye.jpg', true), roughness: .35, envMapIntensity: .4 }),
+    skin: mat({ map: own('models/hale-skin.jpg', true), bumpMap: own('models/hale-skin-bump.jpg', false), bumpScale: .0012, roughness: .58, envMapIntensity: .3 }),
+    eyes: mat({ map: own('models/hale-eye.jpg', true), roughness: .35, envMapIntensity: .4 }),
     cornea: mat({ color: 0xffffff, roughness: .03, envMapIntensity: 1.5, depthWrite: false }),
     shirt: wool, trousers, cap, boots: leather, belt: leather,
     collar: mat({ color: 0x9db3c8, roughness: .8, normalMap: tiled('shirt-poplin-normal.jpg', false, .29), normalScale: new THREE.Vector2(.8, .8), envMapIntensity: .2, side: THREE.DoubleSide }),
