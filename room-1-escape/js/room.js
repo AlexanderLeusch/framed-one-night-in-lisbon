@@ -1039,7 +1039,10 @@ const MIRROR = (() => {
         handCamM.matrix.multiplyMatrices(camera.matrixWorldInverse, mcam.matrixWorld); handCamM.matrixWorldNeedsUpdate = true;
         handCamM.projectionMatrix.copy(mcam.projectionMatrix); handCamM.projectionMatrixInverse.copy(mcam.projectionMatrix).invert();
         bendArms(me, true);
+        const body = ME && ME.g.visible;   // the figure above already is your body in the mirror
+        if (body) ME.g.visible = false;
         renderer.autoClear = false; renderer.render(handScene, handCamM); renderer.autoClear = true;
+        if (body) ME.g.visible = true;
         bendArms(me, false);
       }
       renderer.setRenderTarget(null);
@@ -3820,7 +3823,7 @@ const VIEWS = {
   cell: { pos: [0, 1.62, 1.1], look: [0, 1.45, 3] },
   closing: { pos: [.5, 1.5, -.3], look: [-.05, 1.05, 3] }
 };
-const EYE = 1.62, WALK_SPEED = 1.7, BODY = .26, LOOK_SPEED = .0042;
+const EYE = 1.62, WALK_SPEED = 1.7, BODY = .26, LOOK_SPEED = .0042, NECK_BEND = .15;   // NECK_BEND: the eyes' distance from where the head bends
 // lookYaw and lookPitch are where the mouse points the head; yaw and pitch follow them within a few milliseconds, so uneven
 // mouse events never make the picture jerk
 const cam = { pos: new THREE.Vector3(...VIEWS.intro.pos), yaw: 0, pitch: 0, lookYaw: 0, lookPitch: 0, from: null, t: 1, dur: 1,
@@ -3952,9 +3955,11 @@ function updateCamera(dt){
     cam.yaw += (cam.lookYaw - cam.yaw) * k; cam.pitch += (cam.lookPitch - cam.pitch) * k;
     walk(dt);
   }
-  // the weight shift moves the eye sideways (to the right of where you look) and tilts the head a little with it
-  camera.position.set(cam.pos.x + Math.cos(cam.yaw) * cam.sway, cam.pos.y + cam.bob, cam.pos.z + Math.sin(cam.yaw) * cam.sway);
-  camera.rotation.set(clamp(cam.pitch, -1.4, 1.4), -cam.yaw, -cam.sway * .45);
+  // the weight shift moves the eye sideways (to the right of where you look) and tilts the head a little with it; looking
+  // down, the head bends forward on the neck as a real one does, so the eyes come forward and a little lower, over your feet
+  const bend = Math.max(0, -clamp(cam.pitch, -1.5, 1.4)), ahead = NECK_BEND * Math.sin(bend), drop = NECK_BEND * (1 - Math.cos(bend));
+  camera.position.set(cam.pos.x + Math.cos(cam.yaw) * cam.sway + Math.sin(cam.yaw) * ahead, cam.pos.y + cam.bob - drop, cam.pos.z + Math.sin(cam.yaw) * cam.sway - Math.cos(cam.yaw) * ahead);
+  camera.rotation.set(clamp(cam.pitch, -1.5, 1.4), -cam.yaw, -cam.sway * .45);
 }
 let drag = null;
 canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }; try { canvas.setPointerCapture(e.pointerId); } catch (err) {} initAudio(); });
@@ -3964,7 +3969,7 @@ canvas.addEventListener('pointermove', e => {
     // the first few pixels decide between a click and a drag; once it is a drag, every pixel turns the head
     if (drag.moved > 6){
       if (!drag.looking){ drag.looking = true; canvas.classList.add('dragging'); $('lookHint').classList.add('gone'); }
-      if (cam.t >= 1){ cam.lookYaw += dx * LOOK_SPEED; cam.lookPitch = clamp(cam.lookPitch - dy * LOOK_SPEED, -1.3, 1.25); }
+      if (cam.t >= 1){ cam.lookYaw += dx * LOOK_SPEED; cam.lookPitch = clamp(cam.lookPitch - dy * LOOK_SPEED, -1.48, 1.25); }
     }
   } else pendingHover = e;
 });
@@ -3980,11 +3985,15 @@ if (COARSE) $('lookHint').textContent = 'Drag to look around · tap the markers'
 // ### they have loaded, or if they cannot load (for example when the page is opened straight from the folder), simple
 // ### drawn hands stand in. They hide during the endings. With reduced motion they hold still.
 const handScene = new THREE.Scene(), handCam = new THREE.PerspectiveCamera();
-handScene.add(new THREE.HemisphereLight(0xb9c6bf, 0x1c1410, .42));
+// (the scene's lights are set as seen when you look straight ahead; drawHands turns them as you look up or down, so the
+// light on your hands and your body keeps coming from the lamps on the ceiling and bouncing up from the floor)
+const HAND_LIGHTS = [new THREE.HemisphereLight(0xb9c6bf, 0x1c1410, .42)];
 {
-  const key = new THREE.DirectionalLight(0xe8ecdf, .62); key.position.set(.2, 1, -.4); handScene.add(key);
-  const fill = new THREE.DirectionalLight(0xd9c7b8, .18); fill.position.set(-.3, -.4, .6); handScene.add(fill);   // light bouncing off the floor
-  const red = new THREE.PointLight(0xff2a1a, .12, 3); red.position.set(-.8, .5, -.6); handScene.add(red);   // the emergency lamps
+  const key = new THREE.DirectionalLight(0xe8ecdf, .62); key.position.set(.2, 1, -.4);
+  const fill = new THREE.DirectionalLight(0xd9c7b8, .18); fill.position.set(-.3, -.4, .6);   // light bouncing off the floor
+  const red = new THREE.PointLight(0xff2a1a, .12, 3); red.position.set(-.8, .5, -.6);   // the emergency lamps
+  HAND_LIGHTS.push(key, fill, red);
+  for (const l of HAND_LIGHTS){ l.userData.at = l.position.clone(); handScene.add(l); }
 }
 const brnd = mulberry32(4471);   // the cloth's and the boots' own random numbers, so the room keeps its look
 // ### The skin of the real hands, drawn at 0.2 mm a pixel: the warm base with faint blotches and redder patches, freckles,
@@ -4217,7 +4226,7 @@ function updateHands(dt){
     // every step the next swing gets its own size, so no two strides look the same
     if (Math.floor(steps) !== h.step){ h.step = Math.floor(steps); h.ampT = .78 + Math.random() * .4; }
     h.amp += (h.ampT - h.amp) * (1 - Math.exp(-dt * 3));
-    const swing = Math.sin(ph + (side > 0 ? Math.PI : 0) + wobble(sd, t * .5) * .25) * sp * h.amp;
+    const swing = h.swing = Math.sin(ph + (side > 0 ? Math.PI : 0) + wobble(sd, t * .5) * .25) * sp * h.amp;
     const out = key === 'r' ? reach : 0, R = HAND_REACH, idle = (1 - sp * .6) * still;
     const breathe = Math.sin(t * 1.6 + sd) * .0028 * still;
     // where the arm should be: rest pose, the swing (the elbow bends more on the way forward), a slow drift, the reach
@@ -4260,6 +4269,7 @@ function updateHands(dt){
     }
     poseFingers(h, side, spread);
   }
+  poseBody(dt, show);
 }
 // ### Bends every finger joint of a real hand by its curl (index to little finger, then the thumb) and spreads them.
 function poseFingers(h, side, spread){
@@ -4271,12 +4281,16 @@ function poseFingers(h, side, spread){
   h.thumb.forEach((j, n) => { const c = h.curl[4] * [.5, 1, .9][n]; j.o.quaternion.copy(j.rest).multiply(q.setFromEuler(e.set(-c, n ? 0 : -side * c * .4, 0))); });
 }
 // ### Draws the hands over the room with the same lens as the eye, after clearing the depth so nothing hides them.
+const _lq = new THREE.Quaternion(), _le = new THREE.Euler();
 function drawHands(){
   if (!HANDS.r.arm.visible) return;
   handScene.environment = scene.environment;
   // down in the tunnel only the bulbs light your hands, until the door lets the night in
   const lit = 1 - clamp(-camera.position.y / 1.5, 0, 1) * .6 + nightLight.intensity * .08;
   handScene.traverse(l => { if (l.isLight){ if (l.userData.i0 === undefined) l.userData.i0 = l.intensity; l.intensity = l.userData.i0 * lit; } });
+  // the lights stay where they are in the room when you look up or down (on the ladder they keep their own look)
+  _lq.setFromEuler(_le.set(climb ? 0 : clamp(cam.pitch, -1.5, 1.4), 0, climb ? 0 : -cam.sway * .45, 'YXZ')).invert();
+  for (const l of HAND_LIGHTS) l.position.copy(l.userData.at).applyQuaternion(_lq);
   handCam.projectionMatrix.copy(camera.projectionMatrix); handCam.projectionMatrixInverse.copy(camera.projectionMatrixInverse);
   renderer.autoClear = false; renderer.clearDepth();
   if (climb && climb.hands) renderer.render(GRIP_MASK, camera);   // on the ladder the rungs hide what wraps round behind them
@@ -5170,7 +5184,7 @@ function clothTube(profile, bunch, seg = 24, rows = 36, dirt, seal = [1, 1]){
   return geo;
 }
 // ### A leather work boot (or its sole), shaped from a sphere: the ankle at the origin, the toe towards -z. Along its
-// ### length it is narrow at the heel and widest at the ball of the foot with a round toe; its cross-section is a
+// ### length it is narrow at the heel and widest at the ball of the foot with a broad round toe; its cross-section is a
 // ### rounded rectangle from the sole (bottom) to the top, which rises into the shaft round the ankle and slopes down
 // ### to the toe. Creases cross the instep where the boot bends. bootPoint gives one point of that surface, from a
 // ### point of the unit sphere, so the eyelets and laces can be put right on the leather.
@@ -5178,7 +5192,7 @@ const smoothStep = (a, b, v) => { const q = clamp((v - a) / (b - a), 0, 1); retu
 function bootPoint(sx, sy, sz, bottom, topAt, widen, creases, out){
   const sq = v => Math.sign(v) * Math.pow(Math.abs(v), .55);   // a circle pushed out towards a rounded square
   const rho = Math.sqrt(Math.max(0, 1 - sy * sy)), t = (1 - sy) / 2, cx = rho > 1e-5 ? sx / rho : 0, cz = rho > 1e-5 ? sz / rho : 0;
-  const w = .034 + .017 * Math.sin(Math.PI * Math.min(1, t * 1.12)) + widen;
+  const w = .034 + .019 * Math.sin(Math.PI * Math.min(1, t * .9)) + widen;   // widest at the ball of the foot, a broad round toe
   const tip = Math.pow(rho, t > .5 ? .5 : .32);   // round at the heel and the toe
   const top = topAt(t), h = (sq(cz) + 1) / 2;
   let y = bottom + (top - bottom) * h * (.35 + .65 * tip) + (top - bottom) * .65 * (1 - tip) * .5;
@@ -5229,7 +5243,12 @@ function buildBody(){
   const g = new THREE.Group(); handScene.add(g);
   const add = (o, parent) => { o.frustumCulled = false; (parent || g).add(o); return o; };
   const mesh = (geo, m, parent) => add(new THREE.Mesh(geo, m || mat), parent);
-  const ball = (r, dust = 0) => { const geo = plainColours(new THREE.SphereGeometry(r, 16, 12)), c = geo.attributes.color; for (let i = 0; i < c.count; i++) c.setXYZ(i, 1 - dust * .3, 1 - dust * .36, 1 - dust * .46); return mesh(geo); };
+  const ball = (r, dust = 0) => {
+    const geo = plainColours(new THREE.SphereGeometry(r, 16, 12)), c = geo.attributes.color, uv = geo.attributes.uv;
+    for (let i = 0; i < c.count; i++) c.setXYZ(i, 1 - dust * .3, 1 - dust * .36, 1 - dust * .46);
+    for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * Math.PI * r / .42);   // stripes as wide as on a leg (4.2 to 0.42 m)
+    return mesh(geo);
+  };
   const two = f => [f(), f()];
   // the chest: hips (y = -1) to the base of the neck (y = 0), a body's outline, scaled to 38 by 22 cm
   const torso = add(new THREE.Group());
@@ -5245,10 +5264,11 @@ function buildBody(){
   }) }), torso);
   patch.position.set(-.07, -.17, -.112); patch.rotation.set(-.12, Math.PI, 0);
   // the buttons down the front of the shirt, on a placket of doubled cloth
-  const button = new THREE.MeshStandardMaterial({ color: 0x2c2a27, roughness: .45 });
+  const button = new THREE.MeshStandardMaterial({ color: 0x2c2a27, roughness: .45 }), buttons = [];
   for (let k = 0; k < 6; k++){
     const q = .1 + k * .15, r = profileAt(CHEST, 1 - q) * .11;
     const b = mesh(new THREE.CylinderGeometry(.0065, .0065, .003, 12).rotateX(Math.PI / 2), button, torso); b.position.set(0, -q * CHEST_LEN, -r - .004);
+    buttons.push({ b, q, r });
   }
   // a boot: upper, sole with its heel, and the laces criss-crossing between two rows of brass eyelets on the leather
   const upperTop = t => .075 - .088 * smoothStep(.3, .72, t) - .012 * smoothStep(.85, 1, t);
@@ -5272,9 +5292,10 @@ function buildBody(){
     const cord = (A, B) => { const d = B.clone().sub(A), m = mesh(new THREE.CylinderGeometry(.0017, .0017, 1, 5), lace, b); m.position.copy(A).addScaledVector(d, .5); m.quaternion.setFromUnitVectors(AXIS_Y, d.clone().normalize()); m.scale.y = d.length(); };
     cord(holes[holes.length - 1][0], holes[holes.length - 1][1]);
     for (let k = holes.length - 1; k > 0; k--){ cord(holes[k][0], holes[k - 1][1]); cord(holes[k][1], holes[k - 1][0]); }
+    bakeArm(b);   // the boot's thirty parts drawn in four calls, one per material
     return b;
   };
-  return { g, torso, chest,
+  return { g, torso, chest, buttons,
     shoulder: two(() => ball(.064)),
     upper: two(() => mesh(clothTube([[0, .05], [.35, .057], [.75, .064], [1, .066]], [[.1, .2, .09], [.9, .12, .04]], 24, 36, (y, a) => (1 - smooth(0, .3, y)) * .25 * patchy(a, y)))),
     elbow: two(() => ball(.049)),
@@ -5400,7 +5421,13 @@ function climbHands(dt){
     const boot = ME.boot[i]; boot.position.copy(toCam(ankle)); boot.quaternion.copy(_qc).multiply(_qy);
   }
   // the chest: an oval of 38 by 22 cm from the base of the neck to the hips, turned with the body
-  ME.torso.position.copy(toCam(neck)); ME.torso.quaternion.copy(_qc).multiply(_qy); ME.chest.scale.set(.19, (neck.y - hips.y) * 1.12, .11);
+  ME.torso.position.copy(toCam(neck)); ME.torso.quaternion.copy(_qc).multiply(_qy); fitShirt(neck.y - hips.y);
+}
+// ### Fits the shirt to a body len metres from the base of the neck to the hips (the hem hangs 12 % lower), its buttons
+// ### down the front; breath swells the chest a little.
+function fitShirt(len, breath = 1){
+  ME.chest.scale.set(.19 * breath, len * 1.12, .11 * breath);
+  for (const { b, q, r } of ME.buttons) b.position.set(0, -q * len * 1.12, -r * breath - .004);
 }
 // ### Puts the sleeves back to their own length and hides the body once you have let go of the ladder.
 function leaveLadder(){
@@ -5409,6 +5436,289 @@ function leaveLadder(){
   for (const key of ['r', 'l']) HANDS[key].arm.children.forEach(o => { if (o.material === HAND_MAT.sleeve) o.scale.z = 1; });
   if (ME) ME.g.visible = false;
 }
+
+// ---------- Your body when you look down ----------
+// ### Look down and you see yourself as you would in life: the striped shirt over your chest and belly with its buttons,
+// ### the trousers, your knees, your leather boots on the floor, and your arms hanging at your sides with the hands by
+// ### your thighs. It is the body from the ladder (buildBody), standing on its own feet. The boots stay planted where they
+// ### stand while you walk over them: at every footfall (as you hear it) one lands in front of you, heel first, while the
+// ### other rolls up onto its toes behind you and swings through, lifted clear of the floor, and the knees bend as they
+// ### would. Walking sideways your legs turn the way you go and your chest half way; walking backwards you step back.
+// ### Standing, the legs stay put while you look round, until your head turns so far that they take a step or two to face
+// ### the same way; when you stop, the feet come together in a step or two. Kneeling at the hatch, you kneel, your hands
+// ### on your thighs. As you look down, your hands leave the bottom of the picture and hang at your sides. The head bends
+// ### forward on the neck (see updateCamera), so you see past your chest to your feet. Under you lies your shadow from
+// ### the lamps. The body only exists in the picture while you look down far enough to see it; with reduced motion the
+// ### legs still step (you still walk), but the hands hold still as before.
+const STAND = { torso: .52, hipW: .095, thigh: .42, shin: .385, ankle: .111, tilt: -.1, apart: .1, out: .12, lead: .22 };
+const LEG = STAND.thigh + STAND.shin;
+// the two points a boot rocks on: the ball of the foot under the sole and the back of the heel (the boot's own space,
+// ankle at the origin); STAND.tilt stands the boot so its heel and toe both touch the floor, the ankle STAND.ankle above it
+const BALL = new THREE.Vector3(0, -.093, -.15), HEEL = new THREE.Vector3(0, -.112, .08);
+const foot = () => ({ g: new THREE.Vector3(), yaw: 0, phi: 0, swing: null, landed: 0, ankle: new THREE.Vector3(), q: new THREE.Quaternion() });
+const WALKER = { at: null, vel: new THREE.Vector3(), walking: false, turning: false, legYaw: 0, torsoYaw: 0, sleeves: false,
+  feet: { r: foot(), l: foot() },
+  // this frame's joints in the room, for the meshes and the shadow
+  J: { eye: new THREE.Vector3(), neck: new THREE.Vector3(), hips: new THREE.Vector3(), hip: [new THREE.Vector3(), new THREE.Vector3()], knee: [new THREE.Vector3(), new THREE.Vector3()],
+    toe: [new THREE.Vector3(), new THREE.Vector3()], shoulder: [new THREE.Vector3(), new THREE.Vector3()], elbow: [new THREE.Vector3(), new THREE.Vector3()],
+    wrist: [new THREE.Vector3(), new THREE.Vector3()], tip: [new THREE.Vector3(), new THREE.Vector3()] } };
+const _fq = new THREE.Quaternion(), _fe = new THREE.Euler(), _fc = new THREE.Vector3(), _fv = new THREE.Vector3(), _bq = new THREE.Quaternion();
+const _bB = new THREE.Vector3(), _bv = new THREE.Vector3(), _bw = new THREE.Vector3(), _bt = new THREE.Vector3(), _bm = new THREE.Matrix4();
+const flatDir = (yaw, v) => v.set(Math.sin(yaw), 0, -Math.cos(yaw));
+// ### Where the ankle of a boot standing on the floor is, and how the boot is turned (into outPos and outQ): flat, or
+// ### with the heel up (phi below 0: it rolls over the ball of the foot) or the toes up (above 0: it rocks on its heel).
+// ### g is the spot on the floor under the ankle when the boot stands flat, yaw the way its toes point.
+function footPose(g, yaw, phi, fy, outPos, outQ){
+  const c = phi >= 0 ? HEEL : BALL;
+  _fq.setFromEuler(_fe.set(STAND.tilt, -yaw, 0, 'YXZ'));
+  _fc.copy(c).applyQuaternion(_fq).add(_fv.set(g.x, fy + STAND.ankle, g.z));   // that point of the sole stays on the floor
+  outQ.setFromEuler(_fe.set(STAND.tilt + phi, -yaw, 0, 'YXZ'));
+  return outPos.copy(c).applyQuaternion(outQ).negate().add(_fc);
+}
+// ### A boot never comes down inside the sinks, the bin, the toilet or a wall: its spot is pushed out of them.
+function footClear(p){
+  if (tunnelWalk){ p.x = clamp(p.x, TUN.x - TUN.r + .1, TUN.x + TUN.r - .1); return p; }
+  const m = .1;
+  for (const [x0, x1, z0, z1] of SOLID){
+    if (p.x < x0 - m || p.x > x1 + m || p.z < z0 - m || p.z > z1 + m) continue;
+    const out = [[x0 - m - p.x, 0], [x1 + m - p.x, 0], [0, z0 - m - p.z], [0, z1 + m - p.z]].sort((a, b) => Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1]))[0];
+    p.x += out[0]; p.z += out[1];
+  }
+  p.x = clamp(p.x, -W / 2 + m, W / 2 - m); p.z = clamp(p.z, -D / 2 + m, D / 2 - m);
+  return p;
+}
+// ### Where a foot stands at rest: under its hip, the toes turned out a little.
+function footHome(side, B, fwdL, rightL, out){ return footClear(out.copy(B).addScaledVector(fwdL, -.06).addScaledVector(rightL, side * STAND.apart).setY(0)); }
+// ### Lifts a foot off the floor: it swings from where it is now (the ankle, the boot's turn) to a new spot.
+function startSwing(f, n, rate){
+  f.swing = { n, u: 0, rate, from: f.ankle.clone(), fromYaw: f.yaw, fromPhi: f.phi, to: f.g.clone(), toYaw: f.yaw, toPhi: 0, lift: .05 };
+}
+// ### Sets a foot down where its swing ends.
+function landFoot(f){ const s = f.swing; f.g.copy(s.to); f.yaw = s.toYaw; f.phi = s.toPhi; f.swing = null; f.landed = clock; }
+
+// ### Moves the feet and works out every joint of the body for this frame, then puts the body's parts where they go and
+// ### turns the hands down to your sides as you look down. show says whether your hands are out (not in the endings).
+function poseBody(dt, show){
+  const Wk = WALKER, F = Wk.feet, J = Wk.J, fy = tunnelWalk ? TUN.floor : 0;
+  // the eye where it would be without the bend of the neck (the body hangs from it), and the way you look
+  const B = _bB.set(cam.pos.x + Math.cos(cam.yaw) * cam.sway, cam.pos.y + cam.bob, cam.pos.z + Math.sin(cam.yaw) * cam.sway);
+  const view = wrapAngle(cam.yaw);
+  // how fast you really move, from where you were a frame ago (pushing against a wall moves you nowhere)
+  const jump = !Wk.at || Math.hypot(B.x - Wk.at.x, B.z - Wk.at.z) > .6 || Math.abs(B.y - Wk.at.y) > .8;
+  if (!jump && dt > 0) Wk.vel.lerp(_bv.set((B.x - Wk.at.x) / dt, 0, (B.z - Wk.at.z) / dt), 1 - Math.exp(-dt * 12));
+  if (jump) Wk.vel.set(0, 0, 0);
+  Wk.at = (Wk.at || new THREE.Vector3()).copy(B);
+  const speed = Math.hypot(Wk.vel.x, Wk.vel.z), crouch = clamp((1.56 - (B.y - fy)) / .5, 0, 1), kneel = smoothStep(.25, .85, crouch);
+  const walking = crouch < .3 && speed > (Wk.walking ? .25 : .4), gait = clamp(speed / 1.2, 0, 1);
+  // the legs face the way you walk (or step back), and turn after your head only when it turns far; the chest half way
+  if (jump) Wk.legYaw = view;
+  else if (walking){
+    const travel = Math.atan2(Wk.vel.x, -Wk.vel.z), rel = wrapAngle(travel - view);
+    Wk.legYaw += wrapAngle((Math.abs(rel) < 2 ? travel : travel + Math.PI) - Wk.legYaw) * (1 - Math.exp(-dt * 7));
+    Wk.turning = false;
+  } else {
+    const off = wrapAngle(view - Wk.legYaw);
+    if (Math.abs(off) > .75 || crouch > .3) Wk.turning = true;
+    if (Wk.turning){ Wk.legYaw += off * (1 - Math.exp(-dt * 5)); if (Math.abs(off) < .06) Wk.turning = false; }
+  }
+  Wk.legYaw = wrapAngle(Wk.legYaw);
+  Wk.torsoYaw = Wk.legYaw + wrapAngle(view - Wk.legYaw) * .55;
+  const fwdL = flatDir(Wk.legYaw, new THREE.Vector3()), rightL = new THREE.Vector3(-fwdL.z, 0, fwdL.x);
+  const fwdT = flatDir(Wk.torsoYaw, new THREE.Vector3()), rightT = new THREE.Vector3(-fwdT.z, 0, fwdT.x);
+  const homes = [footHome(1, B, fwdL, rightL, new THREE.Vector3()), footHome(-1, B, fwdL, rightL, new THREE.Vector3())];
+  const keys = ['r', 'l'], aim = i => Wk.legYaw + (i ? -1 : 1) * STAND.out;
+  if (jump) keys.forEach((k, i) => { const f = F[k]; f.g.copy(homes[i]); f.yaw = aim(i); f.phi = 0; f.swing = null; });
+
+  // ### The feet. Walking, the steps follow the footfalls you hear (one every 0.8 m): between two footfalls one boot
+  // ### swings from behind you to a spot STAND.lead ahead of its hip and lands as the next one sounds; the right foot
+  // ### swings while the right arm swings back. Standing, a foot that is out of place steps back under its hip.
+  if (walking){
+    if (!Wk.walking) cam.stride = Math.floor(cam.stride / .8) * .8;   // the first step starts now
+    const steps = cam.stride / .8, n = Math.floor(steps), i = n % 2 ? 1 : 0, f = F[keys[i]], o = F[keys[1 - i]];
+    if (o.swing) landFoot(o);
+    if (!f.swing || f.swing.n !== n){ startSwing(f, n, 0); f.swing.lift = .07 + .03 * gait; }
+    const s = f.swing, dir = _bv.copy(Wk.vel).normalize();
+    s.u = steps - n;
+    footClear(s.to.copy(homes[i]).addScaledVector(dir, STAND.lead * Math.max(.4, gait)));
+    s.toYaw = aim(i); s.toPhi = .2 * gait;
+  } else {
+    for (const k of keys){ const s = F[k].swing; if (s && s.n >= 0){ s.n = -1; s.rate = 1 / .22; } }
+    keys.forEach((k, i) => { const s = F[k].swing; if (s){ s.to.copy(homes[i]); s.toYaw = aim(i); s.toPhi = 0; s.lift = Math.min(s.lift, .05); } });
+    if (!F.r.swing && !F.l.swing && crouch < .3){
+      // the foot most out of place steps first, once the other has stood for a moment
+      const err = keys.map((k, i) => F[k].g.distanceTo(homes[i]) + Math.abs(wrapAngle(F[k].yaw - aim(i))) * .25);
+      const i = err[0] >= err[1] ? 0 : 1, f = F[keys[i]];
+      if (err[i] > .07 && clock - F[keys[1 - i]].landed > .12) startSwing(f, -1, 1 / .32);
+    }
+  }
+  Wk.walking = walking;
+
+  // ### The trunk: the base of the neck under and a little behind the eyes, the hips below it; kneeling, it leans
+  // ### forward over the hatch and the hips sink down onto the heels.
+  const lean = crouch * .35;
+  J.eye.copy(B);
+  J.neck.copy(B).addScaledVector(fwdT, -.085 + crouch * .09); J.neck.y -= .19 + crouch * .03;
+  J.hips.copy(J.neck).addScaledVector(fwdT, -STAND.torso * Math.sin(lean)); J.hips.y -= STAND.torso * Math.cos(lean);
+  const knees = [], ankles = [], footQ = [];
+  keys.forEach((k, i) => {
+    const f = F[k], side = i ? -1 : 1, hip = J.hip[i].copy(J.hips).addScaledVector(rightL, side * STAND.hipW);
+    // a swinging foot: from where it was lifted to where it lands, in an arc, its toes coming up to land on the heel
+    if (f.swing){
+      const s = f.swing;
+      if (s.rate) s.u = Math.min(1, s.u + dt * s.rate);
+      const e = smoothStep(0, 1, s.u);
+      footPose(s.to, s.toYaw, s.toPhi, fy, _bt, _bq);
+      f.ankle.lerpVectors(s.from, _bt, e); f.ankle.y += s.lift * Math.pow(Math.sin(Math.PI * s.u), .8);
+      f.yaw = s.fromYaw + wrapAngle(s.toYaw - s.fromYaw) * e; f.phi = s.fromPhi + (s.toPhi - s.fromPhi) * smoothStep(.1, .9, s.u);
+      f.q.setFromEuler(_fe.set(STAND.tilt + f.phi, -f.yaw, 0, 'YXZ'));
+      if (s.rate && s.u >= 1) landFoot(f);
+    } else {
+      // a planted foot: after landing the toes slap down; walking, it rolls up onto its toes as it falls behind you
+      const behind = -_bv.subVectors(f.g, hip).setY(0).dot(fwdL), lift = walking ? -clamp((behind - .1) / .32, 0, 1) * .7 : 0;
+      f.phi += (lift - f.phi) * (1 - Math.exp(-dt * (f.phi > lift ? 9 : 14)));
+      footPose(f.g, f.yaw, f.phi, fy, f.ankle, f.q);
+      // far behind, it rolls further onto its toes rather than leave the floor
+      for (let t = 0; t < 6 && f.phi <= 0 && f.ankle.distanceTo(hip) > LEG * 1.02; t++){ f.phi -= .1; footPose(f.g, f.yaw, f.phi, fy, f.ankle, f.q); }
+    }
+    // kneeling at the hatch you sit back on your heels: the boots lie on their insteps under you, soles up, and the
+    // knees come forward onto the floor
+    const ankle = f.ankle.clone(), q = f.q.clone();
+    if (kneel > 0){
+      _bt.copy(hip).addScaledVector(fwdL, -.05); _bt.y = fy + .09;
+      ankle.lerp(_bt, kneel); q.slerp(_bq.setFromEuler(_fe.set(Math.PI, -Wk.legYaw, 0, 'YXZ')), kneel);
+    }
+    // the leg reaches its boot (a little stretch is allowed; further than that the boot hangs from the leg)
+    const d = ankle.distanceTo(hip), k2 = clamp(d / LEG, 1, 1.035);
+    if (d > LEG * k2) ankle.sub(hip).multiplyScalar(LEG * k2 / d).add(hip);
+    knees.push(J.knee[i].copy(twoBone(hip, ankle, STAND.thigh * k2, STAND.shin * k2, _bw.copy(fwdL).addScaledVector(rightL, side * .12))));
+    ankles.push(ankle); footQ.push(q);
+    J.toe[i].copy(BALL).setY(-.09).setZ(-.21).applyQuaternion(q).add(ankle);
+  });
+
+  // ### The arms: from the shoulders they hang at your sides, swinging as you walk; kneeling, the hands rest on the thighs.
+  const out = Math.sin(HANDS.reach * Math.PI) ** .7, down = smoothStep(-.42, -.95, cam.pitch);
+  const bodyOn = show && HANDS.down < .5 && (cam.pitch < -.42 || kneel > .2);
+  camera.updateMatrixWorld();
+  _inv.copy(camera.matrixWorld).invert();
+  camera.getWorldQuaternion(_qc).invert();
+  keys.forEach((k, i) => {
+    const h = HANDS[k], side = i ? -1 : 1, sh = J.shoulder[i].copy(J.neck).addScaledVector(rightT, side * .185); sh.y -= .035;
+    const wrist = J.wrist[i].copy(sh).addScaledVector(fwdT, .03 + (h.swing || 0) * .18).addScaledVector(rightT, side * .035); wrist.y -= .555;
+    if (kneel > 0) wrist.lerp(_bt.lerpVectors(J.hip[i], J.knee[i], .72).addScaledVector(rightL, side * .03).add(_bw.set(0, .07, 0)), kneel);
+    const use = i ? 0 : out;   // using something, the right hand reaches out along your look, towards what you look at
+    if (use > 0) wrist.lerp(_bt.set(0, 0, -1).applyQuaternion(camera.quaternion).multiplyScalar(.5).add(sh), use);
+    const elbow = twoBone(sh, wrist, UPPER_ARM, FOREARM, _bw.copy(fwdT).multiplyScalar(-.8).addScaledVector(rightT, side * .35).add(_bv.set(0, -.2, 0)));
+    // the hand turns from the bottom of the picture to your side: the forearm runs up to the elbow, the back of the hand
+    // faces out and a little forward, the thumb forward
+    const a = REDUCED ? 0 : Math.max(down, kneel);
+    const sleeve = 1 + (FOREARM / .485 - 1) * a;
+    if (a > .001){
+      const wC = toCam(wrist), eC = toCam(elbow), upC = _bw.copy(rightT).multiplyScalar(side).addScaledVector(fwdT, .35).transformDirection(_inv);
+      if (use > 0) upC.lerp(_bv.set(0, 1, 0), use).normalize();   // reaching, the back of the hand turns up
+      _bq.setFromRotationMatrix(_bm.lookAt(eC, wC, upC));
+      h.arm.position.lerp(wC, a); h.arm.quaternion.slerp(_bq, a);
+    }
+    if (a > .001 || Wk.sleeves) h.arm.children.forEach(o => { if (o.material === HAND_MAT.sleeve) o.scale.z = sleeve; });
+    // where the arm really is now: the elbow at the end of the sleeve, the fingertips for the shadow
+    J.elbow[i].set(0, 0, .485 * sleeve).applyQuaternion(h.arm.quaternion).add(h.arm.position).applyMatrix4(camera.matrixWorld);
+    J.wrist[i].copy(h.arm.position).applyMatrix4(camera.matrixWorld);
+    J.tip[i].set(0, 0, -.17).applyQuaternion(h.arm.quaternion).add(h.arm.position).applyMatrix4(camera.matrixWorld);
+    if (bodyOn){
+      if (!ME) ME = buildBody();
+      placeLimb(ME.upper[i], J.elbow[i], sh);
+      ME.shoulder[i].position.copy(toCam(sh)); ME.elbow[i].position.copy(toCam(J.elbow[i]));
+      aimJoint(ME.shoulder[i], _bv.subVectors(J.elbow[i], sh));
+      aimJoint(ME.elbow[i], _bv.subVectors(sh, J.elbow[i]).normalize().sub(_bw.subVectors(J.wrist[i], J.elbow[i]).normalize()));   // the stripes run round it
+      ME.upper[i].visible = ME.shoulder[i].visible = ME.elbow[i].visible = a > .02;
+      const hip = J.hip[i], knee = knees[i], ankle = ankles[i];
+      placeLimb(ME.thigh[i], hip, knee); placeLimb(ME.shin[i], knee, ankle);
+      ME.hip[i].position.copy(toCam(hip)); ME.knee[i].position.copy(toCam(knee));
+      aimJoint(ME.hip[i], _bv.subVectors(knee, hip));
+      aimJoint(ME.knee[i], _bv.subVectors(hip, knee).normalize().sub(_bw.subVectors(ankle, knee).normalize()));
+      ME.boot[i].position.copy(toCam(ankle)); ME.boot[i].quaternion.copy(_qc).multiply(footQ[i]);
+    }
+  });
+  Wk.sleeves = !REDUCED && Math.max(down, kneel) > .001;
+  if (ME && !climb){
+    ME.g.visible = bodyOn;
+    if (bodyOn){
+      ME.torso.position.copy(toCam(J.neck));
+      ME.torso.quaternion.copy(_qc).multiply(_bq.setFromEuler(_fe.set(-lean, -Wk.torsoYaw, 0, 'YXZ')));
+      fitShirt(STAND.torso, 1 + (REDUCED ? 0 : .012 * Math.sin(clock * 1.6)));
+    }
+  }
+  SHADOW.update(J, ankles, footQ, fy, show && cam.pitch < -.08);   // looking higher, the floor it lies on is out of sight
+}
+
+// ### Your shadow on the floor, thrown by the lamps: each part of you (legs, boots, trunk, head, arms and hands) is
+// ### carried from the lamp straight down onto the floor, so the shadow stretches away from the light, the further the
+// ### higher the part. It is painted into a picture of 4 x 4 m round you and laid on the floor (a soft dark layer), the
+// ### parts high above the floor softer and paler, and darkest round the soles of your boots. The washroom's tube throws
+// ### it, in the stall the stall's lamp (more faintly the tube too); it fades with the distance from the lamp and dims when
+// ### the tube flickers. In the tunnel the bulbs hang at head height, so only the dark round your soles is on the floor.
+const SHADOW = (() => {
+  const N = 256, SIZE = 4, PX = N / SIZE;
+  const c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d');
+  const part = document.createElement('canvas'); part.width = part.height = N; const pg = part.getContext('2d');
+  const tex = new THREE.CanvasTexture(c);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .75, alphaMap: tex, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  mesh.visible = false; mesh.renderOrder = 2; scene.add(mesh);
+  const at = new THREE.Vector3(), L = new THREE.Vector3();
+  let fy = 0, last = -1;
+  // a point of you carried from the lamp onto the floor, in the picture's pixels; z is how much the shadow grows there
+  const proj = (P, out) => { const t = (L.y - fy) / Math.max(.05, L.y - P.y); out.x = (L.x + (P.x - L.x) * t - at.x) * PX + N / 2; out.y = (L.z + (P.z - L.z) * t - at.z) * PX + N / 2; out.z = t; return out; };
+  const pa = new THREE.Vector3(), pb = new THREE.Vector3();
+  // a part from A to B, r thick; the further its shadow is thrown (high up, near the lamp's height), the fainter it is
+  const limb = (A, B, r) => {
+    proj(A, pa); proj(B, pb);
+    const far = Math.max(pa.z, pb.z); if (far > 4) return;
+    pg.globalAlpha = clamp((4 - far) / 1.5, 0, 1); pg.lineWidth = r * (pa.z + pb.z) * PX; pg.beginPath(); pg.moveTo(pa.x, pa.y); pg.lineTo(pb.x, pb.y); pg.stroke();
+  };
+  // one light's shadow of some parts, blurred by blur pixels and as dark as k (0 to 1)
+  const cast = (draw, blur, k) => {
+    pg.clearRect(0, 0, N, N); pg.strokeStyle = pg.fillStyle = '#fff'; pg.lineCap = 'round'; draw(); pg.globalAlpha = 1;
+    g.shadowColor = `rgba(255,255,255,${k})`; g.shadowBlur = blur; g.shadowOffsetX = N; g.drawImage(part, -N, 0); g.shadowColor = 'transparent';
+  };
+  const lamps = B => {
+    if (tunnelWalk) return [];   // the old bulbs down there hang at head height: their shadows of you run up the walls
+    const inStall = B.x > SX0 + .05 && B.z < SZ1, main = mainLight.intensity / LIGHTS.main;
+    const dm = Math.hypot(B.x - mainLight.position.x, B.z - mainLight.position.z), list = [[mainLight.position, .55 * main * clamp(1.3 - dm / 4.2, 0, 1) * (inStall ? .3 : 1)]];
+    if (inStall) list.push([stallLight.position, .5 * stallLight.intensity / LIGHTS.stallI]);
+    return list;
+  };
+  return {
+    mesh,
+    update(J, ankles, footQ, floor, on){
+      mesh.visible = on;
+      if (!on || clock - last < 1 / 30) return;
+      last = clock; fy = floor; at.copy(J.eye).setY(fy);
+      mesh.position.set(at.x, fy + .006, at.z);
+      g.globalCompositeOperation = 'source-over'; g.fillStyle = '#000'; g.fillRect(0, 0, N, N); g.globalCompositeOperation = 'lighten';
+      for (const [pos, k] of lamps(J.eye)){
+        if (k < .02) continue;
+        L.copy(pos);
+        // the legs and boots, near the floor: sharper and darker
+        cast(() => { for (let i = 0; i < 2; i++){ limb(J.hip[i], J.knee[i], .075); limb(J.knee[i], ankles[i], .055); limb(ankles[i], J.toe[i], .045); } }, 3, k);
+        // the trunk, the arms and the head, high above it: softer and paler
+        cast(() => {
+          limb(J.neck, J.hips, .16); limb(J.neck, _bv.copy(J.eye).add(_bw.set(0, .04, 0)), .085);
+          for (let i = 0; i < 2; i++){ limb(J.shoulder[i], J.elbow[i], .05); limb(J.elbow[i], J.wrist[i], .042); limb(J.wrist[i], J.tip[i], .04); }
+        }, 9, k * .8);
+      }
+      // where the soles stand on the floor the shadow is darkest
+      for (let i = 0; i < 2; i++){
+        const x = (ankles[i].x - at.x) * PX + N / 2, y = (ankles[i].z - at.z) * PX + N / 2, lift = clamp((ankles[i].y - fy - STAND.ankle) / .08, 0, 1);
+        const d = _bv.set(0, 0, -1).applyQuaternion(footQ[i]);
+        g.save(); g.translate(x + d.x * .08 * PX, y + d.z * .08 * PX); g.rotate(Math.atan2(d.z, d.x)); g.scale(1, .42);
+        const gr = g.createRadialGradient(0, 0, 0, 0, 0, .19 * PX); gr.addColorStop(0, `rgba(255,255,255,${.6 * (1 - lift)})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = gr; g.fillRect(-.2 * PX, -.2 * PX, .4 * PX, .4 * PX); g.restore();
+      }
+      g.globalCompositeOperation = 'source-over';
+      tex.needsUpdate = true;
+    }
+  };
+})();
 
 // ---------- Loop ----------
 // ### Runs once per screen refresh: the clock (rules.tick), then animations (camera, steam, guard, tile, hatch), then the
