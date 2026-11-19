@@ -640,3 +640,5 @@ body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:
 .start-heist em{font-style:normal;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);margin-top:4px}
 .start-heist:hover,.start-heist:focus-visible{transform:translateY(-2px);border-color:var(--ink);outline:none}
 .start-or{margin:0}
+/* the game's name on the start page: "Framed", with "One night in Lisbon" as a smaller outlined line under it */
+.start-head .m-logo em.sub{display:block;margin-top:.14em;font-size:.34em;line-height:1.05;letter-spacing:.01em;-webkit-text-stroke:1.4px var(--spark)}

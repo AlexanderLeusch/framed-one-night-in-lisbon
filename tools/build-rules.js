@@ -74,12 +74,12 @@ function buildRulesHtml(){
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Shard Heist – Game Rules</title>
+<title>Framed: One Night in Lisbon – Game Rules</title>
 <style>${STYLE}
 </style>
 </head>
 <body>
-<div class="cover"><h1>Shard Heist</h1><p>The game rules, for both rooms. Built from <code style="background:none;color:inherit">docs/rules/*.md</code>.</p></div>
+<div class="cover"><h1>Framed: One Night in Lisbon</h1><p>The game rules, for both rooms. Built from <code style="background:none;color:inherit">docs/rules/*.md</code>.</p></div>
 ${sections.join('\n')}
 </body>
 </html>

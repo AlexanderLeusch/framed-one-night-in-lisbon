@@ -37,6 +37,6 @@ function createServer(root = ROOT){
 
 if (require.main === module){
   const port = Number(process.env.PORT) || 8080;
-  createServer().listen(port, '127.0.0.1', () => console.log(`Shard Heist on http://localhost:${port}`));
+  createServer().listen(port, '127.0.0.1', () => console.log(`Framed: One Night in Lisbon on http://localhost:${port}`));
 }
 module.exports = { createServer, resolvePath, ROOT };

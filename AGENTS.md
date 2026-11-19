@@ -1,10 +1,10 @@
-# Shard Heist: rules for everyone who changes this project, people and coding agents
+# Framed: One Night in Lisbon. Rules for everyone who changes this project, people and coding agents
 
 This file is the one place for the team's working rules. Every coding agent reads it (Codex reads `AGENTS.md`; Claude Code reads `CLAUDE.md`, which points here). Change it only through a pull request, like any other file.
 
 ## The project
 
-A two-room browser game for the Nova SBE course *Introduction to Programming*. **Room 1**, *Plot Twist: Cell Block D*, is a 3D escape room (`room-1-escape/`). **Room 2**, *Shard Heist*, is the 3D police chase that follows (`room-2-chase/`). `index.html` at the top is the start page that leads to both. The original Python solo project *Plot Twist* is kept in `original-solo-project/` for reference. The README shows the whole folder tree.
+*Framed: One Night in Lisbon* (repository: `shard-heist`) is a two-room browser game for the Nova SBE course *Introduction to Programming*. **Room 1**, *Plot Twist: Cell Block D*, is a 3D escape room (`room-1-escape/`). **Room 2**, *Shard Heist*, is the 3D police chase that follows (`room-2-chase/`). `index.html` at the top is the start page that leads to both. The original Python solo project *Plot Twist* is kept in `original-solo-project/` for reference. The README shows the whole folder tree.
 
 - Live: https://alexanderleusch.github.io/shard-heist/ (start page), `room-1-escape/` (room 1) and `room-2-chase/` (room 2)
 - Repository: https://github.com/AlexanderLeusch/shard-heist (the only one; `Marco-open-source/plot-twist` is out of date)

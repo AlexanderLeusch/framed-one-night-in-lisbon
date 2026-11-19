@@ -1,6 +1,6 @@
-# Shard Heist
+# Framed: One Night in Lisbon
 
-A two-room browser game. **Room 1, *Plot Twist: Cell Block D***, is a 3D prison escape room: find the code for the hatch in the washroom floor before the guard comes back. **Room 2, *Shard Heist***, is the 3D police chase that follows. A start page leads to both rooms.
+*Framed: One Night in Lisbon* is a two-room browser game (the repository and the links keep its working title, *Shard Heist*, which is still the name of room 2). **Room 1, *Plot Twist: Cell Block D***, is a 3D prison escape room: find the code for the hatch in the washroom floor before the guard comes back. **Room 2, *Shard Heist***, is the 3D police chase that follows. A start page leads to both rooms.
 
 | Page | Play |
 |---|---|
