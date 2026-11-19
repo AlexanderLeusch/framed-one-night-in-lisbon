@@ -447,7 +447,7 @@ test('escape room: Officer Hale is the MakeHuman body, shipped with its licence 
   assert.match(fs.readFileSync(path.join(dir, 'LICENSE-hale.txt'), 'utf8'), /CC0/);
   const room = fs.readFileSync(path.join(ROOT, 'room-1-escape', 'js', 'room.js'), 'utf8');
   assert.match(room, /fetch\('models\/hale\.glb'\)/);
-  for (const f of ['hale-skin.jpg', 'hale-skin-bump.jpg', 'hale-eye.jpg']) assert.ok(fs.existsSync(path.join(ROOT, 'room-1-escape', 'textures', f)), f);
+  for (const f of ['hale-skin.jpg', 'hale-skin-bump.jpg', 'hale-eye.jpg']) assert.ok(fs.existsSync(path.join(dir, f)), f);
 });
 
 test('escape room: the real hand models are shipped with their licence and are what room.js loads', () => {
