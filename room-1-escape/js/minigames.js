@@ -45,9 +45,9 @@
       goal: 'Finish both parts of the engine-room machine before the firewall burns up.',
       steps: ['Part 1, the wave: change the frequency and the amplitude of your red ink line on the indicator card until it lies exactly on the dashed blue master line, then lock it.', 'Part 2, the key plate: find the one of the four brass plates whose pegs match the master key plate peg for peg, and set it.', 'The firewall burns up by itself in 16 seconds, and every wrong lock or wrong plate adds 15 %. Full means you are locked out.'],
       keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For the key plate, ← → and Space, or click one.', touch: 'Tap the brass buttons under the wave, or tap a key plate.' },
-    conduct: { title: 'Conduct the <em>band</em>', name: 'Conducting', how: 'The Titanic is sinking and her band plays on in the first-class dining saloon. You conduct: bring the baton down on every beat of the music with Space, ↑ or a click, just as the golden ring closes. 15 beats in time win; 12 beats missed or off the music and the band falls apart.',
+    conduct: { title: 'Conduct the <em>band</em>', name: 'Conducting', how: 'The Titanic is sinking and her band plays on in the first-class dining saloon. You conduct: bring the baton down on every beat of the music with Space, ↑ or a click, just as the golden ring closes. 15 beats in time win; 8 beats missed or off the music and the band falls apart.',
       goal: 'Keep the Titanic’s band in time for 15 beats.',
-      steps: ['The band plays Bach’s Brandenburg Concerto No. 3 in the tilting first-class dining saloon. The first four beats are counted in for you.', 'Bring the baton down on every beat, just as the golden ring closes on its tip. About a fifth of a second early or late still counts.', 'A beat you miss, or a beat off the music, puts the band out of time. Twelve of them and it falls apart.'],
+      steps: ['The band plays Bach’s Brandenburg Concerto No. 3 in the tilting first-class dining saloon. The first four beats are counted in for you.', 'Bring the baton down on every beat, just as the golden ring closes on its tip. About a fifth of a second early or late still counts.', 'A beat you miss, or a beat off the music, puts the band out of time. Eight of them and it falls apart.'],
       keys: 'Space, ↑ or W on every beat, or click.', touch: 'Tap the screen on every beat.' }
   };
   const GAMES = Object.keys(INFO);
@@ -2017,7 +2017,7 @@
   // ### when the file was made (see sounds/CREDITS.md). The first COUNT beats are counted in; after them every beat must
   // ### be conducted within GOOD seconds. condNew(), condTap() and condStep() hold all the rules and are tested in Node;
   // ### BUILD.conduct plays the music, draws the band and turns keys, clicks and taps into beats.
-  const COND = { W: 640, H: 360, BEAT: .51271, FIRST: 1.0724, COUNT: 4, BEATS: 60, PERFECT: .08, GOOD: .18, GOAL: 15, MISSES: 12 };
+  const COND = { W: 640, H: 360, BEAT: .51271, FIRST: 1.0724, COUNT: 4, BEATS: 60, PERFECT: .08, GOOD: .18, GOAL: 15, MISSES: 8 };
   const condBeat = i => COND.FIRST + i * COND.BEAT;
   // ### A new performance: nothing conducted yet. next is the first beat that has not been judged.
   function condNew(){ return { next: COND.COUNT, hits: 0, perfect: 0, misses: 0, last: null, won: false, lost: false, events: [] }; }
@@ -2239,7 +2239,7 @@
         status();
       }
       if (s.won) return api.win('The band played on, in time, to the last beat.');
-      if (s.lost) return api.lose(s.misses >= COND.MISSES ? 'The band fell apart: twelve beats out of time.' : 'The music has ended.');
+      if (s.lost) return api.lose(s.misses >= COND.MISSES ? 'The band fell apart: eight beats out of time.' : 'The music has ended.');
     }
     function tap(){
       if (api.over) return;
@@ -2322,7 +2322,7 @@
         g.font = `700 18px ${FONT}`; g.fillStyle = '#3a2808'; g.fillText(`IN TIME ${s.hits} / ${COND.GOAL}`, 26, 28);
         brassPlate(g, W - 244, 12, 230, 30);
         g.fillText('OUT OF TIME', W - 234, 28);
-        for (let i = 0; i < COND.MISSES; i++){ g.fillStyle = i < s.misses ? '#b3261e' : 'rgba(58,40,8,.35)'; g.beginPath(); g.arc(W - 122 + i * 9, 28, 3.3, 0, 7); g.fill(); }
+        for (let i = 0; i < COND.MISSES; i++){ g.fillStyle = i < s.misses ? '#b3261e' : 'rgba(58,40,8,.35)'; g.beginPath(); g.arc(W - 112 + i * 11, 28, 3.6, 0, 7); g.fill(); }
         if (t > COND.FIRST - .3 && counting){
           const n = Math.min(COND.COUNT, Math.max(1, Math.round(p) + 1));
           g.font = `800 64px ${FONT}`; g.textAlign = 'center'; g.fillStyle = 'rgba(0,0,0,.5)'; g.fillText(String(n), W / 2 + 2, 92);

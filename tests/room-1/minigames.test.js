@@ -436,7 +436,7 @@ test('conducting: a stroke on the beat counts, a stroke off it or a missed beat 
   M.condStep(idle, M.condBeat(M.COND.COUNT + M.COND.MISSES - 1) + M.COND.GOOD - .01);
   assert.ok(!idle.lost);
   M.condStep(idle, M.condBeat(M.COND.COUNT + M.COND.MISSES - 1) + M.COND.GOOD + .01);
-  assert.ok(idle.lost, 'twelve missed beats and the band falls apart');
+  assert.ok(idle.lost, 'eight missed beats and the band falls apart');
   assert.equal(M.condTap(idle, 20), null, 'refused: nothing to conduct once it is lost');
 });
 
@@ -459,6 +459,6 @@ test('conducting: a fair player keeps the band in time, a guessing or hurried on
   assert.equal(half, 0, 'half the beats is not enough');
   assert.ok(sloppy <= 5, `four tenths of a second off hardly ever does (${sloppy} of 50)`);
   assert.equal(mash, 0, 'mashing never does');
-  assert.ok(random <= 20, `random strokes win well under half the time (${random} of 50)`);
+  assert.ok(random <= 10, `random strokes seldom do (${random} of 50)`);
   assert.ok(conductor(0, .02, rand, 8).won, 'missing a beat now and then is fine');
 });
