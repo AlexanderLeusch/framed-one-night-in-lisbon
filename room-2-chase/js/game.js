@@ -2021,6 +2021,17 @@ function buildCity(){
   // ### the towers. The steel is lit like everything else (it catches the morning light in the finale), with a faint glow of its
   // ### own so the night does not swallow it from the city. Shorter than the real one (main span 300 m instead of 1013 m), so it
   // ### fits the view. x runs along the bridge, z across it, y is up; the road surface is at y = 42.12.
+  // ### The concrete of the piers: the colour of the viaduct, darker towards the water (the bottom 18 m), as the foot of a real
+  // ### pier is wet and dirty, which also shows how tall they are. parts are geometries or flat lists of triangle corners.
+  const pierMesh = parts => {
+    const pos = [];
+    for (const g of parts){ if (g.isBufferGeometry){ const a = (g.index ? g.toNonIndexed() : g).attributes.position.array; for (let i = 0; i < a.length; i++) pos.push(a[i]); } else pos.push(g); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
+    const col = [];
+    for (let i = 1; i < pos.length; i += 3){ const k = 0.55 + 0.45 * sstep(0, 18, pos[i]); col.push(k, k * 0.98, k * 0.95); }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x9a968e, roughness: 0.88, emissive: 0x101010, vertexColors: true, fog: false }));
+  };
   const bridge = new THREE.Group();
   {
     const TX = 150, HALF = 350, CZ = 9.5, ROAD = 42.12, TOP = 41.6, BOT = 35.6, TRUSS_Z = 8;
@@ -2049,14 +2060,28 @@ function buildCity(){
     }
     for (let x = -HALF; x <= HALF; x += 10) steel.push(boxG(0.5, 0.5, 2 * TRUSS_Z, x, BOT, 0));
     steel.push(boxG(2 * HALF, 0.4, 2 * TRUSS_Z - 4, 0, BOT + 0.6, 0));
-    // concrete piers under the side spans and the anchor blocks that hold the cables at the ends
+    // ### Concrete piers under the side spans, like those of the approach: two octagonal columns on a footing in the river,
+    // ### narrowing towards a cap under the truss, joined by two cross beams (pierMesh darkens them towards the water). And the
+    // ### anchor blocks that hold the cables at the ends.
+    const piers = [];
     for (const sx of [-1, 1]){
-      for (const px of [215, 265]) concrete.push(boxG(5, BOT, 2 * TRUSS_Z + 2, sx * px, BOT / 2, 0));
-      // the anchor block ends under the road, which runs on over it; the cables go into a saddle on each side
-      concrete.push(boxG(22, 41.4, 2 * CZ + 8, sx * (HALF + 8), 20.7, 0));
+      for (const px of [215, 265]){
+        const x = sx * px;
+        piers.push(boxG(7, 2.4, 2 * TRUSS_Z + 5, x, 0.6, 0));
+        for (const z of [-5.6, 5.6]) piers.push(new THREE.CylinderGeometry(1.5, 2.0, BOT - 2.6, 8).rotateY(Math.PI / 8).translate(x, (BOT - 2.6) / 2, z));
+        piers.push(boxG(4.4, 2.2, 2 * TRUSS_Z + 2, x, BOT - 1.5, 0));
+        for (const y of [BOT * 0.36, BOT * 0.7]) piers.push(boxG(2.4, 1.6, 9.2, x, y, 0));
+      }
+      // ### The anchor block ends under the road, which runs on over it; the cables go into a saddle on each side. It stands on a
+      // ### wider plinth, has shallow vertical ribs on all four sides, so it does not read as one flat box, and a ledge under the
+      // ### road; it darkens towards the water like the piers.
+      const ax = sx * (HALF + 8), AW = 2 * CZ + 8;
+      piers.push(boxG(26, 6, AW + 4, ax, 3, 0), boxG(22, 35.4, AW, ax, 6 + 35.4 / 2, 0), boxG(23.6, 1.4, AW + 1.6, ax, 40.7, 0));
+      for (let z = -AW / 2 + 3; z <= AW / 2 - 3; z += 4.5) for (const fx of [-11.3, 11.3]) piers.push(boxG(0.6, 34, 1.6, ax + fx, 6 + 17, z));
+      for (let x = -8; x <= 8; x += 4) for (const fz of [-AW / 2 - 0.3, AW / 2 + 0.3]) piers.push(boxG(1.6, 34, 0.6, ax + x, 6 + 17, fz));
       for (const z of [-CZ, CZ]) concrete.push(boxG(9, 6, 2.6, sx * (HALF + 3), 44, z));
     }
-    bridge.add(new THREE.Mesh(mergeGeos(steel), steelMat), new THREE.Mesh(mergeGeos(concrete), concreteMat));
+    bridge.add(new THREE.Mesh(mergeGeos(steel), steelMat), new THREE.Mesh(mergeGeos(concrete), concreteMat), pierMesh(piers));
     // the road: six lanes on a deck slab, dashed lane lines, a solid edge line, a concrete barrier in the middle, steel railings
     const deckRoad = new THREE.Mesh(new THREE.BoxGeometry(2 * HALF, 0.5, 2 * TRUSS_Z + 1).translate(0, ROAD - 0.25, 0), new THREE.MeshStandardMaterial({ color: 0x2a2c31, roughness: 0.9 }));
     const lines = [];
@@ -2132,20 +2157,30 @@ function buildCity(){
     sweep(road, 8, LEN, 2.5, s => [[0.4 - hw(s), 0.03], [hw(s) - 0.4, 0.03]], true);
     for (const sg of [-1, 1]) sweep(concrete, 8, LEN, 2.5, s => { const w = hw(s) * sg; return [[w - 0.35 * sg, 0], [w, 0], [w, 0.95], [w - 0.35 * sg, 0.95]]; });
     sweep(concrete, 90, LEN, 2.5, () => [[-0.25, 0], [0.25, 0], [0.25, 0.8], [-0.25, 0.8]]);
-    // the markings of the bridge deck: solid lines at the edges and the barrier, dashes between the lanes
+    // ### The markings of the bridge deck: solid lines at the edges and in the middle, dashes between the lanes. They start right
+    // ### behind the gate, so the lanes are there from the first metre (before the barrier begins at 90 m, the middle line
+    // ### runs on its own). Where the road is narrower, by the gate, the three lanes share its width evenly.
     const stripe = (s0, s1, side) => sweep(lines, s0, s1, 1.5, () => [[side - 0.07, 0.05], [side + 0.07, 0.05]], true);
     for (const sg of [-1, 1]){
       sweep(lines, 8, LEN, 2.5, s => { const c = (hw(s) - 0.9) * sg; return [[c - 0.07, 0.05], [c + 0.07, 0.05]]; }, true);
-      stripe(90, LEN, 0.6 * sg);
-      for (let s = 72; s < LEN - 5; s += 9) for (const c of [2.93, 5.27]) stripe(s, s + 4.5, c * sg);
+      stripe(8, LEN, 0.6 * sg);
+      for (let s = 10; s < LEN - 5; s += 9){ const e = (hw(s) - 1.5) / 3; for (const c of [0.6 + e, 0.6 + 2 * e]) stripe(s, s + 4.5, c * sg); }
     }
-    // a pair of piers every 36 m with a cap under the girder, and a cross beam half-way up the tall ones
+    // ### A pair of piers every 36 m: octagonal concrete columns that narrow a little towards the top, each on a footing at the
+    // ### water, with a hammerhead cap under the girder (its ends chamfered) and a cross beam half-way up the tall ones. They
+    // ### go into piers, which darkens towards the water (pierMesh), as the foot of a real pier is wet and dirty.
+    const piers = [];
     for (let s = 70; s < LEN - 24; s += 36){
       const p = at(s); if (p.y < 4.5) continue;
-      const put = (g, side, y) => { const q = at(s, side); solid(concrete, g.rotateY(p.h).translate(q.x, y, q.z)); };
-      for (const side of [-4.6, 4.6]) put(new THREE.BoxGeometry(1.9, p.y - 2, 2.4), side, (p.y - 4) / 2);
-      put(new THREE.BoxGeometry(13, 1.3, 2.8), 0, p.y - 2.4);
-      if (p.y > 20) put(new THREE.BoxGeometry(9.2, 1.1, 1.7), 0, p.y * 0.5);
+      const put = (g, side, y) => { const q = at(s, side); solid(piers, g.rotateY(p.h).translate(q.x, y, q.z)); };
+      const top = p.y - 2.9, thick = 1.05 + Math.min(0.45, p.y / 90);
+      for (const side of [-4.6, 4.6]){
+        put(new THREE.CylinderGeometry(thick * 0.82, thick, top, 8).rotateY(Math.PI / 8), side, top / 2);
+        put(new THREE.BoxGeometry(thick * 2.6, 1.2, thick * 2.6), side, 0.4);
+      }
+      put(new THREE.BoxGeometry(9.6, 1.4, 2.8), 0, p.y - 2.4);
+      for (const sd of [-1, 1]) put(new THREE.BoxGeometry(1.8, 0.8, 2.8), sd * 5.7, p.y - 2.1);
+      if (p.y > 20) put(new THREE.BoxGeometry(9.2, 1.1, 1.5), 0, p.y * 0.5);
     }
     // lamps as on the bridge: a post with an arm over the road, every 30 m on both sides
     for (let s = 45; s < LEN - 25; s += 30) for (const sg of [-1, 1]){
@@ -2156,6 +2191,7 @@ function buildCity(){
     }
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lamps, 3));
     grp.add(mesh(concrete, new THREE.MeshStandardMaterial({ color: 0x8d8a84, roughness: 0.9, emissive: 0x101010, side: THREE.DoubleSide, fog: false })),
+      pierMesh(piers),
       mesh(road, new THREE.MeshStandardMaterial({ color: 0x2a2c31, roughness: 0.9, side: THREE.DoubleSide, fog: false })),
       mesh(lines, new THREE.MeshStandardMaterial({ color: 0xd8dbe4, roughness: 0.7, side: THREE.DoubleSide, fog: false })),
       new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTexture, color: 0xffcf8c, size: 5, sizeAttenuation: true, transparent: true, opacity: LAMP_HALO, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })));
@@ -4953,7 +4989,7 @@ function engineRpm(){ return eng.rpm; }
 // ### Runs the gearbox and rpm each frame, crossfades the engine loops, and sets road, wind, tyre, turbo and rotor levels.
 function updateEngine(dt){
   const sp = Math.abs(car.speed), live = state === 'play' || garage.live || (finale.on && finale.ramp), E = ENGINES[V.key];
-  // on the bridge of the finale nobody holds a key: updateFinale works the throttle; under the music the engine is quieter (finale.level)
+  // on the bridge of the finale nobody holds a key: updateFinale works the throttle; under the music the engine fades out (finale.level)
   const cine = finale.on && finale.placed;
   const pedal = live ? (keys.up || (keys.down && car.speed <= 0.5) ? 1 : 0) : cine ? finale.throttle : 0;
   const braking = live && Core.isBraking(car.speed, keys.down, keys.up, keys.brake);
@@ -4991,7 +5027,7 @@ function updateEngine(dt){
   if (live && damage >= 50 && Math.random() < dt * (damage - 40) / 10) eng.miss = 0.05;
   if (eng.miss > 0){ eng.miss -= dt; vol *= 0.4; }
   // on foot in the garage the engines are off: the chosen one is first heard when the player sits in it and starts it
-  a.bus.gain.setTargetAtTime(state === 'menu' || state === 'pause' || muted || (garage.on && !garage.live) || (state === 'over' && endReason === 'wrecked') ? 0 : on ? vol * (finale.on ? finale.level : 1) : vol * 0.3, t, 0.03);
+  a.bus.gain.setTargetAtTime(state === 'menu' || state === 'pause' || muted || (garage.on && !garage.live) || (state === 'over' && endReason === 'wrecked') ? 0 : on ? vol * (finale.on ? finale.level * finale.level : 1) : vol * 0.3, t, 0.03);
   if (on && E.pops){
     if (eng.prevPedal && !pedal && norm > 0.45) eng.popTime = 0.7;
     if (eng.popTime > 0){ eng.popTime -= dt; if (Math.random() < dt * 14) noiseBurst(t + Math.random() * 0.02, a.popF, 0.1 + Math.random() * 0.14, 0.03 + Math.random() * 0.03); }
@@ -6345,8 +6381,8 @@ function witnessCard(){
 // ### camera does the fades. In the story, this ends act 1 (the bridge leads out of the city towards the highway); in a free ride
 // ### it is the end of the run.
 // ### music: the anthem starts this many metres before the deck, so it is already playing as you come up onto the bridge; from
-// ### then on the engine drops to quiet of its level over duck seconds, and at the end it fades out under the result card.
-const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 10.2, dawnFrom: 0.8, dawnTo: 8.4, shot: 3.8, cruise: 0.45, accel: 1.6, music: 80, quiet: 0.2, duck: 2.5 });
+// ### then on the engine fades out bit by bit over duck seconds until it is silent (quiet: 0), and the music is all you hear.
+const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 10.2, dawnFrom: 0.8, dawnTo: 8.4, shot: 3.8, cruise: 0.45, accel: 1.6, music: 80, quiet: 0, duck: 6 });
 const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false, ramp: false, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0, cut: false, shot: 0 };
 const fader = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 fader.position.z = -0.6; fader.renderOrder = 9999; fader.frustumCulled = false; camera.add(fader); scene.add(camera);
