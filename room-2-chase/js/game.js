@@ -2418,13 +2418,13 @@ function buildCity(){
     for (const sg of [-1, 1]) sweep(concrete, 8, LEN, 2.5, s => { const w = hw(s) * sg; return [[w - 0.35 * sg, 0], [w, 0], [w, 0.95], [w - 0.35 * sg, 0.95]]; });
     sweep(concrete, 90, LEN, 2.5, () => [[-0.25, 0], [0.25, 0], [0.25, 0.8], [-0.25, 0.8]]);
     // ### The markings of the bridge deck: solid lines at the edges and in the middle, dashes between the lanes. They start right
-    // ### behind the gate, so the lanes are there from the first metre (before the barrier begins at 90 m, the middle line
+    // ### at the gate, so the lanes are there from the first metre (before the barrier begins at 90 m, the middle line
     // ### runs on its own). Where the road is narrower, by the gate, the three lanes share its width evenly.
     const stripe = (s0, s1, side) => sweep(lines, s0, s1, 1.5, () => [[side - 0.07, 0.05], [side + 0.07, 0.05]], true);
     for (const sg of [-1, 1]){
-      sweep(lines, 8, LEN, 2.5, s => { const c = (hw(s) - 0.9) * sg; return [[c - 0.07, 0.05], [c + 0.07, 0.05]]; }, true);
-      stripe(8, LEN, 0.6 * sg);
-      for (let s = 10; s < LEN - 5; s += 9){ const e = (hw(s) - 1.5) / 3; for (const c of [0.6 + e, 0.6 + 2 * e]) stripe(s, s + 4.5, c * sg); }
+      sweep(lines, 0, LEN, 2.5, s => { const c = (hw(s) - 0.9) * sg; return [[c - 0.07, 0.05], [c + 0.07, 0.05]]; }, true);
+      stripe(0, LEN, 0.6 * sg);
+      for (let s = 1; s < LEN - 5; s += 9){ const e = (hw(s) - 1.5) / 3; for (const c of [0.6 + e, 0.6 + 2 * e]) stripe(s, s + 4.5, c * sg); }
     }
     // ### A pair of piers every 36 m: octagonal concrete columns that narrow a little towards the top, each on a footing at the
     // ### water, with a hammerhead cap under the girder (its ends chamfered) and a cross beam half-way up the tall ones. They
