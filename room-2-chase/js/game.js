@@ -1766,24 +1766,130 @@ function buildCity(){
     // far away: no shadows needed, which keeps them cheap
     for (const m of [gt, gc]) if (m){ m.castShadow = false; m.receiveShadow = false; }
   }
-  // The Se, Lisbon's cathedral, on the slope at the end of Rua da Conceicao: two crenellated towers and a rose window, facing west
+  // ### The Se, Lisbon's cathedral, on the slope at the end of Rua da Conceicao, facing west down the street, after the real
+  // ### one: a Romanesque front of pale limestone, two square towers with a string course, two round-arched bell openings on
+  // ### each side and battlements on top; between them the round-arched portal under its archivolts, the rose window, and a
+  // ### battlemented gable; behind them the nave with its buttresses, small windows and tile roof. It stands on a terrace of
+  // ### the same stone, with a parapet and a broad flight of steps down to the street, and is floodlit from the terrace, as
+  // ### every night. All of it is scenery beyond the edge of the map: nothing here can be driven on or hit.
   {
-    const x = 222, tw = [], under = [];
+    const x = 222, under = [], sr = mulberry32(1147);
     for (let gx = x - 3; gx <= x + 43; gx += 4) for (let gz = -20; gz <= 20; gz += 4) under.push(hillSurf(gx, gz));
-    const b = Math.max(...under) - 2.5;
+    const b = Math.max(...under) - 2.5, T = b + 3;
+    // limestone ashlar: courses of blocks with staggered joints, each block a little different, darker with age near the joints
+    const ashlar = (() => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 512;
+      const g = cv.getContext('2d'), rows = 8, rh = 512 / rows;
+      g.fillStyle = '#c9b792'; g.fillRect(0, 0, 512, 512);
+      for (let r = 0; r < rows; r++){
+        const n = 4, bw = 512 / n, off = (r % 2) * bw / 2;
+        for (let k = -1; k <= n; k++){
+          const v = 0.86 + sr() * 0.22, x0 = k * bw + off;
+          g.fillStyle = `rgb(${Math.round(203 * v)},${Math.round(184 * v)},${Math.round(148 * v)})`;
+          g.fillRect(x0 + 2, r * rh + 2, bw - 4, rh - 4);
+          const sh = g.createLinearGradient(0, r * rh, 0, (r + 1) * rh); sh.addColorStop(0, 'rgba(255,255,255,.10)'); sh.addColorStop(1, 'rgba(0,0,0,.16)');
+          g.fillStyle = sh; g.fillRect(x0 + 2, r * rh + 2, bw - 4, rh - 4);
+        }
+      }
+      for (let i = 0; i < 5000; i++){ const d = sr() < 0.5 ? 0 : 255; g.fillStyle = `rgba(${d},${d},${d},${(sr() * 0.07).toFixed(3)})`; g.fillRect(sr() * 512, sr() * 512, 1 + sr() * 3, 1 + sr() * 3); }
+      for (let i = 0; i < 26; i++){ const sx = sr() * 512, sy = sr() * 512, len = 30 + sr() * 110; const st = g.createLinearGradient(0, sy, 0, sy + len); st.addColorStop(0, 'rgba(40,30,18,.22)'); st.addColorStop(1, 'rgba(40,30,18,0)'); g.fillStyle = st; g.fillRect(sx, sy, 3 + sr() * 9, len); }
+      const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = ANISO; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      return t;
+    })();
+    // every stone lies in the same bond: the picture is laid over each face by its place in the world (one picture is 4 m by 4 m)
+    const bond = geo => {
+      const p = geo.attributes.position, n = geo.attributes.normal, uv = new Float32Array(p.count * 2);
+      for (let i = 0; i < p.count; i++){
+        const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+        uv[i * 2] = (ax > az && ax > ay ? p.getZ(i) : p.getX(i)) / 4; uv[i * 2 + 1] = (ay > ax && ay > az ? p.getZ(i) : p.getY(i)) / 4;
+      }
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      return geo;
+    };
+    const stoneMat = (tint, glow) => { const m = new THREE.MeshStandardMaterial({ map: ashlar, color: tint, roughness: 0.92, emissive: C(glow), emissiveMap: ashlar }); m.userData.env = 0.2; return m; };
+    const lime = [], dark = [], sill = [], treads = [];
+    // a round-arched opening, standing upright and facing west (w wide, h to the top of the arch), as a dark panel just in front of the wall
+    const archPanel = (w, h, px, py, pz, faceZ) => {
+      const s = new THREE.Shape(); s.moveTo(-w / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h - w / 2); s.absarc(0, h - w / 2, w / 2, 0, Math.PI, false); s.lineTo(-w / 2, 0);
+      const g = new THREE.ShapeGeometry(s, 10); g.rotateY(faceZ === undefined ? -Math.PI / 2 : faceZ > 0 ? 0 : Math.PI); g.translate(px, py, pz); return g;
+    };
+    // a round arch of stone over an opening (r to the middle of the moulding), with its two jambs
+    const archivolt = (r, tube, px, py, pz, jamb) => {
+      const out = [new THREE.TorusGeometry(r, tube, 6, 18, Math.PI).rotateY(-Math.PI / 2).translate(px, py, pz)];
+      for (const sd of [-1, 1]) out.push(new THREE.CylinderGeometry(tube, tube, jamb, 8).translate(px, py - jamb / 2, pz + sd * r));
+      return out;
+    };
     for (const sz of [-8.5, 8.5]){
-      tw.push(boxG(11, 34, 10, x + 5, b + 17, sz));
-      for (let k = -1; k <= 1; k++){ tw.push(boxG(1.6, 2, 1.6, x + 0.4, b + 35, sz + k * 3.4), boxG(1.6, 2, 1.6, x + 9.6, b + 35, sz + k * 3.4)); }
-      for (const dz of [-4.2, 4.2]) tw.push(boxG(1.6, 2, 1.6, x + 5, b + 35, sz + dz));
+      // the tower: its shaft, a plinth, corner buttresses, the string course under the belfry, and the cornice under the battlements
+      lime.push(boxG(11, 34, 10, x + 5, b + 17, sz), boxG(11.8, 2.2, 10.8, x + 5, T + 1.1, sz));
+      for (const cx of [-0.5, 10.5]) for (const cz of [-5, 5]) lime.push(boxG(1.5, 30, 1.5, x + cx, b + 15, sz + cz));
+      sill.push(boxG(11.7, 0.6, 10.7, x + 5, T + 19.6, sz), boxG(12.1, 0.8, 11.1, x + 5, b + 34.2, sz));
+      // battlements all round: a low wall with merlons
+      for (let k = 0; k < 4; k++){
+        const o = -4.6 + k * 3.07;
+        lime.push(boxG(1.7, 2.2, 1.2, x + 5 + o, b + 35.7, sz - 5), boxG(1.7, 2.2, 1.2, x + 5 + o, b + 35.7, sz + 5), boxG(1.2, 2.2, 1.7, x - 0.5, b + 35.7, sz + o * 0.92), boxG(1.2, 2.2, 1.7, x + 10.5, b + 35.7, sz + o * 0.92));
+      }
+      // two bell openings on each side of the belfry, a narrow window in the stage below, and a slit in the plinth stage
+      for (const dz of [-2.3, 2.3]){
+        dark.push(archPanel(2.3, 6.4, x - 0.56, T + 21.2, sz + dz));
+        lime.push(...archivolt(1.35, 0.2, x - 0.6, T + 26.45, sz + dz, 5.2));
+      }
+      for (const dx of [-2.3, 2.3]) for (const fz of [-1, 1]) dark.push(archPanel(2.3, 6.4, x + 5 + dx, T + 21.2, sz + fz * 5.06, fz));
+      dark.push(archPanel(1.0, 3.6, x - 0.56, T + 10.5, sz), archPanel(0.6, 2.2, x - 0.56, T + 4.4, sz));
     }
-    tw.push(boxG(9, 24, 7.6, x + 4, b + 12, 0), boxG(32, 18, 18, x + 26, b + 9, 0));
-    const se = new THREE.Mesh(mergeGeos(tw), new THREE.MeshStandardMaterial({ color: 0xc9b48c, roughness: 0.9, emissive: 0x4a3f2c })); grp.add(se);
-    // the terrace it stands on, lit from below, with the street climbing up to it
-    const terrace = new THREE.Mesh(boxG(46, b + 3, 40, x + 20, (b + 3) / 2, 0), new THREE.MeshStandardMaterial({ color: 0x4f463a, roughness: 0.95, emissive: 0x16130e }));
-    grp.add(terrace);
+    // between the towers: the front wall, set back a little, its battlemented top, the portal and the rose window
+    lime.push(boxG(8.2, 24, 7.6, x + 4.6, b + 12, 0));
+    sill.push(boxG(8.4, 0.5, 7.8, x + 4.6, T + 9.2, 0), boxG(8.6, 0.7, 7.9, x + 4.6, b + 24.2, 0));
+    for (let k = -1; k <= 1; k++) lime.push(boxG(1.1, 1.8, 1.5, x + 0.5, b + 25.4, k * 2.5));
+    dark.push(archPanel(3.4, 6.6, x + 0.42, T, 0));
+    for (let k = 0; k < 4; k++) lime.push(...archivolt(1.85 + k * 0.42, 0.21, x + 0.38 - k * 0.24, T + 4.9, 0, 4.9));
+    for (let k = 0; k < 5; k++) sill.push(boxG(1.4, 0.3, 8.6 + k * 0.9, x - 1.2 - k * 0.55, T - 0.15 - k * 0.3 + 0.3, 0));
+    lime.push(new THREE.TorusGeometry(2.75, 0.3, 8, 28).rotateY(-Math.PI / 2).translate(x + 0.42, T + 14, 0), new THREE.TorusGeometry(3.25, 0.16, 6, 28).rotateY(-Math.PI / 2).translate(x + 0.46, T + 14, 0));
+    for (let k = 0; k < 12; k++){ const a = k * Math.PI / 6; lime.push(new THREE.BoxGeometry(0.12, 2.5, 0.13).translate(0, 1.25, 0).rotateX(a).translate(x + 0.36, T + 14, 0)); }
+    lime.push(new THREE.TorusGeometry(0.55, 0.12, 6, 14).rotateY(-Math.PI / 2).translate(x + 0.34, T + 14, 0));
+    // the nave behind: walls with buttresses and small round-arched windows, a cornice and a tile roof
+    lime.push(boxG(32, 18, 18, x + 26, b + 9, 0));
+    sill.push(boxG(32.6, 0.6, 18.6, x + 26, b + 18.2, 0));
+    for (let k = 0; k < 5; k++) for (const sd of [-1, 1]){
+      lime.push(boxG(1.4, 15, 1.3, x + 12.5 + k * 6.6, b + 7.5, sd * 9.5));
+      if (k < 4) dark.push(archPanel(1.2, 4, x + 15.8 + k * 6.6, T + 8.2, sd * 9.06, sd));
+    }
+    hipRoof(x + 10.2, x + 42, b + 18.5, -9.2, 9.2, 3.2, C(0x8f4a26), 6);
+    // the terrace: a retaining wall of the same stone, darker, with buttresses, a coping and a parapet round its edge
+    const tx0 = x - 3, tx1 = x + 43, tz = 20, terr = [boxG(tx1 - tx0, T, tz * 2, (tx0 + tx1) / 2, T / 2, 0)], cope = [];
+    for (let z = -tz + 3; z <= tz - 3; z += 6.8) if (Math.abs(z) > 8) terr.push(boxG(1.3, T, 2.2, tx0 - 0.5, T / 2, z));
+    for (let gx = tx0 + 4; gx < tx1; gx += 7) for (const sd of [-1, 1]) terr.push(boxG(2.2, T, 1.3, gx, T / 2, sd * (tz + 0.5)));
+    cope.push(boxG(tx1 - tx0 + 0.8, 0.35, 0.9, (tx0 + tx1) / 2, T + 1.05, -tz), boxG(tx1 - tx0 + 0.8, 0.35, 0.9, (tx0 + tx1) / 2, T + 1.05, tz));
+    terr.push(boxG(tx1 - tx0, 0.9, 0.6, (tx0 + tx1) / 2, T + 0.45, -tz), boxG(tx1 - tx0, 0.9, 0.6, (tx0 + tx1) / 2, T + 0.45, tz));
+    for (const sd of [-1, 1]){ terr.push(boxG(0.6, 0.9, tz - 7, tx0, T + 0.45, sd * (tz + 7) / 2)); cope.push(boxG(0.9, 0.35, tz - 6.6, tx0, T + 1.05, sd * (tz + 7) / 2)); }
+    // the steps down to the street: 14 m wide, each step 0.5 m high and 1 m deep, until they meet the slope; low walls at their sides
+    for (let k = 0; k < 70; k++){
+      const sx = tx0 - 0.5 - k, y = T - 0.5 * (k + 1), g0 = Math.min(hillSurf(sx, -7), hillSurf(sx, 0), hillSurf(sx, 7));
+      if (y <= g0 + 0.1) break;
+      treads.push(boxG(1, 0.5, 14, sx, y + 0.25, 0));
+      // a lamp on each side wall every eighth step
+      if (k % 8 === 4) for (const sd of [-1, 1]) glowPts.push(sx, y + 2.6, sd * 7.35);
+      terr.push(boxG(1, Math.max(0.5, y - g0 + 2), 14, sx, (y + g0 - 2) / 2, 0));
+      for (const sd of [-1, 1]) terr.push(boxG(1, Math.max(1.4, y - g0 + 3.3), 0.7, sx, (y + 1.3 + g0 - 2) / 2, sd * 7.35));
+    }
+    const church = new THREE.Mesh(bond(mergeGeos(lime)), stoneMat(0xf2e3c2, 0x5a4a30)); grp.add(church);
+    grp.add(new THREE.Mesh(bond(mergeGeos(sill)), stoneMat(0xfff2d6, 0x6a583a)));
+    grp.add(new THREE.Mesh(bond(mergeGeos(terr)), stoneMat(0x9a8a6c, 0x1e1810)));
+    grp.add(new THREE.Mesh(bond(mergeGeos(cope)), stoneMat(0xc9b996, 0x2c2418)));
+    if (treads.length) grp.add(new THREE.Mesh(bond(mergeGeos(treads)), stoneMat(0xd8c9a6, 0x3a301f)));
+    grp.add(new THREE.Mesh(mergeGeos(dark), new THREE.MeshBasicMaterial({ color: 0x120d08, side: THREE.DoubleSide })));
+    // the glass of the rose window, dimly lit from inside: twelve petals of deep blue and red round an amber eye
+    const glass = (() => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g = cv.getContext('2d');
+      g.fillStyle = '#0b0906'; g.fillRect(0, 0, 128, 128);
+      for (let k = 0; k < 12; k++){ g.fillStyle = ['#12284e', '#4e1513', '#143a35'][k % 3]; g.beginPath(); g.moveTo(64, 64); g.arc(64, 64, 60, k * Math.PI / 6 + 0.04, (k + 1) * Math.PI / 6 - 0.04); g.fill(); }
+      const eye = g.createRadialGradient(64, 64, 0, 64, 64, 22); eye.addColorStop(0, '#9a7230'); eye.addColorStop(1, 'rgba(120,70,20,0)'); g.fillStyle = eye; g.fillRect(0, 0, 128, 128);
+      const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; return t;
+    })();
+    const rose = new THREE.Mesh(new THREE.CircleGeometry(2.6, 28), new THREE.MeshBasicMaterial({ map: glass })); rose.rotation.y = -Math.PI / 2; rose.position.set(x + 0.3, T + 14, 0); grp.add(rose);
+    // floodlights on the terrace and on the steps, and the lamps of the street that climbs up to it
+    for (const sz of [-13, -8.5, -4, 4, 8.5, 13]) glowPts.push(x - 2.2, T + 1.2, sz);
     for (const sz of [-7, 7]) for (let k = 0; k < 5; k++) glowPts.push(x - 44 + k * 10, hillSurf(x - 44 + k * 10, sz) + 4, sz);
-    const rose = new THREE.Mesh(new THREE.CircleGeometry(2.2, 20), new THREE.MeshBasicMaterial({ color: 0x4a3620 })); rose.rotation.y = -Math.PI / 2; rose.position.set(x - 0.56, b + 17, 0); grp.add(rose);
-    neon.box(x - 0.55, x - 0.5, b + 3, b + 10, -1.7, 1.7, C(0x2a1e14));
   }
   // The Castelo de Sao Jorge, floodlit like every night
   {
