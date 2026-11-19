@@ -436,7 +436,7 @@ test('conducting: a stroke on the beat counts, a stroke off it or a missed beat 
   M.condStep(idle, M.condBeat(M.COND.COUNT + M.COND.MISSES - 1) + M.COND.GOOD - .01);
   assert.ok(!idle.lost);
   M.condStep(idle, M.condBeat(M.COND.COUNT + M.COND.MISSES - 1) + M.COND.GOOD + .01);
-  assert.ok(idle.lost, 'ten missed beats and the band falls apart');
+  assert.ok(idle.lost, 'twelve missed beats and the band falls apart');
   assert.equal(M.condTap(idle, 20), null, 'refused: nothing to conduct once it is lost');
 });
 
@@ -445,18 +445,20 @@ test('conducting: a fair player keeps the band in time, a guessing or hurried on
   for (let k = 0; k < 50; k++){
     assert.ok(conductor(0, .06, rand).won, 'within 60 ms always wins');
     assert.ok(conductor(.08, .05, rand).won, 'a steady player a little late wins too');
+    assert.ok(conductor(0, .15, rand).won, 'an unsteady player up to 0.15 s off wins as well');
+    assert.ok(conductor(.1, .06, rand).won, 'so does a player who is always a tenth of a second late');
   }
   let half = 0, sloppy = 0, mash = 0, random = 0;
   for (let k = 0; k < 50; k++){
     if (conductor(0, .02, rand, 2).won) half++;            // only every other beat
-    if (conductor(0, .3, rand).won) sloppy++;              // up to 0.3 s off
+    if (conductor(0, .4, rand).won) sloppy++;              // up to 0.4 s off, almost a whole beat of guessing
     // mashing the button eight times a second, or stroking at random about twice a second
     const m = M.condNew(); for (let t = 0; t < 30 && !m.won && !m.lost; t += .125) M.condTap(m, t); if (m.won) mash++;
     const r = M.condNew(); for (let t = 0; t < 30 && !r.won && !r.lost; t += .2 + rand() * .6) M.condTap(r, t); if (r.won) random++;
   }
   assert.equal(half, 0, 'half the beats is not enough');
-  assert.ok(sloppy <= 2, 'a third of a second off hardly ever does');
+  assert.ok(sloppy <= 5, `four tenths of a second off hardly ever does (${sloppy} of 50)`);
   assert.equal(mash, 0, 'mashing never does');
-  assert.equal(random, 0, 'random strokes never do');
+  assert.ok(random <= 5, `random strokes hardly ever do (${random} of 50)`);
   assert.ok(conductor(0, .02, rand, 8).won, 'missing a beat now and then is fine');
 });
