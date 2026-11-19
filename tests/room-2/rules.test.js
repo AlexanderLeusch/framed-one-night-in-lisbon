@@ -1032,3 +1032,50 @@ test('the garage: a level hall, a ramp that climbs to the street, and walls all 
   assert.ok(walls.some(c => Core.collidePoint(G.door + 2, G.z1 + 0.5, 1, c)), 'beside the opening is wall');
   assert.ok(walls.some(c => Core.collidePoint(0, top + G.top, 1, c)), 'the far end of the ramp is closed');
 });
+
+test('the heist: the escape time from room 1 is read only when it is possible and fresh, and the drive is added to it', () => {
+  const R1 = require('../../room-1-escape/js/rules.js');
+  assert.equal(Core.HEIST.key, R1.HEIST_KEY, 'both rooms use the same place in the storage');
+  const now = 1.8e12, ok = JSON.stringify({ escape: 200.456, at: now - 60000 });
+  assert.deepEqual(Core.parseHeist(ok, now), { escape: 200.46, at: now - 60000 });
+  // what room 1 writes is what room 2 reads
+  assert.deepEqual(Core.parseHeist(R1.handover({ ending: 'A', time: 400, graceUsed: false }, now), now), { escape: 200, at: now });
+  const bad = [null, '', '{', '[]', '42', JSON.stringify({ escape: 0.5, at: now }), JSON.stringify({ escape: 661, at: now }), JSON.stringify({ escape: '200', at: now }),
+    JSON.stringify({ escape: 200 }), JSON.stringify({ escape: 200, at: now + 120000 }), JSON.stringify({ escape: 200, at: now - Core.HEIST.maxAge - 1 }), 'x'.repeat(300)];
+  for (const b of bad) assert.equal(Core.parseHeist(b, now), null, String(b).slice(0, 40));
+  assert.equal(Core.parseHeist(ok, NaN), null);
+  assert.equal(Core.heistTotal(200.46, 99.5), 299.96);
+  for (const [e, d] of [[0, 60], [661, 60], [200, 9], [200, 901], [NaN, 60], [200, '60']]) assert.equal(Core.heistTotal(e, d), null, e + ' + ' + d);
+  assert.equal(Core.actionAllowed('heist', { state: 'menu' }), true);
+  assert.equal(Core.actionAllowed('heist', { state: 'play' }), false);
+  assert.equal(Core.actionAllowed('heist', { state: 'done' }), false);
+});
+
+test('the heist leaderboard keeps each driver\'s best heist, fastest first, and drops what cannot be', () => {
+  let r = Core.recordHeist([], ' Alex ', 200, 100, 'bike');
+  assert.deepEqual(r.list, [{ name: 'Alex', escape: 200, drive: 100, time: 300, veh: 'bike' }]);
+  assert.deepEqual([r.rank, r.best, r.prev], [1, true, null]);
+  r = Core.recordHeist(r.list, 'Bea', 150, 120, 'car');
+  assert.deepEqual(r.list.map(x => x.name), ['Bea', 'Alex']); assert.equal(r.rank, 1);
+  // a slower heist never replaces the best one; a faster one does, under the name as first written
+  let s = Core.recordHeist(r.list, 'alex', 300, 100, 'car');
+  assert.deepEqual([s.rank, s.best, s.prev, s.list[1].time], [2, false, 300, 300]);
+  s = Core.recordHeist(r.list, 'alex', 100, 100, 'truck');
+  assert.deepEqual(s.list.map(x => [x.name, x.time, x.veh]), [['Alex', 200, 'truck'], ['Bea', 270, 'car']]);
+  // a tie goes behind the heist that was there first
+  assert.deepEqual(Core.recordHeist(r.list, 'Cy', 170, 100, 'car').list.map(x => x.name), ['Bea', 'Cy', 'Alex']);
+  // refused: no name, impossible parts
+  for (const [n, e, d] of [['', 200, 100], ['<>', 200, 100], ['Dan', 0, 100], ['Dan', 200, 5], ['Dan', 700, 100]]) assert.deepEqual(Core.recordHeist(r.list, n, e, d, 'car'), { list: r.list, rank: 0, best: false, prev: null });
+  // a saved board is cleaned when read: the total is always worked out again from the two parts
+  const saved = JSON.stringify([{ name: 'Alex', escape: 200, drive: 100, time: 1, veh: 'ufo' }, { name: 'alex', escape: 100, drive: 50 }, { name: 'Bad', escape: 9999, drive: 50 }, { name: '<>', escape: 100, drive: 50 }, null, 7]);
+  assert.deepEqual(Core.parseHeistBoard(saved), [{ name: 'alex', escape: 100, drive: 50, time: 150, veh: 'car' }]);
+  for (const bad of [null, '', '{', '{}', '42', 'x'.repeat(50000)]) assert.deepEqual(Core.parseHeistBoard(bad), []);
+  // the rows on the end screen: the top five, and the driver's own row when it is further down
+  let list = [];
+  for (let i = 0; i < 8; i++) list = Core.recordHeist(list, 'D' + i, 100 + i * 10, 60, 'car').list;
+  const rows = Core.heistRows(list, 'd7');
+  assert.deepEqual(rows.map(x => x.place), [1, 2, 3, 4, 5, 8]);
+  assert.deepEqual([rows[5].me, rows[5].gap, rows[0].me], [true, true, false]);
+  assert.equal(Core.heistRows(list, 'D1')[1].me, true);
+  assert.equal(Core.heistRows(list, 'D1').length, 5);
+});

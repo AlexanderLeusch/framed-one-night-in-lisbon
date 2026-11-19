@@ -98,12 +98,14 @@ At the start of every game, **three different games out of nine** are dealt at r
 
 | Ending | When | What happens |
 |---|---|---|
-| **A · Out below** | The right code before time runs out | You climb down the ladder. A note is taped to it: "Took you long enough. A car is waiting at the end of the tunnel. — H." The guard wanted you out. That is the plot twist that leads to room 2. At the bottom you walk through the tunnel yourself (the arrow keys; on a touch screen a "Walk to the door" button) to the old door at its far end. The clock has stopped: the walk costs no time. The door only opens from right in front of it; clicked from further away it is refused: "The door is at the far end of the tunnel. Walk up to it first." Opened, it creaks and swings out: behind it the car waits in a garage, its headlights shining at you. Then the ending card shows. |
+| **A · To the car** | The right code before time runs out | You climb down the ladder. A note is taped to it: "Took you long enough. A car is waiting at the end of the tunnel. — H." The guard wanted you out. That is the plot twist that leads to room 2. At the bottom you walk through the tunnel yourself (the arrow keys; on a touch screen a "Walk to the door" button) to the old door at its far end. The clock has stopped: the walk costs no time. The door only opens from right in front of it; clicked from further away it is refused: "The door is at the far end of the tunnel. Walk up to it first." Opened, it creaks and swings out: behind it the car waits in a garage, its headlights shining at you. Then the ending card shows: your escape time, and **Start the chase**, which opens room 2 and takes the escape time along (see below). |
 | **B · Back to the cell** | The clock reaches 0:00 (after the extra minute, if the door was jammed) | The door bangs open and Hale and two officers take you back to cell 4471. |
 
 **The earlier decision:** jamming the door early gives one more minute at the very end. That can turn Ending B into Ending A.
 
-After an ending, every action is refused except **Play again / Try again**, which starts a new game from the briefing.
+After an ending, every action is refused except **Play room 1 again / Try again**, which starts a new game from the briefing.
+
+**The escape time (Ending A only).** It is the time used on the clock: ten minutes less what is left; if you got out during the extra minute behind the jammed door, the ten minutes plus what was used of that minute. A wrong code costs 30 s on the clock, so it counts. The walk through the tunnel costs nothing, as the clock has stopped. The time is kept in the browser's storage for room 2, where the drive is added to it. Ending B and an unfinished game hand nothing over.
 
 ## Refused actions (nothing changes, the player is told why)
 

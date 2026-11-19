@@ -196,6 +196,15 @@ All of it is composed and synthesised by the game, with no music files. The tune
 - **Leader of the month.** The fastest driver of the current month on a map is named above the two boards.
 - **Where they are shown.** In the main menu (for the map that is chosen) and on the end screen after the finish. Each board shows the top five, and the driver's own place below them if they are further down. The end screen says whether the run is a new personal best and which place it has on both boards. It is set in large type: the drive time is the one big number, with the best time on this device under it, the stars beside the title, and time left (or shards), damage and wrecked police cars next to it. Without a driver, the end screen asks for a name first; the time is saved as soon as the name is entered.
 - Runs that end busted, wrecked or out of time, and the story mode, do not go on the board.
+
+## The whole heist (room 1 and room 2 as one time)
+
+- **How it starts.** Only from room 1: its Ending A card opens room 2 and brings the escape time. Instead of the menu, a card shows that time and one button, **Into the garage**; **Main menu** gives the heist up.
+- **What counts.** The heist is the escape followed by a finished free ride through Lisbon, with any vehicle. **Heist time = escape time + drive time.** The escape time changes nothing in the drive: the same clock, police and evidence as in every Lisbon run.
+- **Trying again.** If the drive fails (busted, wrecked, out of time), **Drive again** keeps the heist open, and only the finished drive counts. Going back to the menu ends the heist. Once a heist is finished, the escape time is used up; a new heist starts in room 1.
+- **The heist leaderboard.** Shown on the end screen above the board of the map: escape + drive = heist time, your place, and the top five heists (your own row below them if you are further down), each with its two parts and the vehicle. Each driver keeps one entry, their best heist; a slower one never replaces it, and on a tie the heist that was there first stays ahead. Signed in, it is everybody's board online; otherwise it is the board of this device. The drive also goes on the Lisbon leaderboard as usual.
+- **Refused.** An escape time that is broken, under 1 s, over 11 minutes (room 1 cannot last longer), from the future or older than six hours is ignored and the menu opens. Opening room 2 without coming from room 1 never starts a heist. Online, the database accepts only the two parts (escape 1 to 660 s, drive 10 to 900 s), adds them up itself, and takes at most one heist every 10 seconds from an account.
+- **What cannot be checked.** The escape time comes from the player's own browser. The rules above keep it possible, but a player who changes their browser's storage can claim a faster escape than they played. The same is true of every time on the boards.
 - **Online.** The boards everybody sees are kept in the game's online database. Every run is also kept on this device; when the online board can't be reached, the game says so and shows the boards of this device instead.
 
 ## Story mode: The Necklace Job

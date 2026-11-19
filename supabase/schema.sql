@@ -26,6 +26,20 @@ create table if not exists public.runs (
 create index if not exists runs_mode_time on public.runs (mode, time);
 create index if not exists runs_driver on public.runs (driver_id, created_at desc);
 
+-- Every finished heist: the escape from room 1 and the drive through Lisbon in room 2, in seconds; the database adds them up
+create table if not exists public.heists (
+  id bigint generated always as identity primary key,
+  driver_id uuid not null default auth.uid() references public.drivers (id) on delete cascade,
+  escape numeric(6, 2) not null check (escape between 1 and 660),
+  drive numeric(6, 2) not null check (drive between 10 and 900),
+  total numeric(7, 2) generated always as (escape + drive) stored,
+  veh text not null check (veh in ('car', 'bike', 'truck')),
+  created_at timestamptz not null default now()
+);
+create index if not exists heists_total on public.heists (total);
+create index if not exists heists_driver on public.heists (driver_id, created_at desc);
+
+alter table public.heists enable row level security;
 alter table public.drivers enable row level security;
 alter table public.runs enable row level security;
 
@@ -35,6 +49,9 @@ grant select on public.drivers, public.runs to anon, authenticated;
 grant insert (name) on public.drivers to authenticated;
 grant update (name) on public.drivers to authenticated;
 grant insert (mode, time, veh, stars) on public.runs to authenticated;
+revoke all on public.heists from anon, authenticated;
+grant select on public.heists to anon, authenticated;
+grant insert (escape, drive, veh) on public.heists to authenticated;
 
 drop policy if exists "drivers are public" on public.drivers;
 drop policy if exists "add your own driver" on public.drivers;
@@ -51,6 +68,23 @@ create policy "add your own run" on public.runs for insert to authenticated with
   driver_id = (select auth.uid())
   and not exists (select 1 from public.runs r where r.driver_id = (select auth.uid()) and r.created_at > now() - interval '10 seconds')
 );
+
+-- A heist is added under your own account only, and at most one every 10 seconds, like a run
+drop policy if exists "heists are public" on public.heists;
+drop policy if exists "add your own heist" on public.heists;
+create policy "heists are public" on public.heists for select to anon, authenticated using (true);
+create policy "add your own heist" on public.heists for insert to authenticated with check (
+  driver_id = (select auth.uid())
+  and not exists (select 1 from public.heists h where h.driver_id = (select auth.uid()) and h.created_at > now() - interval '10 seconds')
+);
+
+-- ### The heist board: each driver's best heist (the smallest total).
+drop view if exists public.heist_board;
+create view public.heist_board with (security_invoker = true) as
+  select distinct on (h.driver_id) h.driver_id, d.name, h.escape, h.drive, h.total, h.veh, h.created_at
+  from public.heists h join public.drivers d on d.id = h.driver_id
+  order by h.driver_id, h.total, h.created_at;
+grant select on public.heist_board to anon, authenticated;
 
 -- ### The two boards: each driver's best run per map, all time and in the current calendar month (Lisbon time).
 -- ### security_invoker makes the views obey the rules above.

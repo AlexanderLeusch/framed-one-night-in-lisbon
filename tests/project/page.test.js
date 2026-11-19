@@ -231,6 +231,15 @@ test('both rooms share one design system: the same tokens and the same fonts', (
 
 test('the story runs on from room 1 into room 2', () => {
   const rules = require('../../room-1-escape/js/rules.js');
+  // Ending A leads into room 2 and takes the escape time along; the start page begins the heist in room 1
+  const room = read('room-1-escape/js/room.js');
+  assert.match(room, /writeStore\(R\.HEIST_KEY, R\.handover\(S, Date\.now\(\)\)\)/, 'Ending A hands the escape time over');
+  assert.match(room, /<a class="btn" href="\.\.\/room-2-chase\/\?heist=1">/, 'the Ending A card opens room 2');
+  assert.match(game, /Core\.parseHeist\(readStore\(Core\.HEIST\.key\), Date\.now\(\)\)/, 'room 2 reads the handover through the rules');
+  assert.match(read('index.html'), /<a class="start-heist" href="room-1-escape\/">/, 'the start page starts the heist in room 1');
+  const sql = read('supabase/schema.sql');
+  assert.match(sql, /total numeric\(7, 2\) generated always as \(escape \+ drive\) stored/, 'the database adds the heist time up itself');
+  assert.match(sql, /grant insert \(escape, drive, veh\) on public\.heists to authenticated/, 'a player can only send the two parts');
   assert.match(rules.ENDINGS.A.text, /car is waiting/, 'room 1 ends with the getaway car');
   assert.match(game, /Cell Block D/, 'room 2 starts after the escape from Cell Block D');
   assert.match(game, /inmate 4471/, 'the police hunt the same inmate');

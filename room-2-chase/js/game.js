@@ -5969,6 +5969,78 @@ function setDriver(raw){
   return true;
 }
 
+// ---------- The whole heist: room 1 and room 2 as one time ----------
+// ### A player who comes from room 1 (its Ending A card links here with ?heist=1) brings their escape time along (Core.parseHeist
+// ### reads what room 1 left in the browser's storage). They are met by a short card instead of the menu and go straight to the
+// ### garage. When that Lisbon run is finished, the escape and the drive are added up to the heist time, which goes on the
+// ### heist leaderboard: on this device and, when signed in, online. A failed drive can be tried again and the heist stays
+// ### open; going back to the menu ends it. heist.run: the heist being played; last: the one just finished, for the end
+// ### screen; pending: waiting for a driver name; list: this device's board; online: everybody's, once loaded.
+const heist = { arrived: null, run: null, last: null, pending: null, rank: null, list: Core.parseHeistBoard(readStore(Core.HEIST.store)), online: null, net: null };
+// ### Reads the handover from room 1; null when the page was not opened from there or the handover is not valid.
+function heistArrival(){
+  return /[?&]heist=1(&|$)/.test(location.search) ? Core.parseHeist(readStore(Core.HEIST.key), Date.now()) : null;
+}
+// ### The card that meets a player who comes out of the tunnel: the escape time, and the way into the garage.
+function showHeistArrival(h){
+  heist.arrived = h;
+  state = 'menu';
+  hud.classList.add('off');
+  showCard(`<div class="eyebrow">Room 2 · The chase · 02:30</div>
+    <h1>Out of <em>the tunnel</em></h1>
+    <p>The door at the end of the tunnel opens into a lock-up garage under the Baixa. Three vehicles, and every police car in Lisbon looking for inmate 4471. Find the six pieces of evidence, pick up the witness and get out over the bridge.</p>
+    <div class="heist-sum"><div><span class="eyebrow">Escape · room 1</span><b>${fmtTimeExact(h.escape)}</b></div><i>+</i><div><span class="eyebrow">Drive · room 2</span><b>?</b></div><i>=</i><div class="total"><span class="eyebrow">Heist time</span><b>?</b></div></div>
+    <p class="note">Your drive time is added to your escape time. The total goes on the heist leaderboard.</p>
+    <div class="actions">
+      <button class="btn" data-action="heist">Into the garage <small class="desk-only">Enter</small></button>
+      <button class="btn ghost" data-action="menu">Main menu</button>
+    </div>`);
+}
+// ### Loads everybody's heists. Fails quietly: this device's list stays.
+async function loadHeists(){
+  if (!net) return;
+  const r = await net.heistBoard();
+  if (r.ok) heist.online = r.rows;
+  redrawBoards();
+}
+// ### Saves the heist that just ended under the active driver (once): on this device, and online when signed in.
+function recordHeistPending(){
+  const h = heist.pending;
+  if (!h || !driver) return Promise.resolve();
+  heist.pending = null;
+  heist.rank = Core.recordHeist(heist.list, driver, h.escape, h.drive, h.veh);
+  heist.list = heist.rank.list;
+  writeStore(Core.HEIST.store, JSON.stringify(heist.list));
+  if (!signedIn()) return Promise.resolve();
+  heist.net = { pending: true };
+  return net.submitHeist(h).then(async r => {
+    if (!r.ok){ heist.net = { error: r.error }; redrawBoards(); return; }
+    await loadHeists();
+    const l = heist.online;
+    heist.net = l ? { place: l.findIndex(x => Core.sameName(x.name, online.name)) + 1, n: l.length } : null;
+    redrawBoards();
+  });
+}
+// ### The heist on the end screen: escape + drive = heist time, the driver's place, and the heist leaderboard (everybody's
+// ### when signed in and loaded, otherwise this device's). Each row shows the two parts under the name.
+function heistSection(){
+  const h = heist.last;
+  if (!h) return '';
+  const on = signedIn() && heist.online, list = on ? heist.online : heist.list, me = on ? online.name : driver, N = heist.net;
+  let head = '';
+  if (signedIn() && N) head = N.pending ? 'Saving the heist online…' : N.error ? esc(N.error) : N.place ? `Online: ${esc(online.name)} is in place <b>${N.place}</b> of ${N.n}.` : '';
+  else if (heist.rank && heist.rank.rank) head = (heist.rank.best ? (heist.rank.prev ? `New best heist for ${esc(driver)} (was ${fmtTimeExact(heist.rank.prev)}).` : `${esc(driver)} is on the heist board.`) : `${esc(driver)}'s best heist stays ${fmtTimeExact(heist.rank.prev)}.`) + ` Place <b>${heist.rank.rank}</b> of ${heist.list.length}.`;
+  const rows = Core.heistRows(list, me), lead = rows.length && rows[0].place === 1 ? rows[0].time : null;
+  const body = rows.length ? `<ol class="lb-list">${rows.map(r => `<li class="${r.me ? 'me' : ''}${r.gap ? ' gap' : ''}${r.place <= 3 ? ' p' + r.place : ''}"><span class="lb-place">${r.place}</span>`
+      + `<span class="lb-who"><span class="lb-name">${esc(r.name)}</span><span class="lb-meta">Escape ${fmtTimeExact(r.escape)} · Drive ${fmtTimeExact(r.drive)} · ${VEH[r.veh].name}</span></span>`
+      + `<span class="lb-time"><b>${fmtTimeExact(r.time)}</b>${lead !== null && r.place > 1 ? `<small>+${(r.time - lead).toFixed(1)} s</small>` : ''}</span></li>`).join('')}</ol>`
+    : `<p class="lb-empty">${driver ? 'No heists yet.' : 'Enter a driver name below to put this heist on the board.'}</p>`;
+  return `<div class="eyebrow">The whole heist · Cell Block D to the bridge</div>
+    <div class="heist-sum"><div><span class="eyebrow">Escape · room 1</span><b>${fmtTimeExact(h.escape)}</b></div><i>+</i><div><span class="eyebrow">Drive · room 2</span><b>${fmtTimeExact(h.drive)}</b></div><i>=</i><div class="total"><span class="eyebrow">Heist time</span><b>${fmtTimeExact(h.total)}</b></div></div>
+    ${head ? `<p class="lb-head${N && N.error ? ' bad' : ''}">${head}</p>` : ''}
+    <p class="lb-where${on ? ' on' : ''}">${on ? 'Heist leaderboard · online · everybody\'s heists' : 'Heist leaderboard · this device only'}</p>${body}`;
+}
+
 // ---------- Online account ----------
 // ### net is the Supabase client (null when online.js is missing). online holds what the page shows: the account's driver
 // ### name, the boards loaded per map, a message for the player, and the place of the last run on the online boards.
@@ -6043,7 +6115,8 @@ async function accountAction(kind, el){
 }
 // ### Saves the run that just ended under the active driver (once): always on this device, and online when signed in.
 function recordPending(){
-  if (!pendingRun || !driver) return;
+  if (!driver) return;
+  if (!pendingRun){ recordHeistPending(); return; }
   const run = pendingRun;
   lastRank = Core.recordRun(board, run.mode, driver, run.time, run.veh, run.stars, Date.now());
   board = lastRank.board; pendingRun = null; saveBoard();
@@ -6055,8 +6128,8 @@ function recordPending(){
       const ob = online.boards[run.mode], at = l => l ? l.findIndex(x => Core.sameName(x.name, online.name)) + 1 : 0;
       online.rank = ob ? { all: at(ob.all), n: ob.all.length, month: at(ob.month) } : null;
       redrawBoards();
-    });
-  }
+    }).then(recordHeistPending);
+  } else recordHeistPending();
 }
 // The name field with its button; the same one is used in the menu and on the end screen
 const nameField = (ph, label) => `<span class="drv-new"><input type="text" class="drv-input" maxlength="${Core.NAME_MAX}" placeholder="${ph}" aria-label="${ph}" autocomplete="off" spellcheck="false"><button type="button" class="drv-add" data-driver-add>${label}</button></span>`;
@@ -6156,6 +6229,8 @@ function refreshDriverViews(){
   if (sec) sec.innerHTML = driverSection();
   const lb = card.querySelector('[data-board]');
   if (lb){ recordPending(); lb.innerHTML = boardSection(lb.dataset.board); }
+  const hs = card.querySelector('[data-heist]');
+  if (hs) hs.innerHTML = heistSection();
 }
 // Redraws only the account box (keeping a typed email), or only the boards, so a field being typed in is never wiped
 function redrawAccount(keep){
@@ -6171,6 +6246,8 @@ function redrawBoards(){
   if (mb) mb.innerHTML = `<div class="eyebrow">Leaderboard · ${MODES[sel.mode].title}</div>${boardPanels(sel.mode)}`;
   const lb = card.querySelector('[data-board]');
   if (lb) lb.innerHTML = boardSection(lb.dataset.board);
+  const hs = card.querySelector('[data-heist]');
+  if (hs) hs.innerHTML = heistSection();
 }
 
 // ### Switches map. A map is built the first time it is chosen, then bent over its hills once.
@@ -7044,6 +7121,11 @@ function finish(){
   let isBest = false;
   if (Core.isNewBest(best[mode], used)){ best[mode] = used; isBest = true; writeStore(M.store, String(used)); }
   pendingRun = { mode, time: used, veh: V.key, stars }; lastRank = null;
+  // a heist ends here: the escape from room 1 and this drive are one time, and the handover is used up
+  const total = heist.run && mode === 'city' ? Core.heistTotal(heist.run.escape, used) : null;
+  heist.last = total === null ? null : { escape: heist.run.escape, drive: used, veh: V.key, total };
+  heist.pending = heist.last; heist.rank = null; heist.net = null; heist.run = null;
+  if (heist.last){ writeStore(Core.HEIST.key, ''); loadHeists(); }
   recordPending();
   const city = mode === 'city';
   // ### The result card: the title with the stars beside it, the drive time as the one large number with the best time under it,
@@ -7064,6 +7146,7 @@ function finish(){
       </div>
     </div>
     ${lostStar ? '<p class="note">One star lost for heavy damage (over 50 %).</p>' : ''}
+    ${heist.last ? `<section class="lb heist" data-heist>${heistSection()}</section>` : ''}
     <section class="lb" data-board="${mode}">${boardSection(mode)}</section>
     <div class="actions">
       <button class="btn" data-action="again">Drive again <small class="desk-only">Enter</small></button>
@@ -7214,6 +7297,7 @@ function showCard(html, kind){
 // ### Hides the card and returns to the game.
 function hideOverlay(){ overlay.hidden = true; menuFraming(false); }
 function backToMenu(){
+  heist.run = null;
   garageLeave();
   setMode('city'); placeRun(); resetCar(); resetPolice(); damage = 0;
   Object.values(MODELS).forEach(md => md.paint.color.copy(md.base));
@@ -7275,6 +7359,7 @@ card.addEventListener('click', e => {
   if (!Core.actionAllowed(a, { state, story })) return;
   initAudio();
   if (a === 'go'){ story = null; startRun(sel.mode, sel.veh, true); if (mode === 'city') enterGarage(); }
+  else if (a === 'heist'){ if (!heist.arrived) return; story = null; heist.run = { escape: heist.arrived.escape }; startRun('city', sel.veh, true); enterGarage(); }
   else if (a === 'board') garageBoard();
   else if (a === 'street') garageToStreet(false);
   else if (a === 'again') startRun(mode, V.key);
@@ -9339,7 +9424,8 @@ placeRun();
 resetCar();
 resetNpcs();
 renderChips();
-showMenu();
+// from room 1 with a valid escape time: the arrival card; otherwise the menu
+{ const h = heistArrival(); if (h) showHeistArrival(h); else showMenu(); }
 warmUp();
 // a saved online login is checked only now: while the world is being built the page is too busy to answer in time
 if (net && net.user) setTimeout(afterSignIn, 0);

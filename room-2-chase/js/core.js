@@ -267,7 +267,7 @@
     const state = ctx && ctx.state, story = ctx && ctx.story;
     if (state === 'play') return false;
     switch (action){
-      case 'go': return state === 'menu';
+      case 'go': case 'heist': return state === 'menu';
       case 'story': return state === 'menu' || (state === 'done' && !!story && story.act + 1 >= STORY_ACTS);
       case 'again': return state === 'done' || state === 'over' || state === 'pause';
       case 'resume': return state === 'pause';
@@ -773,6 +773,68 @@
     return rows;
   }
 
+  // ---------- The whole heist: room 1 and room 2 as one time ----------
+  // ### Room 1 (the escape room) hands over how long the escape took (its rules.js writes { escape, at } under HEIST.key). A
+  // ### heist is that escape followed by a finished free ride through Lisbon; its time is the two added up, and the drive is
+  // ### not changed by the escape. The handover is refused when it is broken, impossible (under 1 s or over the 11 minutes
+  // ### room 1 can last), from the future or older than six hours. The heist leaderboard keeps each driver's best heist,
+  // ### fastest first, in this browser (HEIST.store) and, when signed in, online.
+  const HEIST = Object.freeze({ key: 'shard-heist-handover', store: 'shard-heist-heists', maxAge: 6 * 3600 * 1000, min: 1, max: 660 });
+  const cents = v => Math.round(v * 100) / 100;
+  const escapeOk = e => Number.isFinite(e) && e >= HEIST.min && e <= HEIST.max;
+  function parseHeist(raw, now){
+    if (typeof raw !== 'string' || raw.length > 200 || !Number.isFinite(now)) return null;
+    let s; try { s = JSON.parse(raw); } catch (e) { return null; }
+    if (!s || typeof s !== 'object' || Array.isArray(s) || !escapeOk(s.escape)) return null;
+    if (!Number.isFinite(s.at) || s.at > now + 60000 || now - s.at > HEIST.maxAge) return null;
+    return { escape: cents(s.escape), at: s.at };
+  }
+  // The heist time in seconds, or null when either part is not a possible time
+  const heistTotal = (escape, drive) => escapeOk(escape) && Number.isFinite(drive) && drive >= 10 && drive <= 900 ? cents(escape + drive) : null;
+  // One saved list of heists, cleaned like the runs: bad entries are dropped and each driver keeps only their best heist
+  function cleanHeists(list){
+    const out = [];
+    if (!Array.isArray(list)) return out;
+    for (const r of list){
+      if (!r || typeof r !== 'object') continue;
+      const name = cleanName(r.name), time = heistTotal(r.escape, r.drive);
+      if (!name || time === null) continue;
+      const entry = { name, escape: cents(r.escape), drive: cents(r.drive), time, veh: isVeh(r.veh) ? r.veh : 'car' };
+      const i = out.findIndex(x => sameName(x.name, name));
+      if (i < 0) out.push(entry); else if (time < out[i].time) out[i] = entry;
+    }
+    return out.sort((a, b) => a.time - b.time).slice(0, BOARD_KEEP);
+  }
+  function parseHeistBoard(raw){
+    if (typeof raw !== 'string' || raw.length > 40000) return [];
+    let s; try { s = JSON.parse(raw); } catch (e) { return []; }
+    return cleanHeists(s);
+  }
+  // ### Puts a finished heist on the list: a driver's slower heist never replaces their best one, and a tie goes behind the
+  // ### heist that was there first. Returns the new list, the driver's place (1 = fastest), whether it is their best and their
+  // ### time before it.
+  function recordHeist(list, raw, escape, drive, veh){
+    const name = cleanName(raw), t = heistTotal(escape, drive);
+    if (!name || t === null) return { list, rank: 0, best: false, prev: null };
+    const out = list.slice(), i = out.findIndex(x => sameName(x.name, name));
+    const prev = i >= 0 ? out[i].time : null, best = prev === null || t < prev;
+    if (best){
+      const keep = i >= 0 ? out[i].name : name;
+      if (i >= 0) out.splice(i, 1);
+      let at = out.findIndex(x => x.time > t); if (at < 0) at = out.length;
+      out.splice(at, 0, { name: keep, escape: cents(escape), drive: cents(drive), time: t, veh: isVeh(veh) ? veh : 'car' });
+    }
+    const kept = out.slice(0, BOARD_KEEP);
+    return { list: kept, rank: kept.findIndex(x => sameName(x.name, name)) + 1, best, prev };
+  }
+  // The rows the end screen shows: the top five heists, plus the driver's own row when it is further down
+  function heistRows(list, name){
+    const rows = list.slice(0, BOARD_SHOW).map((r, i) => Object.assign({ place: i + 1, me: sameName(r.name, name) }, r));
+    const mine = list.findIndex(r => sameName(r.name, name));
+    if (mine >= BOARD_SHOW) rows.push(Object.assign({ place: mine + 1, me: true, gap: mine > BOARD_SHOW }, list[mine]));
+    return rows;
+  }
+
   // ---------- Story mode rules ----------
   // ### The Necklace Job: three acts on the three maps. The optional letter (act 1) decides Ending A or B; being busted,
   // ### wrecked or out of time is Ending C and lets you retry the act. Retrying restores the letter to what you had when
@@ -1091,6 +1153,7 @@
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, BUST, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
     driveTime, runStars, isNewBest,
     NAME_MAX, DRIVERS_MAX, BOARD_KEEP, BOARD_SHOW, cleanName, sameName, newBoard, parseBoard, addDriver, recordRun, boardRows, boardList, monthKey, monthName,
+    HEIST, parseHeist, heistTotal, parseHeistBoard, recordHeist, heistRows,
     newStory, beginAct, retryAct, finishOpen, storyEnding, dueRadio,
     ENGINES, ENGINE_SR, gearFor, engineTarget, isBraking, isReversing, skidAmount, engineLoop, engineLoops, ROTOR, rotorLoop,
     RADIO, RADIO_ORDER, BACH, parseRadio, radioNext, radioBar

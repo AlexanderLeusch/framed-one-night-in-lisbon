@@ -20,11 +20,14 @@ In April 2012 the Starfall necklace, lent by the Ashford family to Lisbon's nava
 - **Design:** both rooms share one design system: the same background, glass panels, fonts, buttons and cards. Each room keeps its own accent colour: **orange** in the prison, **cyan** on the run. Hale's radio messages in room 2 are orange because he comes from room 1.
 - A test (`tests/project/page.test.js`) checks that the shared design tokens and the story links between the rooms stay in place.
 
-## How the two rooms will connect (planned, not built)
+## How the two rooms connect: the heist
 
-- Ending A of room 1 shows a button that opens room 2.
-- Ending B of room 1 stays in room 1 (try again).
-- Open question for the group: does room 2 then start in free ride, or straight in the story mode *The Necklace Job*?
+- The start page has one main button, **Start the heist**, which opens room 1. Below it, each room can still be played on its own.
+- **Ending A** of room 1 hands over the **escape time** (the time used on the clock, wrong codes included) and shows **Start the chase**, which opens room 2. Ending B stays in room 1 (try again).
+- Room 2 then skips its menu: a card shows the escape time and leads straight into the garage, for a free ride through Lisbon.
+- When that drive is finished, **heist time = escape time + drive time**. The escape does not change the drive in any way.
+- The heist time goes on the **heist leaderboard** (each driver's best heist, fastest first), on this device and, when signed in, online. See room 2, *The whole heist*.
+- The two pages stay separate. The escape time travels in the browser's storage and is checked by the rules when it is read: a broken, impossible or old one (over six hours) is refused and room 2 opens its menu as usual.
 
 ## Words used in these documents
 

@@ -30,6 +30,15 @@ begin
   begin update public.runs set time = 11; res := res || 'FAIL update allowed; '; exception when others then res := res || 'ok no update; '; end;
   begin delete from public.runs; res := res || 'FAIL delete allowed; '; exception when others then res := res || 'ok no delete; '; end;
   begin update public.drivers set name = 'Hacked' where id = b; get diagnostics n = row_count; res := res || case when n = 0 then 'ok cannot rename others; ' else 'FAIL renamed other; ' end; exception when others then res := res || 'ok cannot rename others; '; end;
+  insert into public.heists (escape, drive, veh) values (200, 61.5, 'car');
+  res := res || 'ok own heist; ';
+  begin insert into public.heists (escape, drive, veh) values (190, 61.5, 'car'); res := res || 'FAIL second heist within 10 s; '; exception when others then res := res || 'ok heist too fast refused; '; end;
+  begin insert into public.heists (driver_id, escape, drive, veh) values (b, 100, 20, 'car'); res := res || 'FAIL heist for someone else; '; exception when others then res := res || 'ok heist not for others; '; end;
+  begin insert into public.heists (escape, drive, veh) values (0, 60, 'car'); res := res || 'FAIL impossible escape; '; exception when others then res := res || 'ok impossible escape refused; '; end;
+  begin insert into public.heists (escape, drive, total, veh) values (300, 60, 11, 'car'); res := res || 'FAIL own total; '; exception when others then res := res || 'ok total is added up by the database; '; end;
+  begin delete from public.heists; res := res || 'FAIL heist delete allowed; '; exception when others then res := res || 'ok no heist delete; '; end;
+  select count(*) into n from public.heist_board where total = 261.5;
+  res := res || 'heist rows ' || n || ' (expect 1); ';
   select count(*) into n from public.board_all where mode = 'city';
   res := res || 'board rows ' || n || ' (expect 2); ';
   select count(*) into n from public.board_month where mode = 'city';

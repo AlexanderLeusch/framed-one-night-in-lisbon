@@ -200,3 +200,33 @@ test('a cut-off or broken answer counts as a failed call, never as an empty one 
   const fine = O.createClient({ store: cut, now: () => T0, fetch: async () => ({ ok: true, status: 200, text: async () => '[{"name":"Alex"}]' }) });
   assert.deepEqual(await fine.driverName(), { ok: true, name: 'Alex' });
 });
+
+test('a heist is sent as its two parts, only when signed in and possible; the heist board is read without a login', async () => {
+  assert.deepEqual(O.heistBody({ escape: 200.456, drive: 88.888, veh: 'bike', total: 1 }), { escape: 200.46, drive: 88.89, veh: 'bike' });
+  for (const bad of [null, {}, { escape: 0, drive: 60, veh: 'car' }, { escape: 661, drive: 60, veh: 'car' }, { escape: 200, drive: 9, veh: 'car' }, { escape: 200, drive: 901, veh: 'car' }, { escape: 200, drive: 60, veh: 'ufo' }, { escape: 'x', drive: 60, veh: 'car' }])
+    assert.equal(O.heistBody(bad), null, JSON.stringify(bad));
+  const rows = [{ name: 'Bea', escape: '300.00', drive: '100.00', total: '400.00', veh: 'car', driver_id: UID }, { name: 'Alex', escape: '200.00', drive: '70.50', total: '1.00', veh: 'ufo', driver_id: 7 },
+    { name: '', escape: 100, drive: 60 }, { name: 'Bad', escape: 9999, drive: 60 }, null];
+  assert.deepEqual(O.toHeistRows(rows), [{ name: 'Alex', escape: 200, drive: 70.5, time: 270.5, veh: 'car', id: '' }, { name: 'Bea', escape: 300, drive: 100, time: 400, veh: 'car', id: UID }], 'the total is worked out again, fastest first');
+  assert.deepEqual(O.toHeistRows('nope'), []);
+
+  const f = fake({ 'POST /rest/v1/heists': [201], 'GET /rest/v1/heist_board': [200, rows] });
+  const out = O.createClient({ fetch: f.fetch, store: f.store, now: () => T0 });
+  assert.equal((await out.submitHeist({ escape: 200, drive: 60, veh: 'car' })).ok, false, 'signed out: no heist');
+  assert.equal(f.calls.length, 0);
+  const b = await out.heistBoard();
+  assert.equal(b.ok, true); assert.equal(b.rows[0].name, 'Alex');
+  assert.equal(f.calls[0].opts.headers.Authorization, undefined);
+  f.mem[O.CONFIG.store] = JSON.stringify(login());
+  const c = O.createClient({ fetch: f.fetch, store: f.store, now: () => T0 });
+  assert.equal((await c.submitHeist({ escape: 0, drive: 60, veh: 'car' })).ok, false, 'an impossible heist is never sent');
+  assert.equal((await c.submitHeist({ escape: 200.456, drive: 60, veh: 'truck' })).ok, true);
+  const sent = f.calls.at(-1);
+  assert.equal(sent.key, 'POST /rest/v1/heists');
+  assert.deepEqual(sent.body, { escape: 200.46, drive: 60, veh: 'truck' }, 'no total and no owner: the database sets them');
+  assert.equal(sent.opts.headers.Authorization, 'Bearer ' + 'a'.repeat(40));
+  // the table is not there yet, or Supabase is down: ok: false, never an exception
+  const down = O.createClient({ fetch: fake({ 'GET /rest/v1/heist_board': [404, { code: 'PGRST205' }] }).fetch, store: f.store, now: () => T0 });
+  assert.equal((await down.heistBoard()).ok, false);
+  assert.equal((await down.submitHeist({ escape: 200, drive: 60, veh: 'car' })).ok, false);
+});

@@ -22,6 +22,8 @@ const saved = R.restore(readStore(R.SAVE_KEY));
 const COARSE = matchMedia('(pointer: coarse)').matches;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// the escape time on the Ending A card, to a tenth of a second, as room 2 shows it
+const fmtExact = t => { t = Math.round(Math.max(0, t) * 10) / 10; const m = Math.floor(t / 60); return m + ':' + (t - m * 60).toFixed(1).padStart(4, '0'); };
 const fmt = t => { t = Math.max(0, Math.ceil(t)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
 function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
@@ -4624,9 +4626,18 @@ function miniSound(n){
   }
 }
 
-// ### Shows one of the two endings.
+// ### Shows one of the two endings. Ending A is the way into room 2: the escape time is handed over (Rules.handover, kept
+// ### in the browser's storage) and the card's main button opens the chase, where the drive is added to it.
 function showEnding(){
   const A = S.ending === 'A', E = R.ENDINGS[S.ending];
+  if (A){
+    writeStore(R.HEIST_KEY, R.handover(S, Date.now()));
+    return showCard(`<div class="eyebrow">Room 1 complete · Ending A of 2</div>
+    <h1>To the <em>car</em></h1><p>${esc(E.text)}</p>
+    <p>Escape time: <b>${fmtExact(R.escapeTime(S))}</b> · Clues: <b>${S.clues.length} of 3</b> · Wrong codes: <b>${S.wrongTries}</b>${S.wedged ? ' · You jammed the door' : ''}</p>
+    <div class="next">Room 2 · The chase · your escape time goes with you and the drive is added to it</div>
+    <div class="actions"><a class="btn" href="../room-2-chase/?heist=1">Start the chase <small>Enter</small></a><button class="btn ghost" data-do="new">Play room 1 again</button></div>`, 'ending-a');
+  }
   showCard(`<div class="eyebrow">${A ? 'Ending A of 2' : 'Ending B of 2'}</div>
     <h1>${A ? 'Out <em>below</em>' : 'Back to <em>the cell</em>'}</h1><p>${esc(E.text)}</p>
     <p>Time left: <b>${fmt(S.time)}</b> · Clues: <b>${S.clues.length} of 3</b> · Wrong codes: <b>${S.wrongTries}</b>${S.wedged ? ' · You jammed the door' : ''}</p>

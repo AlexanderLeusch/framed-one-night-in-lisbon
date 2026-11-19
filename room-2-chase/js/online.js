@@ -92,6 +92,26 @@
     return { mode: run.mode, time, veh: run.veh, stars };
   }
 
+  // ### A finished heist (room 1 and room 2) as the database takes it: the escape and the drive in seconds; it adds them up itself
+  function heistBody(h){
+    if (!h || !VEHS.includes(h.veh)) return null;
+    const escape = Math.round(Number(h.escape) * 100) / 100, drive = Math.round(Number(h.drive) * 100) / 100;
+    if (!Number.isFinite(escape) || escape < 1 || escape > 660 || !Number.isFinite(drive) || drive < 10 || drive > 900) return null;
+    return { escape, drive, veh: h.veh };
+  }
+  // ### Rows of the heist board, checked: { name, escape, drive, time, veh, id }, fastest first; time is the two parts added up.
+  function toHeistRows(list){
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    for (const r of list){
+      if (!r || typeof r !== 'object' || typeof r.name !== 'string' || !r.name) continue;
+      const b = heistBody({ escape: r.escape, drive: r.drive, veh: VEHS.includes(r.veh) ? r.veh : 'car' });
+      if (!b) continue;
+      out.push({ name: r.name.slice(0, 16), escape: b.escape, drive: b.drive, time: Math.round((b.escape + b.drive) * 100) / 100, veh: b.veh, id: typeof r.driver_id === 'string' ? r.driver_id : '' });
+    }
+    return out.sort((a, b) => a.time - b.time).slice(0, CONFIG.keep);
+  }
+
   // ---------- The client ----------
   // ### fetchFn, store ({ get, set }) and now are passed in, so the tests can run it against a fake Supabase.
   function createClient(opts){
@@ -197,6 +217,19 @@
         const r = await call('/rest/v1/runs', { method: 'POST', auth: true, body, prefer: 'return=minimal' });
         return r.ok ? { ok: true } : fail(r);
       },
+      // ### Adds one finished heist under the signed-in account.
+      async submitHeist(h){
+        const body = heistBody(h);
+        if (!body) return { ok: false, status: 400, error: errorText(400, { code: '23514' }) };
+        if (!(await fresh())) return { ok: false, status: 401, error: errorText(401) };
+        const r = await call('/rest/v1/heists', { method: 'POST', auth: true, body, prefer: 'return=minimal' });
+        return r.ok ? { ok: true } : fail(r);
+      },
+      // ### The heist board: everybody's best heist, fastest first. Needs no login.
+      async heistBoard(){
+        const r = await call('/rest/v1/heist_board?select=name,escape,drive,total,veh,driver_id&order=total.asc,created_at.asc&limit=' + CONFIG.keep);
+        return r.ok ? { ok: true, rows: toHeistRows(r.body) } : fail(r);
+      },
       // ### Both boards of one map: everybody's best run of all time and of this calendar month. Needs no login.
       async boards(mode){
         if (!MODES.includes(mode)) return { ok: false, status: 400, error: errorText(400) };
@@ -209,5 +242,5 @@
     };
   }
 
-  return Object.freeze({ CONFIG, PW_MIN, nameFilter, cleanEmail, passwordProblem, parseSession, sessionFrom, needsRefresh, errorText, toRows, runBody, createClient });
+  return Object.freeze({ CONFIG, PW_MIN, nameFilter, cleanEmail, passwordProblem, parseSession, sessionFrom, needsRefresh, errorText, toRows, runBody, heistBody, toHeistRows, createClient });
 });

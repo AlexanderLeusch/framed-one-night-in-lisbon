@@ -271,7 +271,24 @@
     return e && e.title === v.title && e.creator === v.creator ? Object.assign(e, { at: v.at }) : null;
   }
 
+  // ---------- The handover to room 2 ----------
+  // ### After Ending A the game goes on in room 2, the chase. escapeTime is how much of the clock the escape used, in seconds:
+  // ### the ten minutes (and, once the jammed door held Hale off, the extra minute) less what is left. Wrong codes count, as
+  // ### they cost time on the clock. handover is what room 2 reads from the browser's storage: that time and when it was
+  // ### written. Only Ending A hands anything over.
+  const HEIST_KEY = 'shard-heist-handover';
+  function escapeTime(s){
+    if (!s || s.ending !== 'A' || !Number.isFinite(s.time)) return null;
+    const used = (s.graceUsed ? TIME_LIMIT + WEDGE_GRACE : TIME_LIMIT) - s.time;
+    return Math.min(TIME_LIMIT + WEDGE_GRACE, Math.max(1, Math.round(used * 100) / 100));
+  }
+  function handover(s, now){
+    const t = escapeTime(s);
+    return t === null || !Number.isFinite(now) ? '' : JSON.stringify({ escape: t, at: Math.round(now) });
+  }
+
   return Object.freeze({
+    HEIST_KEY, escapeTime, handover,
     TIME_LIMIT, WRONG_CODE_PENALTY, WEDGE_GRACE, CODE, SAVE_KEY, ITEMS, CLUES, SCENES, ENDINGS, WARNINGS, GAMES, SPOTS, GRAFFITI,
     newState, visibleHotspots, perform, tick, restore, canContinue, VOLUME_KEY, parseVolume, VENT_KEY, VENT_SEARCH, pickVent, parseVent
   });

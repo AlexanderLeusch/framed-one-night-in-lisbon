@@ -322,3 +322,24 @@ test('the air vent from the Openverse API: the best CC0 ventilation recording is
   for (const raw of [null, '', '{', '[]', 'null', JSON.stringify({ ...v }), JSON.stringify({ at: now, ...v, url: 'https://evil.example/a.mp3' }),
     JSON.stringify({ at: now, ...v, title: '<script>' }), JSON.stringify({ at: String(now), ...v })]) assert.equal(R.parseVent(raw, now), null, 'refused: ' + raw);
 });
+
+test('Ending A hands the escape time over to room 2; Ending B and an unfinished game hand over nothing', () => {
+  let s = runClock(play(TO_HATCH), 100);
+  s = R.perform(turnTo(s, R.CODE), 'try').state;
+  assert.equal(s.ending, 'A');
+  assert.equal(R.escapeTime(s), 100, 'the clock time used');
+  assert.deepEqual(JSON.parse(R.handover(s, 1234.4)), { escape: 100, at: 1234 });
+  // a wrong code costs 30 s on the clock, so it counts in the escape time too
+  let w = R.perform(play(TO_HATCH), 'try').state;
+  assert.equal(w.wrongTries, 1);
+  w = R.perform(turnTo(w, R.CODE), 'try').state;
+  assert.equal(R.escapeTime(w), R.WRONG_CODE_PENALTY);
+  // out during the extra minute behind the jammed door: the ten minutes plus what was used of it
+  const late = Object.assign({}, s, { graceUsed: true, wedged: true, time: 45 });
+  assert.equal(R.escapeTime(late), R.TIME_LIMIT + R.WEDGE_GRACE - 45);
+  // nothing is handed over without Ending A
+  const b = runClock(play(START), 700);
+  assert.equal(b.ending, 'B');
+  for (const bad of [b, play(START), null, { ending: 'A', time: NaN }]){ assert.equal(R.escapeTime(bad), null); assert.equal(R.handover(bad, 1000), ''); }
+  assert.equal(R.handover(s, NaN), '');
+});

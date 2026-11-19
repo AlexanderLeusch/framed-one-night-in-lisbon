@@ -253,3 +253,6 @@ button.bs-cell:not(:disabled):hover{background:rgba(255,122,26,.35)}
 .ttt-cell:not(:disabled):hover{background:rgba(255,122,26,.2)}
 .ttt-cell:disabled{cursor:default}
 .ttt-cell svg{width:100%;height:100%}
+
+/* the way into room 2 on the Ending A card is a link that looks like the other buttons */
+a.btn{text-decoration:none}
