@@ -1404,11 +1404,74 @@ function buildCity(){
     return { top };
   }
   // A corner tower of the Praca do Comercio: one floor higher, with a steep lead-grey roof
+  // ### Dressed stone for the landmarks (the cathedral, the castle, the station): one picture of limestone ashlar, laid over
+  // ### every face in the same bond, a material that glows a little so a floodlit wall shows its blocks at night, and the
+  // ### round-arched openings and mouldings that all of them use.
+  const sr = mulberry32(1147);
+  // limestone ashlar: courses of blocks with staggered joints, each block a little different, darker with age near the joints
+  const ashlar = (() => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 512;
+    const g = cv.getContext('2d'), rows = 8, rh = 512 / rows;
+    g.fillStyle = '#c9b792'; g.fillRect(0, 0, 512, 512);
+    for (let r = 0; r < rows; r++){
+      const n = 4, bw = 512 / n, off = (r % 2) * bw / 2;
+      for (let k = -1; k <= n; k++){
+        const v = 0.86 + sr() * 0.22, x0 = k * bw + off;
+        g.fillStyle = `rgb(${Math.round(203 * v)},${Math.round(184 * v)},${Math.round(148 * v)})`;
+        g.fillRect(x0 + 2, r * rh + 2, bw - 4, rh - 4);
+        const sh = g.createLinearGradient(0, r * rh, 0, (r + 1) * rh); sh.addColorStop(0, 'rgba(255,255,255,.10)'); sh.addColorStop(1, 'rgba(0,0,0,.16)');
+        g.fillStyle = sh; g.fillRect(x0 + 2, r * rh + 2, bw - 4, rh - 4);
+      }
+    }
+    for (let i = 0; i < 5000; i++){ const d = sr() < 0.5 ? 0 : 255; g.fillStyle = `rgba(${d},${d},${d},${(sr() * 0.07).toFixed(3)})`; g.fillRect(sr() * 512, sr() * 512, 1 + sr() * 3, 1 + sr() * 3); }
+    for (let i = 0; i < 26; i++){ const sx = sr() * 512, sy = sr() * 512, len = 30 + sr() * 110; const st = g.createLinearGradient(0, sy, 0, sy + len); st.addColorStop(0, 'rgba(40,30,18,.22)'); st.addColorStop(1, 'rgba(40,30,18,0)'); g.fillStyle = st; g.fillRect(sx, sy, 3 + sr() * 9, len); }
+    const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = ANISO; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+  })();
+  // every stone lies in the same bond: the picture is laid over each face by its place in the world (one picture is 4 m by 4 m)
+  const bond = geo => {
+    const p = geo.attributes.position, n = geo.attributes.normal, uv = new Float32Array(p.count * 2);
+    for (let i = 0; i < p.count; i++){
+      const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+      uv[i * 2] = (ax > az && ax > ay ? p.getZ(i) : p.getX(i)) / 4; uv[i * 2 + 1] = (ay > ax && ay > az ? p.getZ(i) : p.getY(i)) / 4;
+    }
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    return geo;
+  };
+  const stoneMat = (tint, glow) => { const m = new THREE.MeshStandardMaterial({ map: ashlar, color: tint, roughness: 0.92, emissive: C(glow), emissiveMap: ashlar }); m.userData.env = 0.2; return m; };
+  // a round-arched opening, standing upright and facing west (w wide, h to the top of the arch), as a dark panel just in front of the wall
+  // faceZ: nothing for a wall that faces west, 1 south, -1 north, 'e' east
+  const archPanel = (w, h, px, py, pz, faceZ) => {
+    const s = new THREE.Shape(); s.moveTo(-w / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h - w / 2); s.absarc(0, h - w / 2, w / 2, 0, Math.PI, false); s.lineTo(-w / 2, 0);
+    const g = new THREE.ShapeGeometry(s, 10); g.rotateY(faceZ === undefined ? -Math.PI / 2 : faceZ === 'e' ? Math.PI / 2 : faceZ > 0 ? 0 : Math.PI); g.translate(px, py, pz); return g;
+  };
+  // a round arch of stone over an opening (r to the middle of the moulding), with its two jambs
+  const archivolt = (r, tube, px, py, pz, jamb) => {
+    const out = [new THREE.TorusGeometry(r, tube, 6, 18, Math.PI).rotateY(-Math.PI / 2).translate(px, py, pz)];
+    for (const sd of [-1, 1]) out.push(new THREE.CylinderGeometry(tube, tube, jamb, 8).translate(px, py - jamb / 2, pz + sd * r));
+    return out;
+  };
+  const STONE = { bond, mat: stoneMat, archPanel, archivolt };
+
   function torreao(x0, x1, z0, z1, top){
-    const h = top + FLOOR + 1.2;
+    // ### One of the two towers where the wings of the square meet the river, after the real ones: a storey above the roofs
+    // ### with stone quoins at its corners, a cornice, a stone balustrade round the top, a steep slate pavilion roof and a
+    // ### small lantern with a finial on it.
+    const h = top + FLOOR + 1.2, slate = C(0x5e625f), w = x1 - x0, d = z1 - z0, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
     FB.pombal.sides(x0, x1, top - 0.4, h, z0, z1, C(0xdbbe39), TU, TV, 0, 0.25);
-    trim.box(x0 - 0.45, x1 + 0.45, h, h + 0.4, z0 - 0.45, z1 + 0.45, stoneCol);
-    hipRoof(x0 - 0.3, x1 + 0.3, h + 0.4, z0 - 0.3, z1 + 0.3, 6.5, C(0x5e625f));
+    for (const qx of [x0, x1]) for (const qz of [z0, z1]) trim.box(qx - 0.5, qx + 0.5, top - 0.4, h, qz - 0.5, qz + 0.5, stoneCol);
+    trim.box(x0 - 0.55, x1 + 0.55, h, h + 0.45, z0 - 0.55, z1 + 0.55, stoneCol);
+    // the balustrade: a post about every 1.2 m and a rail on top
+    const by = h + 0.45, posts = (a0, a1, put) => { const n = Math.round((a1 - a0) / 1.2); for (let k = 0; k <= n; k++) put(a0 + k * (a1 - a0) / n); };
+    posts(x0 - 0.3, x1 + 0.3, x => { trim.box(x - 0.13, x + 0.13, by, by + 0.8, z0 - 0.43, z0 - 0.17, stoneCol); trim.box(x - 0.13, x + 0.13, by, by + 0.8, z1 + 0.17, z1 + 0.43, stoneCol); });
+    posts(z0 - 0.3, z1 + 0.3, z => { trim.box(x0 - 0.43, x0 - 0.17, by, by + 0.8, z - 0.13, z + 0.13, stoneCol); trim.box(x1 + 0.17, x1 + 0.43, by, by + 0.8, z - 0.13, z + 0.13, stoneCol); });
+    trim.box(x0 - 0.5, x1 + 0.5, by + 0.8, by + 0.98, z0 - 0.5, z0 - 0.1, stoneCol); trim.box(x0 - 0.5, x1 + 0.5, by + 0.8, by + 0.98, z1 + 0.1, z1 + 0.5, stoneCol);
+    trim.box(x0 - 0.5, x0 - 0.1, by + 0.8, by + 0.98, z0 - 0.5, z1 + 0.5, stoneCol); trim.box(x1 + 0.1, x1 + 0.5, by + 0.8, by + 0.98, z0 - 0.5, z1 + 0.5, stoneCol);
+    // the pavilion roof, steep and nearly a pyramid, with the lantern on its flat top
+    hipRoof(x0 + 0.5, x1 - 0.5, by, z0 + 0.5, z1 - 0.5, 7, slate, Math.min(w, d) / 2 - 1.9);
+    trim.box(mx - 1.05, mx + 1.05, by + 7, by + 8.7, mz - 1.05, mz + 1.05, stoneCol);
+    hipRoof(mx - 1.3, mx + 1.3, by + 8.7, mz - 1.3, mz + 1.3, 1.9, slate, 1.2);
+    trim.box(mx - 0.07, mx + 0.07, by + 10.6, by + 12.4, mz - 0.07, mz + 0.07, C(0x3a3d42));
   }
 
   // The National Theatre closes the north of the Rossio: white neoclassical body, six columns, a pediment
@@ -1422,6 +1485,23 @@ function buildCity(){
     const tri = new THREE.Shape(); tri.moveTo(-11.6, 0); tri.lineTo(11.6, 0); tri.lineTo(0, 3.9); tri.closePath();
     const ped = new THREE.ExtrudeGeometry(tri, { depth: 6.8, bevelEnabled: false }); ped.translate(cx, 13.2, front - 2); parts.push(ped);
     parts.push(boxG(0.9, 2.6, 0.8, cx, 18.3, front + 2));
+    // the five doors and the five windows over them, each in a stone surround: jambs, a lintel, and a small cornice over the window
+    for (let k = -2; k <= 2; k++){
+      const x = cx + k * 3.6;
+      for (const sd of [-1, 1]) parts.push(boxG(0.28, 4.7, 0.34, x + sd * 0.96, 3.25, front + 0.15), boxG(0.22, 3.3, 0.3, x + sd * 0.7, 8.5, front + 0.13));
+      parts.push(boxG(2.3, 0.38, 0.42, x, 5.75, front + 0.18), boxG(1.75, 0.2, 0.36, x, 6.92, front + 0.15), boxG(1.9, 0.28, 0.4, x, 10.2, front + 0.17), boxG(2.2, 0.16, 0.5, x, 10.45, front + 0.2));
+    }
+    // the balcony in front of those windows: a slab, a rail, and a baluster about every 0.6 m
+    parts.push(boxG(18.6, 0.24, 1.05, cx, 6.6, front + 0.55), boxG(18.6, 0.12, 0.14, cx, 7.55, front + 1.0));
+    for (let bx = -9.2; bx <= 9.21; bx += 0.613) parts.push(boxG(0.1, 0.85, 0.1, cx + bx, 7.1, front + 1.0));
+    // the windows of the two wings in their surrounds, and the figures at the ends of the pediment
+    for (const sx of [-1, 1]) for (let k = 0; k < 2; k++){
+      const wx = cx + sx * (17.5 + k * 3.2);
+      for (const y of [5.15, 9.55]) parts.push(boxG(1.7, 0.26, 0.36, wx, y, cz + 8.16));
+      for (const y of [1.9, 6.5]) parts.push(boxG(1.6, 0.18, 0.34, wx, y, cz + 8.15));
+      for (const sd of [-1, 1]) parts.push(boxG(0.2, 7.6, 0.26, wx + sd * 0.72, 5.7, cz + 8.1));
+    }
+    for (const sx of [-1, 1]) parts.push(boxG(0.7, 1.5, 0.7, cx + sx * 11, 14.1, front + 2));
     const body = new THREE.Mesh(mergeGeos(parts), stone); body.castShadow = true; grp.add(body);
     for (let k = -2; k <= 2; k++){
       neon.box(cx + k * 3.6 - 0.8, cx + k * 3.6 + 0.8, 1.1, 5.4, front - 0.05, front + 0.02, C(0xe0a868));
@@ -1459,6 +1539,23 @@ function buildCity(){
     const parts = [boxG(26, 26, 22, cx, 13, fz - 11.05), boxG(5.4, 8, 5.4, cx, 29.5, fz - 2.8)];
     for (let k = -6; k <= 6; k++) parts.push(boxG(1.1, 1.8, 1, cx + k * 2.1, 26.9, fz - 0.4), boxG(1.1, 1.8, 1, cx + k * 2.1, 26.9, fz - 21.6));
     for (let k = -1; k <= 1; k++) parts.push(boxG(1.1, 1.3, 1, cx + k * 1.9, 34.1, fz - 0.5));
+    // ### The front is a picture; these parts stand out from it so it has depth, as the real front has: a plinth, pilasters at
+    // ### the corners, the two horseshoe arches as stone mouldings on short columns, the niche with its figure between them, two
+    // ### cornices, and a row of round-arched windows under the battlements. The side walls get three rows of windows.
+    const dark = [];
+    parts.push(boxG(27, 1.3, 0.9, cx, 0.83, fz + 0.3), boxG(27.2, 0.7, 1.1, cx, 19.9, fz + 0.4), boxG(26.8, 0.45, 0.8, cx, 25.6, fz + 0.3));
+    for (const sd of [-1, 1]) parts.push(boxG(1.7, 24.4, 0.9, cx + sd * 12.25, 12.9, fz + 0.32));
+    for (const px of [-4.62, 4.62]){
+      parts.push(new THREE.TorusGeometry(5.05, 0.36, 8, 40, Math.PI * 1.5).rotateZ(-Math.PI / 4).translate(cx + px, 12.7, fz + 0.32), new THREE.TorusGeometry(4.35, 0.2, 6, 40, Math.PI * 1.5).rotateZ(-Math.PI / 4).translate(cx + px, 12.7, fz + 0.2));
+      for (const sd of [-1, 1]) parts.push(new THREE.CylinderGeometry(0.3, 0.36, 7.9, 10).translate(cx + px + sd * 3.57, 5.25, fz + 0.34), boxG(0.9, 0.35, 0.9, cx + px + sd * 3.57, 9.35, fz + 0.34), boxG(0.9, 0.4, 0.9, cx + px + sd * 3.57, 1.5, fz + 0.34));
+    }
+    parts.push(boxG(1.5, 0.5, 1.0, cx, 8.6, fz + 0.45), new THREE.CylinderGeometry(0.34, 0.42, 2.5, 8).translate(cx, 10.1, fz + 0.5), new THREE.SphereGeometry(0.33, 10, 8).translate(cx, 11.6, fz + 0.5), boxG(1.9, 0.3, 1.1, cx, 12.6, fz + 0.45));
+    for (let k = -4; k <= 4; k++){
+      dark.push(STONE.archPanel(1.15, 3.1, cx + k * 2.7, 21.4, fz + 0.07, 1));
+      parts.push(boxG(1.6, 0.22, 0.4, cx + k * 2.7, 21.3, fz + 0.18), new THREE.TorusGeometry(0.72, 0.13, 6, 14, Math.PI).translate(cx + k * 2.7, 23.92, fz + 0.1));
+    }
+    for (const sd of [-1, 1]) for (const y of [3.2, 10.6, 18]) for (let z = fz - 19; z < fz - 2; z += 4.2) dark.push(STONE.archPanel(1.4, 3.8, cx + sd * 13.07, y, z, sd > 0 ? 'e' : undefined));
+    grp.add(new THREE.Mesh(mergeGeos(dark), new THREE.MeshBasicMaterial({ color: 0x15100a, side: THREE.DoubleSide })));
     const body = new THREE.Mesh(mergeGeos(parts), stone); body.castShadow = true; grp.add(body);
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const cg = c.getContext('2d');
@@ -1773,52 +1870,10 @@ function buildCity(){
   // ### the same stone, with a parapet and a broad flight of steps down to the street, and is floodlit from the terrace, as
   // ### every night. All of it is scenery beyond the edge of the map: nothing here can be driven on or hit.
   {
-    const x = 222, under = [], sr = mulberry32(1147);
+    const x = 222, under = [], { bond, archPanel, archivolt } = STONE, stoneMat = STONE.mat;
     for (let gx = x - 3; gx <= x + 43; gx += 4) for (let gz = -20; gz <= 20; gz += 4) under.push(hillSurf(gx, gz));
     const b = Math.max(...under) - 2.5, T = b + 3;
-    // limestone ashlar: courses of blocks with staggered joints, each block a little different, darker with age near the joints
-    const ashlar = (() => {
-      const cv = document.createElement('canvas'); cv.width = cv.height = 512;
-      const g = cv.getContext('2d'), rows = 8, rh = 512 / rows;
-      g.fillStyle = '#c9b792'; g.fillRect(0, 0, 512, 512);
-      for (let r = 0; r < rows; r++){
-        const n = 4, bw = 512 / n, off = (r % 2) * bw / 2;
-        for (let k = -1; k <= n; k++){
-          const v = 0.86 + sr() * 0.22, x0 = k * bw + off;
-          g.fillStyle = `rgb(${Math.round(203 * v)},${Math.round(184 * v)},${Math.round(148 * v)})`;
-          g.fillRect(x0 + 2, r * rh + 2, bw - 4, rh - 4);
-          const sh = g.createLinearGradient(0, r * rh, 0, (r + 1) * rh); sh.addColorStop(0, 'rgba(255,255,255,.10)'); sh.addColorStop(1, 'rgba(0,0,0,.16)');
-          g.fillStyle = sh; g.fillRect(x0 + 2, r * rh + 2, bw - 4, rh - 4);
-        }
-      }
-      for (let i = 0; i < 5000; i++){ const d = sr() < 0.5 ? 0 : 255; g.fillStyle = `rgba(${d},${d},${d},${(sr() * 0.07).toFixed(3)})`; g.fillRect(sr() * 512, sr() * 512, 1 + sr() * 3, 1 + sr() * 3); }
-      for (let i = 0; i < 26; i++){ const sx = sr() * 512, sy = sr() * 512, len = 30 + sr() * 110; const st = g.createLinearGradient(0, sy, 0, sy + len); st.addColorStop(0, 'rgba(40,30,18,.22)'); st.addColorStop(1, 'rgba(40,30,18,0)'); g.fillStyle = st; g.fillRect(sx, sy, 3 + sr() * 9, len); }
-      const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = ANISO; t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      return t;
-    })();
-    // every stone lies in the same bond: the picture is laid over each face by its place in the world (one picture is 4 m by 4 m)
-    const bond = geo => {
-      const p = geo.attributes.position, n = geo.attributes.normal, uv = new Float32Array(p.count * 2);
-      for (let i = 0; i < p.count; i++){
-        const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
-        uv[i * 2] = (ax > az && ax > ay ? p.getZ(i) : p.getX(i)) / 4; uv[i * 2 + 1] = (ay > ax && ay > az ? p.getZ(i) : p.getY(i)) / 4;
-      }
-      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-      return geo;
-    };
-    const stoneMat = (tint, glow) => { const m = new THREE.MeshStandardMaterial({ map: ashlar, color: tint, roughness: 0.92, emissive: C(glow), emissiveMap: ashlar }); m.userData.env = 0.2; return m; };
     const lime = [], dark = [], sill = [], treads = [];
-    // a round-arched opening, standing upright and facing west (w wide, h to the top of the arch), as a dark panel just in front of the wall
-    const archPanel = (w, h, px, py, pz, faceZ) => {
-      const s = new THREE.Shape(); s.moveTo(-w / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h - w / 2); s.absarc(0, h - w / 2, w / 2, 0, Math.PI, false); s.lineTo(-w / 2, 0);
-      const g = new THREE.ShapeGeometry(s, 10); g.rotateY(faceZ === undefined ? -Math.PI / 2 : faceZ > 0 ? 0 : Math.PI); g.translate(px, py, pz); return g;
-    };
-    // a round arch of stone over an opening (r to the middle of the moulding), with its two jambs
-    const archivolt = (r, tube, px, py, pz, jamb) => {
-      const out = [new THREE.TorusGeometry(r, tube, 6, 18, Math.PI).rotateY(-Math.PI / 2).translate(px, py, pz)];
-      for (const sd of [-1, 1]) out.push(new THREE.CylinderGeometry(tube, tube, jamb, 8).translate(px, py - jamb / 2, pz + sd * r));
-      return out;
-    };
     for (const sz of [-8.5, 8.5]){
       // the tower: its shaft, a plinth, corner buttresses, the string course under the belfry, and the cornice under the battlements
       lime.push(boxG(11, 34, 10, x + 5, b + 17, sz), boxG(11.8, 2.2, 10.8, x + 5, T + 1.1, sz));
@@ -1891,16 +1946,59 @@ function buildCity(){
     for (const sz of [-13, -8.5, -4, 4, 8.5, 13]) glowPts.push(x - 2.2, T + 1.2, sz);
     for (const sz of [-7, 7]) for (let k = 0; k < 5; k++) glowPts.push(x - 44 + k * 10, hillSurf(x - 44 + k * 10, sz) + 4, sz);
   }
-  // The Castelo de Sao Jorge, floodlit like every night
+  // ### The Castelo de Sao Jorge on its hill, floodlit like every night, after the real one: an outer curtain wall of warm
+  // ### limestone with square towers at the corners and along the sides, battlements on every wall and tower, arrow slits, and
+  // ### a gatehouse with a round-arched gate in the wall that faces the city. Inside it stands the citadel: a second, higher
+  // ### ring of walls with its own towers, and the keep above them all with the flag. It is scenery far beyond the map.
   {
-    const cx = 300, cz = -115, W2 = 40, D2 = 28, wall = C(0xd8a868), H = 13, ground = [];
+    const cx = 300, cz = -115, W2 = 40, D2 = 28, H = 13, ground = [];
     for (let gx = -W2 - 5; gx <= W2 + 5; gx += 5) for (let gz = -D2 - 5; gz <= D2 + 5; gz += 5) ground.push(hillSurf(cx + gx, cz + gz));
-    const b = hillSurf(cx, cz) - 3, low = Math.min(...ground) - 2;
-    neon.box(cx - W2, cx + W2, low, b + H, cz - D2, cz - D2 + 3, wall); neon.box(cx - W2, cx + W2, low, b + H, cz + D2 - 3, cz + D2, wall);
-    neon.box(cx - W2, cx - W2 + 3, low, b + H, cz - D2, cz + D2, wall); neon.box(cx + W2 - 3, cx + W2, low, b + H, cz - D2, cz + D2, wall);
-    for (const [tx, tz] of [[-W2, -D2], [W2, -D2], [-W2, D2], [W2, D2], [0, D2], [-W2 / 2, -D2]]) neon.box(cx + tx - 5, cx + tx + 5, low, b + H + 8, cz + tz - 5, cz + tz + 5, C(0xe0b274));
-    for (let x = -W2; x < W2; x += 6){ neon.box(cx + x, cx + x + 3, b + H, b + H + 2, cz + D2 - 2, cz + D2, wall); neon.box(cx + x, cx + x + 3, b + H, b + H + 2, cz - D2, cz - D2 + 2, wall); }
-    for (let z = -D2; z < D2; z += 6) neon.box(cx - W2, cx - W2 + 2, b + H, b + H + 2, cz + z, cz + z + 3, wall);
+    const b = hillSurf(cx, cz) - 3, low = Math.min(...ground) - 2, wallG = [], towerG = [], capG = [], slits = [];
+    const span = (x0, x1, y0, y1, z0, z1) => boxG(x1 - x0, y1 - y0, z1 - z0, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    // battlements round the top of a rectangle: a low parapet and a merlon about every 3 m, on its outer edge
+    const crenel = (list, x0, x1, z0, z1, y, m) => {
+      const nx = Math.max(2, Math.round((x1 - x0) / 3.1)), nz = Math.max(2, Math.round((z1 - z0) / 3.1));
+      for (let k = 0; k < nx; k++){ const x = x0 + (k + 0.5) * (x1 - x0) / nx; list.push(boxG(m, 1.9, 0.9, x, y + 0.95, z0 + 0.45), boxG(m, 1.9, 0.9, x, y + 0.95, z1 - 0.45)); }
+      for (let k = 0; k < nz; k++){ const z = z0 + (k + 0.5) * (z1 - z0) / nz; list.push(boxG(0.9, 1.9, m, x0 + 0.45, y + 0.95, z), boxG(0.9, 1.9, m, x1 - 0.45, y + 0.95, z)); }
+      list.push(span(x0, x1, y, y + 0.8, z0, z0 + 0.5), span(x0, x1, y, y + 0.8, z1 - 0.5, z1), span(x0, x0 + 0.5, y, y + 0.8, z0, z1), span(x1 - 0.5, x1, y, y + 0.8, z0, z1));
+    };
+    // a square tower: the shaft from below the ground, a cornice that juts out under its battlements, and arrow slits on the
+    // two sides the city sees (west and south)
+    const tower = (tx, tz, half, top) => {
+      const x0 = cx + tx - half, x1 = cx + tx + half, z0 = cz + tz - half, z1 = cz + tz + half;
+      towerG.push(span(x0, x1, low, top, z0, z1));
+      capG.push(span(x0 - 0.35, x1 + 0.35, top - 0.6, top, z0 - 0.35, z1 + 0.35));
+      crenel(towerG, x0 - 0.35, x1 + 0.35, z0 - 0.35, z1 + 0.35, top, 1.5);
+      for (const y of [top - 5.5, top - 11]) slits.push(STONE.archPanel(0.45, 2.4, x0 - 0.06, y, cz + tz), STONE.archPanel(0.45, 2.4, cx + tx, y, z1 + 0.06, 1));
+    };
+    // the outer curtain: four walls with a walk on top
+    const top = b + H;
+    wallG.push(span(cx - W2, cx + W2, low, top, cz - D2, cz - D2 + 3), span(cx - W2, cx + W2, low, top, cz + D2 - 3, cz + D2), span(cx - W2, cx - W2 + 3, low, top, cz - D2, cz + D2), span(cx + W2 - 3, cx + W2, low, top, cz - D2, cz + D2));
+    crenel(wallG, cx - W2, cx + W2, cz - D2, cz + D2, top, 1.6);
+    for (const [tx, tz] of [[-W2, -D2], [W2, -D2], [-W2, D2], [W2, D2], [-13, D2], [13, D2], [-13, -D2], [13, -D2], [W2, 0]]) tower(tx, tz, 4.6, top + 7);
+    // the gatehouse in the west wall: two towers and the gate between them, under a round arch
+    for (const tz of [-7.5, 7.5]) tower(-W2 - 1.5, tz, 3.6, top + 9);
+    wallG.push(span(cx - W2 - 4, cx - W2 + 3, low, top + 4, cz - 4, cz + 4));
+    crenel(wallG, cx - W2 - 4, cx - W2 + 3, cz - 4, cz + 4, top + 4, 1.4);
+    const gateY = Math.max(low + 2, hillSurf(cx - W2 - 6, cz) - 1);
+    slits.push(STONE.archPanel(4.6, 7.2, cx - W2 - 4.07, gateY, cz));
+    wallG.push(...STONE.archivolt(2.6, 0.3, cx - W2 - 4.1, gateY + 4.9, cz, 4.9));
+    // the citadel inside, higher than the curtain, with its own towers, and the keep
+    const kx = cx + 10, kw = 16, kd = 12, ktop = top + 6;
+    wallG.push(span(kx - kw, kx + kw, low, ktop, cz - kd, cz - kd + 2.4), span(kx - kw, kx + kw, low, ktop, cz + kd - 2.4, cz + kd), span(kx - kw, kx - kw + 2.4, low, ktop, cz - kd, cz + kd), span(kx + kw - 2.4, kx + kw, low, ktop, cz - kd, cz + kd));
+    crenel(wallG, kx - kw, kx + kw, cz - kd, cz + kd, ktop, 1.5);
+    for (const [tx, tz] of [[-kw, -kd], [kw, -kd], [-kw, kd], [kw, kd], [0, kd], [0, -kd]]) tower(10 + tx, tz, 3.4, ktop + 6);
+    tower(10 - kw + 5, 0, 4.4, ktop + 13);
+    const stoneA = STONE.mat(0xf2d3a2, 0x8a6836), stoneB = STONE.mat(0xfbe0b4, 0x9a743c);
+    grp.add(new THREE.Mesh(STONE.bond(mergeGeos(wallG)), stoneA), new THREE.Mesh(STONE.bond(mergeGeos(towerG)), stoneB), new THREE.Mesh(STONE.bond(mergeGeos(capG)), STONE.mat(0xfff0d0, 0xa88048)));
+    grp.add(new THREE.Mesh(mergeGeos(slits), new THREE.MeshBasicMaterial({ color: 0x1a1108, side: THREE.DoubleSide, fog: false })));
+    // the flag of Portugal on the keep: a green hoist and a red fly
+    const fx = kx - kw + 5, fy = ktop + 13 + 1.9;
+    grp.add(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 7, 6).translate(fx, fy + 3.5, cz), new THREE.MeshBasicMaterial({ color: 0xbfc2c8 })));
+    grp.add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, 2.4).rotateY(Math.PI / 2).translate(fx, fy + 5.7, cz + 0.75), new THREE.MeshBasicMaterial({ color: 0x1f6b3a, side: THREE.DoubleSide })));
+    grp.add(new THREE.Mesh(new THREE.PlaneGeometry(2.3, 2.4).rotateY(Math.PI / 2).translate(fx, fy + 5.7, cz + 2.65), new THREE.MeshBasicMaterial({ color: 0xb3261e, side: THREE.DoubleSide })));
+    // floodlights at the foot of the walls the city sees
+    for (let k = -3; k <= 3; k++){ glowPts.push(cx - W2 - 7, hillSurf(cx - W2 - 7, cz + k * 8) + 1.5, cz + k * 8); glowPts.push(cx + k * 12, hillSurf(cx + k * 12, cz + D2 + 7) + 1.5, cz + D2 + 7); }
   }
   // Far across the water (no fog, or the night would swallow them): the south bank, Cristo Rei and the 25 de Abril bridge
   // ### Almada, the town on the south bank, after the real one: a quay along the water (Cacilhas and the Cais do Ginjal), a cliff
@@ -3036,7 +3134,28 @@ function buildCountry(){
   function house(x, z, w, d, floors, barn){
     if (roadDist(x, z) < Math.max(w, d) / 2 + 7) return;
     const y = terrainH(x, z) - 0.3, x0 = x - w / 2, x1 = x + w / 2, z0 = z - d / 2, z1 = z + d / 2, h = floors * FLOOR + 0.4;
-    if (barn){ plain.sides(x0, x1, y, y + h, z0, z1, C(0x7a2b22)); gable(plain, x0, x1, z0, z1, y, h, C(0x7a2b22)); }
+    if (barn){
+      // ### A barn, as they stand on real farms: red boards on a footing of field stone, white corner boards, a wide double
+      // ### door with white braces in each long side, a hay door under each gable, and a small ventilator on the ridge.
+      const red = C(0x7a2b22), white = C(0xe9e4d8), wood = C(0x2e1c14), stoneB = C(0x77726a), zc = (z0 + z1) / 2;
+      plain.sides(x0, x1, y, y + h, z0, z1, red); gable(plain, x0, x1, z0, z1, y, h, red);
+      plain.sides(x0 - 0.1, x1 + 0.1, y, y + 0.75, z0 - 0.1, z1 + 0.1, stoneB); plain.top(x0 - 0.1, x1 + 0.1, y + 0.75, z0 - 0.1, z1 + 0.1, stoneB);
+      for (const qx of [x0, x1]) for (const qz of [z0, z1]) plain.box(qx - 0.14, qx + 0.14, y + 0.75, y + h, qz - 0.14, qz + 0.14, white);
+      for (const [za, zb, zf] of [[z1, z1 + 0.06, z1 + 0.1], [z0 - 0.06, z0, z0 - 0.1]]){
+        const lo = Math.min(za, zb), hi = Math.max(za, zb), flo = Math.min(lo, zf), fhi = Math.max(hi, zf);
+        plain.box(x - 1.8, x + 1.8, y + 0.4, y + 3.9, lo, hi, wood);
+        plain.box(x - 2.0, x + 2.0, y + 3.9, y + 4.12, flo, fhi, white); plain.box(x - 2.0, x - 1.8, y + 0.4, y + 3.9, flo, fhi, white); plain.box(x + 1.8, x + 2.0, y + 0.4, y + 3.9, flo, fhi, white);
+        plain.box(x - 0.05, x + 0.05, y + 0.4, y + 3.9, flo, fhi, white); plain.box(x - 1.8, x + 1.8, y + 2.1, y + 2.24, flo, fhi, white);
+      }
+      for (const [xa, xb, xf] of [[x0 - 0.06, x0, x0 - 0.1], [x1, x1 + 0.06, x1 + 0.1]]){
+        const flo = Math.min(xa, xf), fhi = Math.max(xb, xf), top = y + h + 0.2;
+        plain.box(xa, xb, top, top + 1.5, zc - 0.7, zc + 0.7, wood);
+        plain.box(flo, fhi, top + 1.5, top + 1.66, zc - 0.85, zc + 0.85, white); plain.box(flo, fhi, top - 0.14, top, zc - 0.85, zc + 0.85, white);
+        plain.box(flo, fhi, top, top + 1.5, zc - 0.85, zc - 0.7, white); plain.box(flo, fhi, top, top + 1.5, zc + 0.7, zc + 0.85, white);
+      }
+      const ridge = y + h + (z1 - z0) * 0.42;
+      plain.box(x - 0.7, x + 0.7, ridge - 0.5, ridge + 0.6, zc - 0.7, zc + 0.7, red); plain.box(x - 0.95, x + 0.95, ridge + 0.6, ridge + 0.78, zc - 0.95, zc + 0.95, C(0x3b3d42));
+    }
     else {
       const wall = C([0xeee6d6, 0xe3d3b8, 0xd8c8b0, 0xf0ece4][Math.floor(rng() * 4)]);
       FBh.sides(x0, x1, y, y + h, z0, z1, wall, TU, TV, Math.floor(rng() * 8) / 8, 0);
