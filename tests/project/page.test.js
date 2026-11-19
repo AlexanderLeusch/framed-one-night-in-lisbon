@@ -407,6 +407,22 @@ test('escape room: the fire extinguisher is the Poly Haven model, shipped with i
   for (const f of ['color', 'normal', 'arm']) assert.ok(room.includes(`'fire-extinguisher-${f}.jpg'`), f);
 });
 
+test('escape room: Officer Hale is the MakeHuman body, shipped with its licence and loaded by room.js', () => {
+  const dir = path.join(ROOT, 'room-1-escape', 'models');
+  const buf = fs.readFileSync(path.join(dir, 'hale.glb'));
+  assert.equal(buf.readUInt32LE(0), 0x46546C67, 'hale.glb is a binary glTF file');
+  const json = JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString());
+  const names = json.nodes.map(n => n.name);
+  for (const n of ['root', 'head', 'neck02', 'spine02', 'spine03', 'upperarm01.R', 'lowerarm01.R', 'wrist.R', 'finger3-1.R', 'upperarm01.L', 'wrist.L']) assert.ok(names.includes(n), n + ' is a bone room.js turns');
+  const parts = json.meshes[0].primitives.map(p => json.materials[p.material].name);
+  for (const n of ['skin', 'eyes', 'cornea', 'shirt', 'trousers', 'collar', 'tie', 'belt', 'metal', 'cap', 'visor', 'boots', 'sole']) assert.ok(parts.includes(n), n);
+  for (const p of json.meshes[0].primitives) for (const k of ['POSITION', 'NORMAL', 'TEXCOORD_0', 'JOINTS_0', 'WEIGHTS_0']) assert.ok(p.attributes[k] !== undefined, k);
+  assert.match(fs.readFileSync(path.join(dir, 'LICENSE-hale.txt'), 'utf8'), /CC0/);
+  const room = fs.readFileSync(path.join(ROOT, 'room-1-escape', 'js', 'room.js'), 'utf8');
+  assert.match(room, /fetch\('models\/hale\.glb'\)/);
+  for (const f of ['hale-skin.jpg', 'hale-skin-bump.jpg', 'hale-eye.jpg']) assert.ok(fs.existsSync(path.join(ROOT, 'room-1-escape', 'textures', f)), f);
+});
+
 test('escape room: the real hand models are shipped with their licence and are what room.js loads', () => {
   const dir = path.join(ROOT, 'room-1-escape', 'models');
   for (const side of ['right', 'left']){
