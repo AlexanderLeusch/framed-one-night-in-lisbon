@@ -1301,7 +1301,7 @@ function buildCity(){
   const pick = style => C(PAL[style][Math.floor(rng() * PAL[style].length)]);
 
   const stone = new THREE.MeshStandardMaterial({ color: 0xc6bda6, roughness: 0.85, emissive: 0x2a261b });
-  const bronze = new THREE.MeshStandardMaterial({ color: 0x4e6a5e, roughness: 0.55, metalness: 0.45, emissive: 0x141e1a });
+  const bronze = new THREE.MeshStandardMaterial({ color: 0x5c7a6c, roughness: 0.5, metalness: 0.45, emissive: 0x1c2a24 });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), surfaceMat(ASPHALT, [175, 175], { color: 0xb8bcc8 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
   grp.add(ground);
@@ -1606,31 +1606,84 @@ function buildCity(){
     colliders.push({ t: 'c', x: cx, z: cz, r: 3.2 });
     radarRects.push({ x0: cx - 3.2, x1: cx + 3.2, z0: cz - 3.2, z1: cz + 3.2, c: 'rgba(85,236,255,.25)' });
   }
+  // ### Bronze figures are modelled from rounded parts, as a sculptor builds up clay: clayBall is an egg shape (its three half
+  // ### sizes, where it is, and how far it is tipped forward), clayLimb a tapering round bar from one point to another.
+  const clayBall = (rx, ry, rz, x, y, z, tip) => { const g = new THREE.SphereGeometry(1, 16, 12).scale(rx, ry, rz); if (tip) g.rotateX(tip); return g.translate(x, y, z); };
+  const clayLimb = (r0, r1, p, q) => {
+    const d = new THREE.Vector3(q[0] - p[0], q[1] - p[1], q[2] - p[2]), len = d.length();
+    const g = new THREE.CylinderGeometry(r1, r0, len, 10).translate(0, len / 2, 0);
+    g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())));
+    return g.translate(p[0], p[1], p[2]);
+  };
+  // a standing man in a long coat, his feet at y: for the top of a column
+  const standing = y => [clayLimb(0.15, 0.12, [-0.14, y + 0.95, 0], [-0.16, y, 0.03]), clayLimb(0.15, 0.12, [0.14, y + 0.95, 0], [0.17, y, -0.03]),
+    clayBall(0.34, 0.52, 0.25, 0, y + 1.42, 0), clayBall(0.4, 0.62, 0.2, 0, y + 1.05, -0.14, -0.12), clayLimb(0.1, 0.08, [0, y + 1.85, 0], [0, y + 2.0, 0.01]), clayBall(0.19, 0.22, 0.2, 0, y + 2.16, 0.01),
+    clayLimb(0.11, 0.09, [-0.36, y + 1.78, 0], [-0.44, y + 1.25, 0.06]), clayLimb(0.09, 0.07, [-0.44, y + 1.25, 0.06], [-0.4, y + 0.82, 0.16]),
+    clayLimb(0.11, 0.09, [0.36, y + 1.78, 0], [0.48, y + 1.3, 0.14]), clayLimb(0.09, 0.07, [0.48, y + 1.3, 0.14], [0.36, y + 1.22, 0.42]),
+    clayLimb(0.03, 0.03, [0.36, y + 0.95, 0.44], [0.36, y + 1.5, 0.44]), boxG(0.9, 0.12, 0.9, 0, y - 0.06, 0)];
   // Rossio: the wave pavement, the column of Dom Pedro IV and two fountains
   function rossio(cx, cz){
-    const column = new THREE.Mesh(mergeGeos([new THREE.CylinderGeometry(1.5, 1.8, 2.2, 16).translate(0, 1.3, 0), new THREE.CylinderGeometry(0.55, 0.65, 15, 12).translate(0, 9.5, 0), new THREE.BoxGeometry(1.5, 0.6, 1.5).translate(0, 17.3, 0)]), stone);
+    // the column: a stepped base, a pedestal, the shaft with its base ring and its capital, and the king in bronze on top
+    const column = new THREE.Mesh(mergeGeos([new THREE.CylinderGeometry(2.2, 2.4, 0.5, 20).translate(0, 0.43, 0), new THREE.CylinderGeometry(1.5, 1.8, 2.2, 16).translate(0, 1.3, 0), new THREE.CylinderGeometry(1.7, 1.7, 0.3, 16).translate(0, 2.5, 0),
+      new THREE.CylinderGeometry(0.85, 0.95, 0.5, 16).translate(0, 2.9, 0), new THREE.CylinderGeometry(0.55, 0.68, 13.6, 16).translate(0, 9.9, 0), new THREE.CylinderGeometry(0.95, 0.6, 0.7, 16).translate(0, 16.85, 0), new THREE.BoxGeometry(1.7, 0.4, 1.7).translate(0, 17.4, 0)]), stone);
     column.position.set(cx, 0, cz); column.castShadow = true;
-    const figure = new THREE.Mesh(mergeGeos([boxG(0.8, 1.9, 0.6, 0, 18.5, 0), boxG(0.5, 0.5, 0.5, 0, 19.7, 0)]), bronze);
-    figure.position.set(cx, 0, cz);
+    const figure = new THREE.Mesh(mergeGeos(standing(17.72)), bronze);
+    figure.position.set(cx, 0, cz); figure.castShadow = true;
     grp.add(column, figure);
     colliders.push({ t: 'c', x: cx, z: cz, r: 1.8 });
     radarRects.push({ x0: cx - 1.8, x1: cx + 1.8, z0: cz - 1.8, z1: cz + 1.8, c: 'rgba(255,255,255,.3)' });
     fountain(cx - 10, cz); fountain(cx + 10, cz);
     shardSpots.push({ x: cx, z: cz + 10.5 }, { x: cx, z: cz - 10.5 });
   }
-  // A horse and rider on a stone pedestal: Dom Jose I on the Praca do Comercio, Dom Joao I on the Praca da Figueira
+  // ### A horse and rider in bronze on a stone pedestal: Dom Jose I on the Praca do Comercio, Dom Joao I on the Praca da
+  // ### Figueira. The horse walks, one foreleg raised: a barrel of a body with a deep chest and round quarters, an arched neck,
+  // ### a long head with ears, four legs with knees and hooves, and a tail. The king sits upright in the saddle on a cloth, in a
+  // ### cloak and a plumed helmet, the sceptre in his right hand and the reins in his left. The pedestal is a tall block of
+  // ### pale stone on two steps, with a plinth, a panel on each long side, a medallion on the front and a cornice.
   function equestrian(x, z, s){
-    const ped = new THREE.Mesh(mergeGeos([new THREE.CylinderGeometry(2.2, 2.2, 1.2, 16).translate(0, 0.6, 0), new THREE.CylinderGeometry(1.5, 1.9, 5.2, 16).translate(0, 3.8, 0)]), stone);
-    ped.position.set(x, 0, z); ped.castShadow = true;
-    const parts = [boxG(1.1, 1.2, 3.0, 0, 3.0, 0), boxG(0.7, 1.5, 0.8, 0, 4.0, 1.5, -0.5), boxG(0.5, 0.6, 1.1, 0, 4.75, 2.05, 0.4),
-      boxG(0.3, 2.0, 0.3, 0.4, 1.3, -1.2), boxG(0.3, 2.0, 0.3, -0.4, 1.3, -1.2), boxG(0.3, 2.0, 0.3, 0.4, 1.3, 1.2), boxG(0.3, 1.1, 0.3, -0.4, 2.6, 1.7, 1.0),
-      boxG(0.2, 1.8, 0.3, 0, 2.6, -1.8, -0.3), boxG(0.8, 1.5, 0.6, 0, 4.35, -0.2), boxG(0.45, 0.5, 0.45, 0, 5.4, -0.2), boxG(1.1, 0.14, 0.6, 0, 5.7, -0.2), boxG(0.18, 2.0, 0.18, 0.62, 4.5, 0.2)];
-    const statue = new THREE.Mesh(mergeGeos(parts), bronze);
-    statue.scale.setScalar(s); statue.position.set(x, 6.4, z); statue.castShadow = true;
+    const P = [boxG(4.4, 0.45, 6.0, 0, 0.4, 0), boxG(3.7, 0.45, 5.3, 0, 0.85, 0), boxG(3.0, 0.8, 4.6, 0, 1.45, 0), boxG(2.5, 3.6, 4.1, 0, 3.65, 0), boxG(2.8, 0.25, 4.4, 0, 2.0, 0),
+      boxG(3.0, 0.35, 4.6, 0, 5.6, 0), boxG(3.3, 0.3, 4.9, 0, 5.92, 0), boxG(2.9, 0.33, 4.5, 0, 6.23, 0)];
+    for (const sd of [-1, 1]) P.push(boxG(0.12, 2.3, 2.9, sd * 1.27, 3.75, 0), boxG(0.1, 2.6, 0.16, sd * 1.28, 3.75, -1.55), boxG(0.1, 2.6, 0.16, sd * 1.28, 3.75, 1.55));
+    P.push(new THREE.CylinderGeometry(0.75, 0.75, 0.12, 20).rotateX(Math.PI / 2).translate(0, 3.9, 2.08), new THREE.TorusGeometry(0.78, 0.07, 6, 20).translate(0, 3.9, 2.1));
+    const ped = new THREE.Mesh(STONE.bond(mergeGeos(P)), STONE.mat(0xf6f1e6, 0x2c2922, true));
+    ped.scale.set(s, 1, s); ped.position.set(x, 0, z); ped.castShadow = true; ped.receiveShadow = true;
+    const H = [
+      // the horse: body, chest, quarters, the neck in two parts, head, muzzle, ears, mane, tail
+      clayBall(0.6, 0.66, 1.4, 0, 3.05, -0.05), clayBall(0.58, 0.74, 0.68, 0, 3.14, 1.02), clayBall(0.64, 0.76, 0.78, 0, 3.12, -1.08),
+      clayLimb(0.44, 0.34, [0, 3.45, 1.2], [0, 4.2, 1.72]), clayLimb(0.34, 0.25, [0, 4.2, 1.72], [0, 4.82, 1.98]),
+      clayBall(0.22, 0.27, 0.5, 0, 4.86, 2.24, 0.55), clayBall(0.16, 0.18, 0.28, 0, 4.58, 2.56, 0.6),
+      new THREE.ConeGeometry(0.07, 0.24, 6).translate(-0.12, 5.22, 2.06), new THREE.ConeGeometry(0.07, 0.24, 6).translate(0.12, 5.22, 2.06),
+      clayBall(0.07, 0.5, 0.32, 0, 4.42, 1.5, -0.6), clayBall(0.06, 0.3, 0.2, 0, 5.0, 1.82, -0.5),
+      clayLimb(0.17, 0.12, [0, 3.42, -1.72], [0, 2.7, -2.12]), clayLimb(0.12, 0.05, [0, 2.7, -2.12], [0, 1.5, -2.08]),
+      // the hind legs, both on the ground
+      ...[-1, 1].flatMap(sd => [clayLimb(0.29, 0.17, [sd * 0.36, 2.85, -1.15], [sd * 0.4, 1.72, -1.42]), clayLimb(0.14, 0.1, [sd * 0.4, 1.72, -1.42], [sd * 0.4, 0.5, -1.22]),
+        clayBall(0.13, 0.12, 0.13, sd * 0.4, 1.72, -1.42), new THREE.CylinderGeometry(0.13, 0.17, 0.26, 10).translate(sd * 0.4, 0.38, -1.2)]),
+      // the right foreleg stands, the left one is raised and bent at the knee
+      clayLimb(0.24, 0.14, [0.34, 2.8, 1.02], [0.36, 1.6, 1.14]), clayLimb(0.12, 0.09, [0.36, 1.6, 1.14], [0.36, 0.5, 1.08]), clayBall(0.12, 0.11, 0.12, 0.36, 1.6, 1.14), new THREE.CylinderGeometry(0.13, 0.17, 0.26, 10).translate(0.36, 0.38, 1.1),
+      clayLimb(0.24, 0.14, [-0.34, 2.8, 1.02], [-0.36, 2.02, 1.74]), clayLimb(0.12, 0.09, [-0.36, 2.02, 1.74], [-0.36, 1.2, 1.42]), clayBall(0.12, 0.11, 0.12, -0.36, 2.02, 1.74), new THREE.CylinderGeometry(0.13, 0.16, 0.24, 10).rotateX(-0.5).translate(-0.36, 1.12, 1.38),
+      // the saddle cloth, with its hem hanging down on both sides
+      clayBall(0.66, 0.1, 0.72, 0, 3.72, -0.12), boxG(1.36, 0.5, 1.15, 0, 3.42, -0.12),
+      // the king: legs, boots, body, cloak, neck, head, helmet and plume
+      ...[-1, 1].flatMap(sd => [clayLimb(0.21, 0.16, [sd * 0.2, 3.98, -0.3], [sd * 0.64, 3.4, 0.22]), clayLimb(0.14, 0.11, [sd * 0.64, 3.4, 0.22], [sd * 0.68, 2.6, 0.08]), clayBall(0.11, 0.1, 0.24, sd * 0.68, 2.52, 0.2)]),
+      clayBall(0.4, 0.6, 0.29, 0, 4.58, -0.2), clayBall(0.3, 0.26, 0.26, 0, 4.02, -0.22), clayBall(0.52, 0.8, 0.16, 0, 4.3, -0.56, -0.28), clayBall(0.5, 0.2, 0.3, 0, 5.0, -0.24),
+      clayLimb(0.11, 0.1, [0, 5.05, -0.18], [0, 5.24, -0.16]), clayBall(0.2, 0.23, 0.21, 0, 5.42, -0.15),
+      clayBall(0.24, 0.16, 0.26, 0, 5.56, -0.16), boxG(0.5, 0.04, 0.3, 0, 5.5, 0.02), clayBall(0.09, 0.26, 0.36, 0, 5.84, -0.36, -0.6),
+      // the right arm with the sceptre, the left one holding the reins, and the reins to the bit
+      clayLimb(0.12, 0.1, [0.4, 4.95, -0.2], [0.62, 4.45, 0.1]), clayLimb(0.1, 0.08, [0.62, 4.45, 0.1], [0.6, 4.4, 0.58]), clayBall(0.09, 0.09, 0.1, 0.6, 4.4, 0.62),
+      clayLimb(0.035, 0.035, [0.6, 3.95, 0.6], [0.6, 5.35, 0.74]), clayBall(0.08, 0.08, 0.08, 0.6, 5.4, 0.745),
+      clayLimb(0.12, 0.1, [-0.4, 4.95, -0.2], [-0.5, 4.4, 0.14]), clayLimb(0.1, 0.08, [-0.5, 4.4, 0.14], [-0.22, 4.18, 0.62]), clayBall(0.09, 0.09, 0.1, -0.2, 4.17, 0.66),
+      clayLimb(0.02, 0.02, [-0.2, 4.17, 0.66], [-0.17, 4.52, 2.5]), clayLimb(0.02, 0.02, [-0.2, 4.17, 0.66], [0.17, 4.52, 2.5]),
+      // the bronze ground the horse stands on
+      boxG(1.5, 0.26, 3.9, 0, 0.13, -0.05)
+    ];
+    const statue = new THREE.Mesh(mergeGeos(H), bronze);
+    statue.scale.setScalar(s); statue.position.set(x, 6.38, z); statue.castShadow = true;
     grp.add(ped, statue);
     groundPool(pools, x, z, 9, C(0xffc98a));
-    colliders.push({ t: 'c', x, z, r: 2.2 });
-    radarRects.push({ x0: x - 2.2, x1: x + 2.2, z0: z - 2.2, z1: z + 2.2, c: 'rgba(255,255,255,.3)' });
+    // floodlights at the four corners, so the bronze is not a black shape against the night sky
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) glowPts.push(x + sx * 3.4 * s, 0.6, z + sz * 4.2 * s);
+    colliders.push({ t: 'b', x0: x - 2.2 * s, x1: x + 2.2 * s, z0: z - 3.0 * s, z1: z + 3.0 * s });
+    radarRects.push({ x0: x - 2.2 * s, x1: x + 2.2 * s, z0: z - 3.0 * s, z1: z + 3.0 * s, c: 'rgba(255,255,255,.3)' });
   }
   // The Arco da Rua Augusta closes the south end of the street; the clock shows the hour of the escape
   function arco(z0){
