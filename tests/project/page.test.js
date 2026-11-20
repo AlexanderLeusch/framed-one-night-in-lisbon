@@ -512,6 +512,9 @@ test('the heist page holds both rooms, and the rooms still load nothing of each 
   // room 2 waits without drawing and begins only on the heist page's word
   assert.match(game, /if \(!HEIST_WAIT\) requestAnimationFrame\(frame\);/);
   assert.match(game, /if \(e\.origin !== location\.origin \|\| e\.source !== parent \|\| !e\.data \|\| e\.data\.shardHeist !== 'go' \|\| heist\.went\) return;/);
+  // a room 2 that is still loading when room 1 is left is shown and begins when ready: it is never loaded a second time
+  assert.match(js, /if \(state\.left\) frame2\.contentWindow\.postMessage\(\{ shardHeist: 'go' \}, location\.origin\);/);
+  assert.doesNotMatch(js, /frame2\.remove\(\)/);
   // each room on its own page still loads no file of the other
   assert.doesNotMatch(escHtml, /\.\.\//); assert.doesNotMatch(html, /room-1-escape/);
   // the heist page goes online with the rest

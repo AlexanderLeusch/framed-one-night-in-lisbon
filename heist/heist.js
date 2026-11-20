@@ -6,8 +6,9 @@
    ### 2. The rooms. Room 1 is played in a frame. While it is played, room 2 is loaded in a second frame under it (in its waiting
    ###    mode, ?heist=wait: it builds its world and then stands still). When room 1 is left through the tunnel door (it tells
    ###    this page, see showEnding in its room.js), room 2 is shown at once and told to begin: no page is loaded at that moment,
-   ###    so there is nothing to wait for. If room 2 is not ready by then, or was not loaded ahead (a phone has too little memory
-   ###    for both worlds at once), it is opened in the usual way and loads behind the glare of the headlights.
+   ###    so there is nothing to wait for. If room 2 is still loading by then, it is shown as it is, in the glare of the headlights,
+   ###    and begins the moment it is ready: what has been loaded is never thrown away. Only a phone, which has too little
+   ###    memory for both worlds at once, loads room 2 after room 1.
    ### The two rooms stay separate pages that know nothing of each other's files: only this page holds both. */
 (function (){
   'use strict';
@@ -18,8 +19,10 @@
   const esc = s => String(s).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');
   const net = Online && typeof fetch === 'function' ? Online.createClient({ fetch: (u, o) => fetch(u, o), store: { get: readStore, set: writeStore } }) : null;
   const box = $('whoBox'), rooms = $('rooms');
-  // a phone keeps one 3D world in memory at a time; everything else loads room 2 ahead
-  const AHEAD = !matchMedia('(pointer: coarse)').matches && !(navigator.deviceMemory && navigator.deviceMemory < 4);
+  // a phone (a touch screen that is small, or very little memory) keeps one 3D world in memory at a time; everything else,
+  // touch-screen laptops and tablets included, loads room 2 ahead
+  const PHONE = (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600) || (navigator.deviceMemory && navigator.deviceMemory < 4);
+  const AHEAD = !PHONE;
   const ROOM1 = '../room-1-escape/?heist=frame', ROOM2_WAIT = '../room-2-chase/?heist=wait#arrive', ROOM2 = '../room-2-chase/?heist=1#arrive';
   const state = { name: '', online: false, busy: false, msg: '', bad: false, started: false, ready: false, left: false };
   let frame1 = null, frame2 = null;
@@ -116,11 +119,12 @@
     if (state.left) return;
     state.left = true;
     rooms.dataset.left = frame2 && state.ready ? 'ahead' : 'late';
-    if (frame2 && state.ready){
+    if (frame2){
+      // loaded ahead: shown as it is. Ready, it begins now; still loading, it begins when it says it is ready (see below)
       frame2.classList.remove('under');
-      frame2.contentWindow.postMessage({ shardHeist: 'go' }, location.origin);
+      if (state.ready) frame2.contentWindow.postMessage({ shardHeist: 'go' }, location.origin);
     } else {
-      if (frame2) frame2.remove();
+      // room 1 was left before room 2 had even been started (it starts 2.5 s after room 1 has loaded)
       frame2 = makeFrame(ROOM2, 'Room 2 · The chase', false);
       rooms.insertBefore(frame2, frame1);
     }
@@ -131,7 +135,11 @@
   // only messages from our own two frames, on our own address, count
   addEventListener('message', e => {
     if (e.origin !== location.origin || !e.data || typeof e.data.shardHeist !== 'string') return;
-    if (frame2 && e.source === frame2.contentWindow && e.data.shardHeist === 'ready'){ state.ready = true; rooms.dataset.ready = '1'; }
+    if (frame2 && e.source === frame2.contentWindow && e.data.shardHeist === 'ready'){
+      state.ready = true; rooms.dataset.ready = '1';
+      // the player is already waiting in the glare: begin at once
+      if (state.left) frame2.contentWindow.postMessage({ shardHeist: 'go' }, location.origin);
+    }
     else if (frame1 && e.source === frame1.contentWindow && e.data.shardHeist === 'leave') toRoomTwo();
   });
 
