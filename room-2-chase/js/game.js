@@ -4477,18 +4477,21 @@ function scrapeEffects(dt){
 // ### the revs audibly fall into the next gear. Road rumble, gearbox whine, wind and tyres follow the speed; the truck adds a
 // ### lagging turbo and air brakes; a second oscillator with a slow LFO is the police siren.
 let audio = null, muted = false;
-// ### The two volume sliders. The music can be heard for a moment while its slider moves, even in the menu or the pause.
-const volume = Core.parseVolume(readStore('shard-heist-volume'));
+// ### The three volume sliders: the game, the music and the police (sirens and helicopter). The music can be heard for a moment
+// ### while its slider moves, even in the menu or the pause. The police volume is kept under its own key.
+const volume = Object.assign(Core.parseVolume(readStore('shard-heist-volume')), { police: Core.parseLevel(readStore('shard-heist-police-volume')) });
 let musicPreview = 0;
 function setVolume(kind, value){
   volume[kind] = clamp(value, 0, 1);
-  writeStore('shard-heist-volume', JSON.stringify(volume));
+  if (kind === 'police') writeStore('shard-heist-police-volume', String(volume.police));
+  else writeStore('shard-heist-volume', JSON.stringify({ game: volume.game, music: volume.music }));
   card.querySelectorAll(`[data-vol="${kind}"]`).forEach(r => { r.value = Math.round(volume[kind] * 100); const o = r.parentNode.querySelector('output'); if (o) o.textContent = r.value + '%'; });
   if (!audio) return;
-  const g = kind === 'game' ? audio.gameVol : audio.musicVol;
+  const g = kind === 'game' ? audio.gameVol : kind === 'police' ? audio.policeVol : audio.musicVol;
   g.gain.setTargetAtTime(Core.volumeGain(volume[kind]), audio.ctx.currentTime, 0.03);
 }
-const volumeRow = () => `<div class="vol">${['game', 'music'].map(k => `<label>${k === 'game' ? 'Game' : 'Music'} <input type="range" min="0" max="100" step="5" data-vol="${k}" value="${Math.round(volume[k] * 100)}" aria-label="${k === 'game' ? 'Game volume: engine, effects and sirens' : 'Music volume: the radio'}"><output>${Math.round(volume[k] * 100)}%</output></label>`).join('')}</div>`;
+const VOL_LABELS = { game: ['Game', 'Game volume: engine, tyres and effects'], music: ['Music', 'Music volume: the radio'], police: ['Police', 'Police volume: sirens and the helicopter'] };
+const volumeRow = () => `<div class="vol">${['game', 'music', 'police'].map(k => `<label>${VOL_LABELS[k][0]} <input type="range" min="0" max="100" step="5" data-vol="${k}" value="${Math.round(volume[k] * 100)}" aria-label="${VOL_LABELS[k][1]}"><output>${Math.round(volume[k] * 100)}%</output></label>`).join('')}</div>`;
 const ENGINES = Core.ENGINES;
 const eng = { rpm: 750, gear: 1, shift: 0, load: 0, boost: 0, miss: 0, prevPedal: 0, prevBrake: false, popTime: 0 };
 // ### Creates the audio graph on the first click or key. Browsers do not allow sound before the player has done something.
@@ -4498,9 +4501,11 @@ function initAudio(){
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const master = ctx.createGain(); master.gain.value = 0.9;
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
-    // the player's two volumes: everything of the game goes through gameVol, the radio through musicVol
-    const gameVol = ctx.createGain(), musicVol = ctx.createGain();
-    gameVol.gain.value = Core.volumeGain(volume.game); musicVol.gain.value = Core.volumeGain(volume.music);
+    // the player's volumes: everything of the game goes through gameVol, the radio through musicVol; the sirens and the
+    // helicopter go through policeVol first, so they can be turned down (or up) on their own
+    const gameVol = ctx.createGain(), musicVol = ctx.createGain(), policeVol = ctx.createGain();
+    gameVol.gain.value = Core.volumeGain(volume.game); musicVol.gain.value = Core.volumeGain(volume.music); policeVol.gain.value = Core.volumeGain(volume.police);
+    policeVol.connect(comp);
     comp.connect(gameVol).connect(master); musicVol.connect(master); master.connect(ctx.destination);
     const gain = v => { const g = ctx.createGain(); g.gain.value = v; return g; };
     const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
@@ -4544,7 +4549,7 @@ function initAudio(){
     const rotorData = Core.rotorLoop(Core.ENGINE_SR, 7), rotorBuf = ctx.createBuffer(1, rotorData.length, Core.ENGINE_SR); rotorBuf.copyToChannel(rotorData, 0);
     const rotorSrc = ctx.createBufferSource(); rotorSrc.buffer = rotorBuf; rotorSrc.loop = true; rotorSrc.start();
     const rotorF = ctx.createBiquadFilter(); rotorF.type = 'lowpass'; rotorF.frequency.value = 900;
-    const rotor = gain(0); rotorSrc.connect(rotorF).connect(rotor).connect(comp);
+    const rotor = gain(0); rotorSrc.connect(rotorF).connect(rotor).connect(policeVol);
     const radioBus = gain(0), radioComp = ctx.createDynamicsCompressor(); radioComp.threshold.value = -14; radioComp.ratio.value = 6; radioBus.connect(radioComp).connect(musicVol);
     const whine = ctx.createOscillator(); whine.type = 'sine';
     const whineG = gain(0); whine.connect(whineG).connect(comp);
@@ -4553,9 +4558,9 @@ function initAudio(){
     const siren = ctx.createOscillator(); siren.type = 'triangle'; siren.frequency.value = 950;
     const sirenLfo = ctx.createOscillator(); sirenLfo.frequency.value = 0.32;
     const sirenDepth = gain(330); sirenLfo.connect(sirenDepth).connect(siren.frequency);
-    const sirenGain = gain(0); siren.connect(sirenGain).connect(comp);
+    const sirenGain = gain(0); siren.connect(sirenGain).connect(policeVol);
     [turbo, whine, siren, sirenLfo].forEach(o => o.start());
-    audio = { ctx, master, gameVol, musicVol, comp, bus, gritDepth, roar, roarF, layers: [], voice: null, bufs: {}, noiseBuf, radioBus, road, rotor, scrape, scrapeF, rotorF, rotorSrc, wind, tire, popF, airF, turbo, turboG, whine, whineG, sirenGain, sirenLfo };
+    audio = { ctx, master, gameVol, musicVol, policeVol, comp, bus, gritDepth, roar, roarF, layers: [], voice: null, bufs: {}, noiseBuf, radioBus, road, rotor, scrape, scrapeF, rotorF, rotorSrc, wind, tire, popF, airF, turbo, turboG, whine, whineG, sirenGain, sirenLfo };
     setEngineVoice();
   } catch (e) { audio = null; }
 }
@@ -5856,7 +5861,7 @@ function updateGuide(){
   }
   if (Math.abs(deg - last.guideDeg) > 0.5){ last.guideDeg = deg; ui.guideArrow.style.transform = `rotate(${deg.toFixed(1)}deg)`; }
 }
-// ### The green arrow to the nearest repair kit (Core.kitToGuide), from 50 % damage on and on every map. It sits above the
+// ### The green arrow to the nearest repair kit (Core.kitToGuide), from 20 % damage on and on every map. It sits above the
 // ### evidence arrow, or in its place when there is none.
 function updateKitGuide(){
   const k = state === 'play' ? Core.kitToGuide(kits, car.x, car.z, damage) : null;
@@ -6649,7 +6654,17 @@ card.addEventListener('input', e => {
   if (r.dataset.vol === 'music') musicPreview = performance.now() + 1500;
   setVolume(r.dataset.vol, Number(r.value) / 100);
 });
-card.addEventListener('change', e => { const r = e.target.closest('[data-vol="game"]'); if (r) sfx.collect(); });
+// letting go of the police slider plays a short whoop of a siren at the new volume
+card.addEventListener('change', e => {
+  const r = e.target.closest('[data-vol]');
+  if (r && r.dataset.vol === 'game') sfx.collect();
+  if (r && r.dataset.vol === 'police' && audio && !muted){
+    const { ctx } = audio, t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(650, t); o.frequency.exponentialRampToValueAtTime(1280, t + 0.45);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.16, t + 0.05); g.gain.setTargetAtTime(0, t + 0.42, 0.06);
+    o.connect(g).connect(audio.policeVol); o.start(t); o.stop(t + 0.8);
+  }
+});
 card.addEventListener('click', e => {
   const ac = e.target.closest('[data-acc]');
   if (ac){ accountAction(ac.dataset.acc, ac); return; }

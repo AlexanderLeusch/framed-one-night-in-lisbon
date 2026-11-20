@@ -12,14 +12,14 @@
 | **Graphics** | Ultra, Balanced | **Ultra:** sharper picture (up to twice the screen resolution), smoothed edges, glowing lights and the finest shadows (4096 × 4096). **Balanced:** a lighter picture without the glow and with smaller shadows (2048 × 2048). Computers start in Ultra, phones in Balanced |
 | **Steering** (phones only) | Tilt, Buttons | **Tilt:** hold the phone sideways and lower one side like a steering wheel. **Buttons:** steer with the arrow pads. Tilt is the default on a phone with a motion sensor |
 | **Driver** | A field for the driver name and **Play online**; below it, *Use an email account instead* | Play online makes an online driver with just the name (up to 16 letters, digits, spaces and `. _ ' -`), kept in this browser: no email, no password. A name that is taken (without case: *alex* and *Alex* are the same) is refused. Each finished free ride then goes on the online leaderboard everybody sees, and also on the board of this device. With an email account (email and password, 8+ characters) the same driver works on every device. **Sign out** ends a name-only driver in this browser; its times stay on the board. When the online board can't be reached, the name becomes a driver of this device and the boards of this device are shown |
-| **Volume** | `Game` 0–100 %, `Music` 0–100 % | `Game` is the engine, tyres, sirens, the helicopter and all effects. `Music` is the radio. The music plays for a moment while its slider moves, so it can be heard; letting go of the game slider plays a short tone |
+| **Volume** | `Game` 0–100 %, `Music` 0–100 %, `Police` 0–100 % | `Game` is the engine, tyres and all effects. `Music` is the radio. `Police` is the sirens and the helicopter, on top of the game volume. The music plays for a moment while its slider moves, so it can be heard; letting go of the game slider plays a short tone, letting go of the police slider a short siren whoop |
 
 ## Room 2: during a run
 
 | Setting | How | What it does |
 |---|---|---|
 | **Pause** | `P`, `Esc` or the pause button | Stops everything: the clock, the police, the traffic and the music. The pause card shows the shards, time, damage and bust meter |
-| **Pause card** | Resume, Restart (or Retry act in the story), Main menu | It also has the steering choice (phones) and both volume sliders |
+| **Pause card** | Resume, Restart (or Retry act in the story), Main menu | It also has the steering choice (phones) and the three volume sliders |
 | **Map** (Lisbon) | `M`, or a tap on the radar | Pauses the run and shows the large map of the Baixa: where you are, the evidence, repair kits and witness that are still out there, the gate, and the yellow way to it once it is open. `M` or `Enter` closes it |
 | **Sound** | `N` or the speaker button | Turns all sound off or on, without changing the volume sliders |
 | **Radio** | `R` or the radio button | Next station; the name is shown under the clock |
@@ -64,6 +64,7 @@ Every stored value comes from outside the program, so each one is checked when i
 | Graphics | 2 | Ultra on a computer, Balanced on a phone |
 | Steering | 2 | Tilt |
 | Game and music volume | 2 | 100 % each; a value outside 0–100 % is cut to the range |
+| Police volume (`shard-heist-police-volume`) | 2 | 100 %; a value outside 0–100 % is cut to the range |
 | Saved game | 1 | No saved game; any save that no real game could produce is refused |
 | Volume | 1 | 100 % |
 | Air vent recording found through the Openverse API (kept 30 days) | 1 | The API is asked again once; if it does not answer, the room's own vent recording plays |
