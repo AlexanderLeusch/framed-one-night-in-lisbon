@@ -7835,9 +7835,10 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
     for (const s of [-1, 1]) tplane(1.02, dh, TM.stone, 2.5, ex + s * (dw - 0.012), Y + dh / 2, zw + 0.5, 0, -s * Math.PI / 2);
     tplane(TD.w, 1.02, TM.brick, 2.5, ex, Y + dh - 0.012, zw + 0.5, Math.PI / 2);
     tplane(TD.w, 1, TM.floor, 2, ex, Y + 0.004, zw + 0.5, -Math.PI / 2);
-    // (the timber reaches a little into the opening, over the edge of the concrete wall behind it)
-    for (const s of [-1, 1]) tbox(0.1, dh + 0.08, 0.07, TM.wood, ex + s * (dw + 0.02), Y + (dh + 0.08) / 2, zw - 0.03);
-    tbox(TD.w + 0.2, 0.11, 0.07, TM.wood, ex, Y + dh + 0.025, zw - 0.03);
+    // (the timber reaches a little into the opening, over the edge of the concrete wall behind it. The posts end under the
+    // head beam, which lies across them and stands a little proud: no two faces of the frame share a place)
+    for (const s of [-1, 1]) tbox(0.1, dh - 0.03, 0.07, TM.wood, ex + s * (dw + 0.02), Y + (dh - 0.03) / 2, zw - 0.03);
+    tbox(TD.w + 0.24, 0.11, 0.09, TM.wood, ex, Y + dh + 0.025, zw - 0.04);
     // the tunnel behind it: the wall the doorway is in (stone, under a brick half-moon), stone walls up to the spring of the
     // vault, the brick barrel vault, the pavers, and the stone wall at the far end
     // (they stand a finger's width in front of the back of the concrete wall, and reach as far over its edges round the doorway)
