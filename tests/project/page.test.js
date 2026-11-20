@@ -412,6 +412,20 @@ test('skid marks are drawn on the shared ground, cost no new memory, and start c
   for (const key of ['car', 'bike', 'truck']) assert.match(game, new RegExp('MODELS\\.' + key + ' = \\{ skid: '));
 });
 
+test('getting in: the hand opens the door by its handle, the cabin is seen from the seat, then the view draws back', () => {
+  // the hand goes to the handle and the door swings with it; the left hand pulls it shut again from inside
+  assert.match(game, /walker\.handTo\('r', s < N\.pull \? HAND_P : null/);
+  assert.match(game, /walker\.handTo\('l', s < N\.shut - 0\.1 \? PULL_P : null/);
+  // the steps in their order, and the view from the driver's eyes until the vehicle has rolled off
+  assert.match(game, /for \(const k of \['reach', 'pull', 'open', 'sit', 'shut', 'wheel', 'roll', 'back'\]\)/);
+  assert.match(game, /if \(garage\.on && !paused\) garageRide\(dt\);/, 'the view follows the vehicle after it has moved');
+  // every vehicle has the driver's eyes; the coupe and the truck have a cabin with a wheel and dials of their own
+  for (const key of ['car', 'bike', 'truck']) assert.match(game, new RegExp('MODELS\\.' + key + ' = \\{[^\\n]*eye'));
+  assert.equal((game.match(/cabinDash\(g, eye, CAB, /g) || []).length, 2);
+  // the coupe's doors are cut out of its body, so they are always there and no dark panel stands in for the opening
+  assert.match(game, /cut: true, handle: spot\(parts\.handle\), pull: spot\(parts\.pull\)/);
+});
+
 test('all three vehicles have reversing lights, and the hills are visible at night', () => {
   assert.match(game, /Core\.isReversing\(car\.speed\)/);
   assert.equal((game.match(/reverseLamps\((g|root), /g) || []).length, 3, 'one call per vehicle');
