@@ -316,23 +316,26 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
     };
     const seconds = async () => { const [m, sec] = (await text('#time')).split(':').map(Number); return m * 60 + sec; };
 
-    await pages('the game and music volumes are set in the menu, kept, and refused when tampered with', async () => {
+    await pages('the game, music and police volumes are set in the menu, kept, and refused when tampered with', async () => {
       await load();
       const slide = (k, v) => evaluate(`(() => { const r = document.querySelector('[data-vol="${k}"]'); r.value = ${v}; r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
-      assert.equal(await evaluate("document.querySelectorAll('#card [data-vol]').length"), 2, 'two sliders in the menu');
-      await slide('game', 40); await slide('music', 15);
+      assert.equal(await evaluate("document.querySelectorAll('#card [data-vol]').length"), 3, 'three sliders in the menu');
+      await slide('game', 40); await slide('music', 15); await slide('police', 35);
       assert.equal(await evaluate("localStorage.getItem('shard-heist-volume')"), '{"game":0.4,"music":0.15}');
+      assert.equal(await evaluate("localStorage.getItem('shard-heist-police-volume')"), '0.35', 'the police volume is kept on its own');
       await load();
       assert.equal(await evaluate("document.querySelector('[data-vol=\"game\"]').value + '/' + document.querySelector('[data-vol=\"music\"]').value"), '40/15', 'kept after a reload');
+      assert.equal(await evaluate("document.querySelector('[data-vol=\"police\"]').value"), '35', 'the police volume is kept after a reload');
       await click('[data-action="go"]');
       await startDriving('a run');
       await key('keydown', 'KeyP');
-      await waitFor("document.querySelectorAll('#card [data-vol]').length === 2", 10000, 'sliders on the pause card');
+      await waitFor("document.querySelectorAll('#card [data-vol]').length === 3", 10000, 'sliders on the pause card');
       await click('[data-action="menu"]');
-      await evaluate("localStorage.setItem('shard-heist-volume', '{\"game\":\"loud\"}'), true");
+      await evaluate("localStorage.setItem('shard-heist-volume', '{\"game\":\"loud\"}'), localStorage.setItem('shard-heist-police-volume', 'loud'), true");
       await load();
       assert.equal(await evaluate("document.querySelector('[data-vol=\"game\"]').value"), '100', 'rejected: tampered volume falls back to full');
-      await evaluate("localStorage.removeItem('shard-heist-volume'), true");
+      assert.equal(await evaluate("document.querySelector('[data-vol=\"police\"]').value"), '100', 'rejected: tampered police volume falls back to full');
+      await evaluate("localStorage.removeItem('shard-heist-volume'), localStorage.removeItem('shard-heist-police-volume'), true");
       assert.deepEqual(errors, []);
     });
 

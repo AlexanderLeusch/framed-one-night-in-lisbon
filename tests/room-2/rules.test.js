@@ -188,6 +188,12 @@ test('damage: soft bumps are free, the truck takes 55 %, damage stays within 0-1
   }
   assert.deepEqual(Core.parseVolume('{"game":0.3}'), { game: 0.3, music: 1 }, 'a missing part stays full');
   assert.deepEqual([0, 0.5, 1].map(Core.volumeGain), [0, 0.25, 1]);
+  // the police volume, kept on its own as a number in text
+  assert.equal(Core.parseLevel(null), 1, 'nothing stored: full volume');
+  assert.equal(Core.parseLevel('0.35'), 0.35);
+  assert.equal(Core.parseLevel('0'), 0, 'silent is allowed');
+  assert.equal(Core.parseLevel('4'), 1, 'kept within 0 and 1'); assert.equal(Core.parseLevel('-1'), 0);
+  for (const bad of ['', ' ', 'loud', 'NaN', '{"police":0.2}', '1'.repeat(40), 7]) assert.equal(Core.parseLevel(bad), 1, 'refused: ' + String(bad).slice(0, 20));
   assert.equal(Core.volumeGain(NaN), 1); assert.equal(Core.volumeGain(3), 1);
   // two keys for one action: it stays on until the last one is released
   assert.equal(Core.actionHeld(new Set(['KeyW', 'ArrowUp']), 'up'), true);
@@ -941,6 +947,7 @@ test('nitro: raises the top speed and pushes forward while it burns, the same at
 });
 
 test('kit guide: points at the nearest repair kit left, only from KIT_GUIDE_AT % damage on', () => {
+  assert.equal(Core.KIT_GUIDE_AT, 20, 'the arrow shows from 20 % damage on');
   const kits = [{ x: 100, z: 0, taken: false }, { x: 0, z: 30, taken: false }, { x: 5, z: 5, taken: true }];
   assert.equal(Core.kitToGuide(kits, 0, 0, Core.KIT_GUIDE_AT - 1), null, 'not below the threshold');
   assert.equal(Core.kitToGuide(kits, 0, 0, 0), null);

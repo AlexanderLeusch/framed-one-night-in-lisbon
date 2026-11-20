@@ -130,7 +130,7 @@ The city is a hand-built model of the real Baixa, not map data loaded by the gam
 | 88 % damage | the engine is on fire |
 | **100 % damage** | **vehicle wrecked: game over** |
 | Repair kit | removes 40 % damage, and the damage you see goes with it |
-| Kit arrow | from 50 % damage on, a green arrow on every map points to the nearest repair kit still lying there, with its distance (above the evidence arrow in Lisbon) |
+| Kit arrow | from 20 % damage on, a green arrow on every map points to the nearest repair kit still lying there, with its distance (above the evidence arrow in Lisbon) |
 
 ## Police
 
@@ -238,7 +238,7 @@ Any other button or action is refused, and no card button works while you are dr
 
 ## Saved settings
 
-The last map and vehicle, the best times, the drivers and leaderboards, the radio station, the graphics, the steering and both volumes are saved in the browser. Every saved value is checked when loaded; invalid values fall back to Lisbon, Car, radio off and the defaults. All settings are explained in [Settings and options](settings.md).
+The last map and vehicle, the best times, the drivers and leaderboards, the radio station, the graphics, the steering and the three volumes are saved in the browser. Every saved value is checked when loaded; invalid values fall back to Lisbon, Car, radio off and the defaults. All settings are explained in [Settings and options](settings.md).
 
 ## Controls
 
@@ -251,7 +251,7 @@ The last map and vehicle, the best times, the drivers and leaderboards, the radi
 | `P` / `Esc` | Pause |
 | `M` | The large map of the Baixa (Lisbon only); `M` again closes it. A tap on the radar does the same |
 | `N` | Sound on or off |
-| Volume sliders | In the menu and on the pause card: `Game` (engine, effects, sirens) and `Music` (the radio), 0 to 100 %. They are kept for the next visit |
+| Volume sliders | In the menu and on the pause card: `Game` (engine, tyres, effects), `Music` (the radio) and `Police` (sirens and the helicopter), 0 to 100 %. They are kept for the next visit |
 | `R` | Next radio station (`Shift` + `R` for the one before) |
 | `Enter` / `Space` | Press the button in focus. With no button in focus, `Enter` presses the card's main button. While driving, `Space` is the handbrake |
 | `Tab` | Move between the buttons of a card |

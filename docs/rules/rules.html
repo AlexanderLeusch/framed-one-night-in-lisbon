@@ -228,7 +228,7 @@ a{color:var(--accent)}
 <tr><td>88 % damage</td><td>the engine is on fire</td></tr>
 <tr><td><b>100 % damage</b></td><td><b>vehicle wrecked: game over</b></td></tr>
 <tr><td>Repair kit</td><td>removes 40 % damage, and the damage you see goes with it</td></tr>
-<tr><td>Kit arrow</td><td>from 50 % damage on, a green arrow on every map points to the nearest repair kit still lying there, with its distance (above the evidence arrow in Lisbon)</td></tr>
+<tr><td>Kit arrow</td><td>from 20 % damage on, a green arrow on every map points to the nearest repair kit still lying there, with its distance (above the evidence arrow in Lisbon)</td></tr>
 </table>
 <h2>Police</h2>
 <table><tr><th>Rule</th><th>Value</th></tr>
@@ -296,7 +296,7 @@ a{color:var(--accent)}
 </table>
 <p>Any other button or action is refused, and no card button works while you are driving.</p>
 <h2>Saved settings</h2>
-<p>The last map and vehicle, the best times, the drivers and leaderboards, the radio station, the graphics, the steering and both volumes are saved in the browser. Every saved value is checked when loaded; invalid values fall back to Lisbon, Car, radio off and the defaults. All settings are explained in Settings and options.</p>
+<p>The last map and vehicle, the best times, the drivers and leaderboards, the radio station, the graphics, the steering and the three volumes are saved in the browser. Every saved value is checked when loaded; invalid values fall back to Lisbon, Car, radio off and the defaults. All settings are explained in Settings and options.</p>
 <h2>Controls</h2>
 <table><tr><th>Input</th><th>Action</th></tr>
 <tr><td><code>W A S D</code> or arrow keys</td><td>Drive</td></tr>
@@ -306,7 +306,7 @@ a{color:var(--accent)}
 <tr><td><code>P</code> / <code>Esc</code></td><td>Pause</td></tr>
 <tr><td><code>M</code></td><td>The large map of the Baixa (Lisbon only); <code>M</code> again closes it. A tap on the radar does the same</td></tr>
 <tr><td><code>N</code></td><td>Sound on or off</td></tr>
-<tr><td>Volume sliders</td><td>In the menu and on the pause card: <code>Game</code> (engine, effects, sirens) and <code>Music</code> (the radio), 0 to 100 %. They are kept for the next visit</td></tr>
+<tr><td>Volume sliders</td><td>In the menu and on the pause card: <code>Game</code> (engine, tyres, effects), <code>Music</code> (the radio) and <code>Police</code> (sirens and the helicopter), 0 to 100 %. They are kept for the next visit</td></tr>
 <tr><td><code>R</code></td><td>Next radio station (<code>Shift</code> + <code>R</code> for the one before)</td></tr>
 <tr><td><code>Enter</code> / <code>Space</code></td><td>Press the button in focus. With no button in focus, <code>Enter</code> presses the card's main button. While driving, <code>Space</code> is the handbrake</td></tr>
 <tr><td><code>Tab</code></td><td>Move between the buttons of a card</td></tr>
@@ -325,12 +325,12 @@ a{color:var(--accent)}
 <tr><td><b>Graphics</b></td><td>Ultra, Balanced</td><td><b>Ultra:</b> sharper picture (up to twice the screen resolution), smoothed edges, glowing lights and the finest shadows (4096 × 4096). <b>Balanced:</b> a lighter picture without the glow and with smaller shadows (2048 × 2048). Computers start in Ultra, phones in Balanced</td></tr>
 <tr><td><b>Steering</b> (phones only)</td><td>Tilt, Buttons</td><td><b>Tilt:</b> hold the phone sideways and lower one side like a steering wheel. <b>Buttons:</b> steer with the arrow pads. Tilt is the default on a phone with a motion sensor</td></tr>
 <tr><td><b>Driver</b></td><td>A field for the driver name and <b>Play online</b>; below it, <i>Use an email account instead</i></td><td>Play online makes an online driver with just the name (up to 16 letters, digits, spaces and <code>. _ ' -</code>), kept in this browser: no email, no password. A name that is taken (without case: <i>alex</i> and <i>Alex</i> are the same) is refused. Each finished free ride then goes on the online leaderboard everybody sees, and also on the board of this device. With an email account (email and password, 8+ characters) the same driver works on every device. <b>Sign out</b> ends a name-only driver in this browser; its times stay on the board. When the online board can't be reached, the name becomes a driver of this device and the boards of this device are shown</td></tr>
-<tr><td><b>Volume</b></td><td><code>Game</code> 0–100 %, <code>Music</code> 0–100 %</td><td><code>Game</code> is the engine, tyres, sirens, the helicopter and all effects. <code>Music</code> is the radio. The music plays for a moment while its slider moves, so it can be heard; letting go of the game slider plays a short tone</td></tr>
+<tr><td><b>Volume</b></td><td><code>Game</code> 0–100 %, <code>Music</code> 0–100 %, <code>Police</code> 0–100 %</td><td><code>Game</code> is the engine, tyres and all effects. <code>Music</code> is the radio. <code>Police</code> is the sirens and the helicopter, on top of the game volume. The music plays for a moment while its slider moves, so it can be heard; letting go of the game slider plays a short tone, letting go of the police slider a short siren whoop</td></tr>
 </table>
 <h2>Room 2: during a run</h2>
 <table><tr><th>Setting</th><th>How</th><th>What it does</th></tr>
 <tr><td><b>Pause</b></td><td><code>P</code>, <code>Esc</code> or the pause button</td><td>Stops everything: the clock, the police, the traffic and the music. The pause card shows the shards, time, damage and bust meter</td></tr>
-<tr><td><b>Pause card</b></td><td>Resume, Restart (or Retry act in the story), Main menu</td><td>It also has the steering choice (phones) and both volume sliders</td></tr>
+<tr><td><b>Pause card</b></td><td>Resume, Restart (or Retry act in the story), Main menu</td><td>It also has the steering choice (phones) and the three volume sliders</td></tr>
 <tr><td><b>Map</b> (Lisbon)</td><td><code>M</code>, or a tap on the radar</td><td>Pauses the run and shows the large map of the Baixa: where you are, the evidence, repair kits and witness that are still out there, the gate, and the yellow way to it once it is open. <code>M</code> or <code>Enter</code> closes it</td></tr>
 <tr><td><b>Sound</b></td><td><code>N</code> or the speaker button</td><td>Turns all sound off or on, without changing the volume sliders</td></tr>
 <tr><td><b>Radio</b></td><td><code>R</code> or the radio button</td><td>Next station; the name is shown under the clock</td></tr>
@@ -368,6 +368,7 @@ a{color:var(--accent)}
 <tr><td>Graphics</td><td>2</td><td>Ultra on a computer, Balanced on a phone</td></tr>
 <tr><td>Steering</td><td>2</td><td>Tilt</td></tr>
 <tr><td>Game and music volume</td><td>2</td><td>100 % each; a value outside 0–100 % is cut to the range</td></tr>
+<tr><td>Police volume (<code>shard-heist-police-volume</code>)</td><td>2</td><td>100 %; a value outside 0–100 % is cut to the range</td></tr>
 <tr><td>Saved game</td><td>1</td><td>No saved game; any save that no real game could produce is refused</td></tr>
 <tr><td>Volume</td><td>1</td><td>100 %</td></tr>
 <tr><td>Air vent recording found through the Openverse API (kept 30 days)</td><td>1</td><td>The API is asked again once; if it does not answer, the room's own vent recording plays</td></tr>

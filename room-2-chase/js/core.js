@@ -84,6 +84,12 @@
     const ok = v && typeof v === 'object' && !Array.isArray(v);
     return { game: one(ok ? v.game : 1), music: one(ok ? v.music : 1) };
   }
+  // ### The police volume (sirens and helicopter) is kept on its own, as a number in text: 0 to 1, and 1 when nothing or anything
+  // ### else is stored.
+  function parseLevel(raw){
+    const x = typeof raw === 'string' && raw.length < 20 && raw.trim() !== '' ? Number(raw) : NaN;
+    return Number.isFinite(x) ? clamp(x, 0, 1) : 1;
+  }
   const volumeGain = v => { const x = typeof v === 'number' && Number.isFinite(v) ? clamp(v, 0, 1) : 1; return x * x; };
 
   // ### Two keys can do the same thing (W and the up arrow): the action stays on until the last of them is released.
@@ -523,9 +529,9 @@
   const addDamage = (damage, add) => clamp(damage + Math.max(0, add), 0, 100);
   const repairDamage = damage => Math.max(0, damage - REPAIR_AMOUNT);
   const isWrecked = damage => damage >= 100;
-  // ### The green guide arrow to a repair kit: from KIT_GUIDE_AT % damage on (when the engine loses top speed) it points at the
+  // ### The green guide arrow to a repair kit: from KIT_GUIDE_AT % damage on (early, so a kit can be found before the engine loses top speed) it points at the
   // ### nearest kit still lying there, on every map. Below that, or with no kit left, there is none.
-  const KIT_GUIDE_AT = 50;
+  const KIT_GUIDE_AT = 20;
   function kitToGuide(kits, x, z, damage){
     if (!(damage >= KIT_GUIDE_AT) || !Array.isArray(kits) || !Number.isFinite(x) || !Number.isFinite(z)) return null;
     let best = null, bestD = Infinity;
@@ -1135,7 +1141,7 @@
     EVIDENCE, WITNESS, WITNESS_RULE, witnessGetsIn, witnessGivesUp, witnessSpotOk, guideTurn, isMode, isVeh, clamp, wrapAngle, mulberry32, shuffle, fmtTime, fmtTimeExact, frameDt,
     parsePick, parseBest, applyPick, actionAllowed, GARAGE, garageFloor, garageGrade, garageOut, garageWalls, garageWay, wayAim,
     vehStats, zeroTo80, topSpeed, stepSpeed, MASS, PLAYER_MASS, SHOVE, shoveImpulse, keepSpeed, shoveSpin, PARKED, parkedBox, SCRAPE, scrapeLevel, sparkCount, LOOK, lookingBack, lookBackView, NITRO, newNitro, nitroPickup, nitroFire, nitroOn, nitroStep, nitroTop, nitroPush, GRIP, YAW_RATE, STEER_IN, STEER_OUT, stepSteer, turnRate, stepYaw, collidePoint, HILL_BOX, HILL_GRID, hillHeight, hillMesh, gradeAt, slopeTop,
-    crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, KIT_GUIDE_AT, kitToGuide, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, volumeGain,
+    crashDamage, CRASH_FREE, CRASH_FACTOR, CRASH_QUIET, newCrashGuard, chargeCrash, addDamage, repairDamage, isWrecked, KIT_GUIDE_AT, kitToGuide, damageStage, damageLevel, smokeFor, actionHeld, TILT_DEAD, TILT_FULL, tiltSteer, parseSteer, snapShadow, QUALITY_SCALES, newQuality, stepQuality, parseVolume, parseLevel, volumeGain,
     PURSUIT, MAX_STARS, SPOT_RADIUS, HELI_AFTER, BUST, wantedStars, pursuit, helicopterDue, copTopSpeed, trackStep, inSpotlight, bustStep, edgeDistance,
     driveTime, runStars, isNewBest,
     NAME_MAX, DRIVERS_MAX, BOARD_KEEP, BOARD_SHOW, cleanName, sameName, newBoard, parseBoard, addDriver, recordRun, boardRows, boardList, monthKey, monthName,
