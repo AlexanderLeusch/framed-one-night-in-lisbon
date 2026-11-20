@@ -1,4 +1,4 @@
-// Shard Heist: the game (rendering, worlds, AI, sound, HUD, story mode). The rules it plays by live in room-2-chase/js/core.js.
+// Framed: One Night in Lisbon, room 2 (the chase; its working title was Shard Heist): the game (rendering, the city, AI, sound, HUD, story mode). The rules it plays by live in room-2-chase/js/core.js.
 (() => {
 'use strict';
 if (typeof THREE === 'undefined' || typeof ShardCore === 'undefined'){
@@ -6572,8 +6572,8 @@ function showMenu(){
   const bestNote = k => best[k] ? fmtTimeExact(best[k]) : 'no run yet';
   showCard(`
     <div class="m-top">
-      <div class="m-brand"><span class="m-dot"></span>Escaped · Inmate 4471 · 02:30</div>
-      <h1 class="m-logo">Shard<br><em>Heist</em></h1>
+      <div class="m-brand"><span class="m-dot"></span>Room 2 · The chase · Inmate 4471 has escaped · 02:30</div>
+      <h1 class="m-logo">Framed<em class="sub">One night in Lisbon</em></h1>
       <p class="m-lede">You are out of Cell Block D, and every police car in town knows it. Find the evidence that proves you innocent, ram the police, outrun them or lose them in traffic, then escape through the gate.</p>
     </div>
     <button class="story-card" data-action="story"><span class="sc-eyebrow">Story mode · after the tunnel · one night in Lisbon · 3 endings</span><b>The Necklace Job</b><span>You escaped. Now prove who framed you: find the evidence in the Baixa, and a sealed letter that is on no map, with Officer Hale on the radio.</span><em>Play the story →</em></button>
@@ -6719,7 +6719,8 @@ function updateRails(dt){
   car.shake = Math.max(car.shake, jolt); car.rattle = Math.max(car.rattle || 0, jolt * 2.2);
   sfx.rail(jolt);
   const t = performance.now();
-  if (COARSE && t > railBuzz && navigator.vibrate){ railBuzz = t + 90; try { navigator.vibrate(Math.round(12 + jolt * 50)); } catch (e) {} }
+  // (a browser refuses to vibrate before the first tap on the page, and says so in its console: wait for one)
+  if (COARSE && t > railBuzz && navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)){ railBuzz = t + 90; try { navigator.vibrate(Math.round(12 + jolt * 50)); } catch (e) {} }
 }
 // ### Player physics each frame: speed with slopes, steering, movement, collisions, and how the vehicle sits on the ground.
 function updateCar(dt){

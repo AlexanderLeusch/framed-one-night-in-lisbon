@@ -641,7 +641,7 @@ body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:
 .start-heist:hover,.start-heist:focus-visible{transform:translateY(-2px);border-color:var(--ink);outline:none}
 .start-or{margin:0}
 /* the game's name on the start page: "Framed", with "One night in Lisbon" as a smaller outlined line under it */
-.start-head .m-logo em.sub{display:block;margin-top:.14em;font-size:.34em;line-height:1.05;letter-spacing:.01em;-webkit-text-stroke:1.4px var(--spark)}
+.start-head .m-logo em.sub,.card .m-logo em.sub{display:block;margin-top:.14em;font-size:.34em;line-height:1.05;letter-spacing:.01em;-webkit-text-stroke:1.4px var(--spark)}
 /* arriving from room 1: the same headlight glare room 1 ended in (its #leave); under the error screen, and it lets clicks through */
 #arrive{display:none;position:fixed;inset:0;z-index:45;pointer-events:none;transition:opacity 1.4s ease-out;background:radial-gradient(circle at 50% 56%,#fff 0,#fff6dc 12vmin,#e9c98a 30vmin,#3a2a18 64vmin,#07090d 105vmin)}
 #arrive:target{display:block}
