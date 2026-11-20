@@ -8356,6 +8356,11 @@ return { create };
 // ### The garage lies 30 m under the city, so the moon does not reach it: down here the light comes from the strip lights under
 // ### the ceiling (garageLight: a soft light from straight above, white and even, so the vehicles stand in their own shadows),
 // ### the concrete glows a little, and the two showroom lights follow the vehicle.
+// ### The door of the tunnel in the garage, in room 1's measures (its TUN and TDOOR): the doorway w x h, the plank leaf, the
+// ### tunnel's half width r, the height at which its vault springs, and how much of its length is built behind the wall. A
+// ### run begins back metres inside the tunnel, behind the shut door: it swings open (to open radians, over opens seconds, as
+// ### it did in room 1) and you walk out through it to the start in the garage in walk seconds.
+const TUNNEL_DOOR = Object.freeze({ w: 0.84, h: 1.76, leafH: 1.73, r: 0.65, spring: 1.5, len: 8, open: 1.7, opens: 1.5, back: 2.3, walk: 2.8 });
 const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.garageWalls(), slots: {}, end: Core.GARAGE.z1 + Core.GARAGE.ramp + Core.GARAGE.top, walk: 3, kerb: 0.6, sill: 0, clear: 3, shutter: null };
 (function buildGarage(){
   const G = Core.GARAGE, Y = G.y, end = G.z1 + G.ramp + G.top, grp = GAR.group, rnd = mulberry32(4471);
@@ -8423,7 +8428,11 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   add(box(-G.x, G.x, Y - 0.4, Y, G.z0, G.z1), floorMat);
   add(box(-G.x - 1, G.x + 1, Y + G.h, Y + G.h + 0.4, G.z0 - 1, G.z1 + 1), roofMat);
   const W = GAR.colliders, hall = W.slice(0, 5), sides = W.slice(5, 7), head = G.z1 + G.ramp;
-  add(mergeGeos(hall.map(c => worldUV(box(c.x0, c.x1, Y, Y + G.h, c.z0, c.z1), 4, Y, G.h))), wallMat);
+  // (the wall beside the ramp, hall[3], is built in three pieces round the doorway of the tunnel, TUNNEL_DOOR)
+  const TD = TUNNEL_DOOR, tdx = G.entry, tdw = TD.w / 2;
+  add(mergeGeos([...hall.filter((c, i) => i !== 3).map(c => worldUV(box(c.x0, c.x1, Y, Y + G.h, c.z0, c.z1), 4, Y, G.h)),
+    worldUV(box(hall[3].x0, tdx - tdw, Y, Y + G.h, G.z1, G.z1 + 1), 4, Y, G.h), worldUV(box(tdx + tdw, hall[3].x1, Y, Y + G.h, G.z1, G.z1 + 1), 4, Y, G.h),
+    worldUV(box(tdx - tdw, tdx + tdw, Y + TD.h, Y + G.h, G.z1, G.z1 + 1), 4, Y, G.h)]), wallMat);
   add(worldUV(box(-G.door, G.door, Y + G.tunnel, Y + G.h, G.z1, G.z1 + 1), 3), plainMat);
   // the sides of the ramp are drawn from 1 m in: the first metre is the end of the hall wall, and two faces in the same place
   // would flicker against each other
@@ -8486,16 +8495,74 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   const sign = tex(512, 64, (g, w, h) => { g.fillStyle = '#0d7a44'; g.fillRect(0, 0, w, h); g.fillStyle = '#f4fff8'; g.font = '800 44px "Segoe UI", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SAÍDA  ↑  EXIT', w / 2, h / 2 + 2); });
   grp.add(new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.45).rotateY(Math.PI).translate(0, Y + (G.tunnel + G.h) / 2, G.z1 - 0.02), new THREE.MeshBasicMaterial({ map: sign })));
   add(mergeGeos([-14.6, -14.1].map(z => new THREE.CylinderGeometry(0.09, 0.09, G.x * 2, 10).rotateZ(Math.PI / 2).translate(0, Y + G.h - 0.4, z))), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.5, metalness: 0.6, emissive: C(0x1a1410) }));
-  // ### The steel door of the tunnel from Cell Block D, where the player comes in: in the wall beside the ramp, opposite the
-  // ### three bays, so the vehicles stand across the hall. It has just been opened: the leaf stands wide open into the hall
-  // ### on its hinges (west side), the doorway behind it is dark, and a green light glows over the frame.
+  // ### The way in: the end of the tunnel from Cell Block D, built as in room 1 (room-1-escape/js/room.js, "TUN" and "TDOOR")
+  // ### and from the same scanned surfaces, read from room 1's folder: the doorway runs through the thick wall beside the ramp,
+  // ### opposite the three bays, with stone sides, a brick lintel and old pavers, framed in old timber; behind it the tunnel
+  // ### runs back under its brick barrel vault between stone walls, lit by two old bulbs, to the wooden ladder at its far end.
+  // ### The plank door (rough planks on two iron straps, a ring to pull it by) hangs on the tunnel side of the wall and opens
+  // ### towards the garage; a run begins behind it, and it swings open as you walk out (garageTunnelDoor).
   {
-    const ex = G.entry, zw = G.z1, doorMat = new THREE.MeshStandardMaterial({ color: 0x3f4a44, roughness: 0.5, metalness: 0.6, emissive: C(0x121614) });
-    add(mergeGeos([box(ex - 0.72, ex - 0.6, Y, Y + 2.27, zw - 0.06, zw), box(ex + 0.6, ex + 0.72, Y, Y + 2.27, zw - 0.06, zw), box(ex - 0.72, ex + 0.72, Y + 2.15, Y + 2.27, zw - 0.06, zw)]), doorMat);
-    grp.add(new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.15).rotateY(Math.PI).translate(ex, Y + 1.075, zw - 0.012), new THREE.MeshBasicMaterial({ color: 0x030405 })));
-    const leaf = new THREE.Mesh(mergeGeos([boxG(1.2, 2.13, 0.06, 0.6, 1.065, 0), boxG(0.04, 0.16, 0.1, 1.06, 1.05, -0.07)]), doorMat);
-    leaf.position.set(ex - 0.6, Y, zw - 0.05); leaf.rotation.y = 1.9; leaf.castShadow = true; grp.add(leaf);
-    grp.add(new THREE.Mesh(boxG(0.5, 0.16, 0.06, ex, Y + 2.5, zw - 0.05), new THREE.MeshBasicMaterial({ color: 0x4dff9a })));
+    const ex = tdx, zw = G.z1, zT = zw + 1, L = TD.len, r = TD.r, sp = Y + TD.spring, dh = TD.h, dw = tdw, base = '../room-1-escape/textures/';
+    const loader = new THREE.TextureLoader(), aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    const scan = (file, srgb) => { const t = loader.load(base + file, undefined, undefined, () => {}); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; if (srgb) t.encoding = THREE.sRGBEncoding; return t; };
+    const tmat = (color, normal, tint, o) => { const m = new THREE.MeshStandardMaterial(Object.assign({ map: scan(color, true), normalMap: scan(normal), roughness: 0.95, side: THREE.DoubleSide }, o)); m.color.setRGB(tint[0], tint[1], tint[2]); return m; };
+    const TM = {
+      brick: tmat('tunnel-brick-color.jpg', 'tunnel-brick-normal.jpg', [0.5, 0.45, 0.44], { roughnessMap: scan('tunnel-brick-rough.jpg'), roughness: 1 }),
+      stone: tmat('tunnel-stone-color.jpg', 'tunnel-stone-normal.jpg', [0.68, 0.64, 0.6]),
+      floor: tmat('tunnel-floor-color.jpg', 'tunnel-floor-normal.jpg', [0.6, 0.57, 0.54]),
+      wood: tmat('ladder-wood-color.jpg', 'ladder-wood-normal.jpg', [0.86, 0.78, 0.68]),
+      iron: new THREE.MeshStandardMaterial({ color: 0x3b2c22, roughness: 0.75, metalness: 0.55 })
+    };
+    // one picture of a scan covers the same number of metres on every surface
+    const uvM = (geo, su, sv) => { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv); return geo; };
+    const tplane = (w, h, m, tile, x, y, z, rx, ry) => { const o = new THREE.Mesh(uvM(new THREE.PlaneGeometry(w, h), w / tile, h / tile), m); o.position.set(x, y, z); o.rotation.set(rx || 0, ry || 0, 0); grp.add(o); return o; };
+    const tbox = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); grp.add(o); return o; };
+    // the doorway through the wall, 1 m deep: stone sides, a brick lintel, pavers; and its timber frame on the garage side
+    // (a finger's width inside the faces of the concrete wall they cover)
+    for (const s of [-1, 1]) tplane(1.02, dh, TM.stone, 2.5, ex + s * (dw - 0.012), Y + dh / 2, zw + 0.5, 0, -s * Math.PI / 2);
+    tplane(TD.w, 1.02, TM.brick, 2.5, ex, Y + dh - 0.012, zw + 0.5, Math.PI / 2);
+    tplane(TD.w, 1, TM.floor, 2, ex, Y + 0.004, zw + 0.5, -Math.PI / 2);
+    for (const s of [-1, 1]) tbox(0.07, dh + 0.08, 0.07, TM.wood, ex + s * (dw + 0.035), Y + (dh + 0.08) / 2, zw - 0.03);
+    tbox(TD.w + 0.2, 0.08, 0.07, TM.wood, ex, Y + dh + 0.04, zw - 0.03);
+    // the tunnel behind it: the wall the doorway is in (stone, under a brick half-moon), stone walls up to the spring of the
+    // vault, the brick barrel vault, the pavers, and the stone wall at the far end
+    // (they stand a finger's width in front of the back of the concrete wall, and reach as far over its edges round the doorway)
+    const zF = zT + 0.012, di = dw - 0.012;
+    for (const s of [-1, 1]) tplane(r - di, TD.spring, TM.stone, 2.5, ex + s * (r + di) / 2, Y + TD.spring / 2, zF);
+    const arch = new THREE.Shape(); arch.moveTo(-r, 0); arch.lineTo(-di, 0); arch.lineTo(-di, dh - 0.012 - TD.spring); arch.lineTo(di, dh - 0.012 - TD.spring); arch.lineTo(di, 0); arch.lineTo(r, 0); arch.absarc(0, 0, r, 0, Math.PI, false);
+    const moon = new THREE.Mesh(uvM(new THREE.ShapeGeometry(arch, 18), 1 / 2.5, 1 / 2.5), TM.brick); moon.position.set(ex, sp, zF); grp.add(moon);
+    for (const s of [-1, 1]) tplane(L, TD.spring, TM.stone, 2.5, ex + s * r, Y + TD.spring / 2, zT + L / 2, 0, Math.PI / 2);
+    tplane(r * 2, L, TM.floor, 2, ex, Y + 0.002, zT + L / 2, -Math.PI / 2);
+    const vault = new THREE.Mesh(uvM(new THREE.CylinderGeometry(r, r, L, 20, 1, true, Math.PI / 2, Math.PI), Math.PI * r / 2.5, L / 2.5).rotateX(Math.PI / 2), TM.brick);
+    vault.position.set(ex, sp, zT + L / 2); grp.add(vault);
+    tplane(r * 2, TD.spring + r, TM.stone, 2.5, ex, Y + (TD.spring + r) / 2, zT + L, 0, Math.PI);
+    // the wooden ladder at the far end, where you came down from the washroom, and rubble along the walls
+    for (const s of [-1, 1]) tbox(0.05, TD.spring + r, 0.04, TM.wood, ex + s * 0.2, Y + (TD.spring + r) / 2, zT + L - 0.1);
+    for (let y = 0.3; y < TD.spring + r - 0.1; y += 0.3) tbox(0.4, 0.035, 0.035, TM.wood, ex, Y + y, zT + L - 0.1);
+    const rnd = Core.mulberry32(1912);
+    for (let i = 0; i < 16; i++){
+      const s = 0.04 + rnd() * 0.08, side = rnd() < 0.5 ? -1 : 1, st = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rnd() < 0.5 ? TM.stone : TM.brick);
+      st.position.set(ex + side * (r - 0.08 - rnd() * 0.12), Y + s * 0.6, zT + 0.4 + rnd() * (L - 0.8)); st.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3); grp.add(st);
+    }
+    // two old bulbs on their flex under the crown: the glass, and the warm light they throw on the vault
+    const bulbs = [], halos = [];
+    for (const k of [0.28, 0.72]){
+      const bz = zT + L * k;
+      bulbs.push(new THREE.SphereGeometry(0.045, 10, 8).translate(ex, sp + r - 0.2, bz), boxG(0.008, 0.16, 0.008, ex, sp + r - 0.08, bz));
+      halos.push(new THREE.PlaneGeometry(1.5, 1.5).rotateY(Math.PI).translate(ex, sp + r - 0.25, bz));
+    }
+    grp.add(new THREE.Mesh(mergeGeos(bulbs), new THREE.MeshBasicMaterial({ color: 0xffd9a0 })));
+    const halo = new THREE.Mesh(mergeGeos(halos), new THREE.MeshBasicMaterial({ map: glowTexture, color: 0xffb060, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+    halo.renderOrder = 2; grp.add(halo);
+    // the door: hinged on the tunnel side of the wall, it swings out into the doorway, towards the garage
+    const pivot = new THREE.Group(); pivot.position.set(ex + dw, Y + 0.012 + TD.leafH / 2, zT - 0.04); grp.add(pivot); GAR.tunnelDoor = pivot;
+    const leaf = new THREE.Mesh(uvM(new THREE.BoxGeometry(TD.w - 0.04, TD.leafH, 0.05), 1.6, 3.4), TM.wood); leaf.position.x = -dw; pivot.add(leaf);
+    for (const y of [-0.52, 0.58]){
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(TD.w - 0.02, 0.055, 0.012), TM.iron); strap.position.set(-dw + 0.01, y, 0.031); pivot.add(strap);
+      const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.1, 8), TM.iron); pin.position.set(0.004, y, 0.02); pivot.add(pin);
+    }
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.007, 6, 18), TM.iron); ring.position.set(-TD.w + 0.13, 0.02, 0.04); pivot.add(ring);
+    const boss = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.02, 10).rotateX(Math.PI / 2), TM.iron); boss.position.set(-TD.w + 0.13, 0.065, 0.035); pivot.add(boss);
   }
   // ### A few things every car park has: a galvanised air duct under the ceiling between the rows of lights, with its hangers;
   // ### the numbers of the three bays painted on the back wall; a fire extinguisher in its red box and a grey fuse box by the
@@ -8508,8 +8575,8 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), new THREE.MeshStandardMaterial({ map: label('0' + (i + 1), 128, 128, '#f2f2ea', null, '800 92px "Segoe UI", Arial, sans-serif'), transparent: true, roughness: 0.8, emissive: C(0x404040) }));
     m.position.set(G.bays[k][0], Y + 2.5, G.z0 + 0.02); grp.add(m);
   });
-  add(box(G.entry - 2.6, G.entry - 2.0, Y + 0.9, Y + 1.7, G.z1 - 0.22, G.z1), paint(0xb3201c));
-  add(box(G.entry - 3.7, G.entry - 3.0, Y + 1.1, Y + 2.0, G.z1 - 0.16, G.z1), new THREE.MeshStandardMaterial({ color: 0x8e9196, roughness: 0.5, metalness: 0.5, emissive: C(0x16171a) }));
+  add(box(G.entry - 3.1, G.entry - 2.5, Y + 0.9, Y + 1.7, G.z1 - 0.22, G.z1), paint(0xb3201c));
+  add(box(G.entry - 4.2, G.entry - 3.5, Y + 1.1, Y + 2.0, G.z1 - 0.16, G.z1), new THREE.MeshStandardMaterial({ color: 0x8e9196, roughness: 0.5, metalness: 0.5, emissive: C(0x16171a) }));
   const levelMat = new THREE.MeshStandardMaterial({ map: label('-2', 128, 128, '#15161a', '#e8b21c', '800 80px "Segoe UI", Arial, sans-serif'), roughness: 0.7, emissive: C(0x3a3020) });
   for (const [x, z] of G.pillars) for (const [dx, dz, ry] of [[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]]){
     const m = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), levelMat);
@@ -8626,8 +8693,15 @@ function garagePick(fromWheel){
   held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
   garagePlace();
   const d = garageDoor(V.key);
-  if (fromWheel) walker.place(d.pos, d.look); else walker.place([G.start[0], G.y + walker.EYE, G.start[1]], [car.x * 0.6, G.y + 1.1, car.z]);
+  if (!fromWheel){ garage.door = 0; garageTunnelDoor(0); }
+  // a run begins in the tunnel, behind the door: it swings open and you walk out through it to the start, facing the vehicles
+  // (with reduced motion you stand at the start at once)
+  const eye = G.y + walker.EYE, start = [G.start[0], eye, G.start[1]], face = [car.x * 0.6, G.y + 1.1, car.z];
+  if (fromWheel) walker.place(d.pos, d.look);
+  else if (REDUCED) walker.place(start, face);
+  else walker.place([G.entry, eye, G.z1 + TUNNEL_DOOR.back], [G.entry, G.y + 1.3, G.z1 - 8]);
   walker.setActive(true);
+  if (!fromWheel && !REDUCED) walker.goTo(start, face, TUNNEL_DOOR.walk);
   if (camera.fov !== 66){ camera.fov = 66; camera.updateProjectionMatrix(); }
   showCard(`
     <div class="eyebrow">${story ? 'Act 1 · ' : ''}Lock-up garage · under the Baixa · 02:30</div>
@@ -8655,7 +8729,9 @@ function garageDoor(k){
 // ### Walks the player to the driver's door of the chosen vehicle, as the "Walk to" buttons do in the escape room. From one
 // ### bay to another the way leads out in front of the vehicles first, never through one.
 function garageWalkTo(){
-  const d = garageDoor(V.key), c = walker.cam.pos, legs = [];
+  const d = garageDoor(V.key), c = walker.cam.pos, legs = [], S = Core.GARAGE;
+  // still in the doorway of the tunnel: first out into the garage, not through the wall
+  if (c.z > S.z1 - 1) legs.push({ pos: [S.start[0], d.pos[1], S.start[1]], look: d.look });
   if (c.z < -3.5 && Math.abs(c.x - d.pos[0]) > 3) legs.push({ pos: [(c.x + d.pos[0]) / 2, d.pos[1], -2], look: d.look });
   legs.push(d);
   garage.path = legs;
@@ -8837,9 +8913,16 @@ function garageCam(dt, snap){
 // ### on the motorcycle), the door is pulled shut, the engine starts and the view draws back behind the vehicle. drive: the
 // ### player drives up the ramp. exit: over the top the vehicle drives itself (garageAuto); as soon as the view has only the
 // ### level stretch in it the city takes over (garageSwap), the roller door rolls up, and on the street the map opens.
+// ### The tunnel door, t seconds after a run began behind it: it swings out towards the garage and slows as it opens, as it
+// ### did when you opened it in room 1, and then stands open. With reduced motion it stands open from the start.
+function garageTunnelDoor(t){
+  const D = TUNNEL_DOOR, k = REDUCED ? 1 : clamp(t / D.opens, 0, 1);
+  GAR.tunnelDoor.rotation.y = -D.open * (1 - Math.pow(1 - k, 3));
+}
 function updateGarage(dt){
   const G = Core.GARAGE, g = garage, T = GARAGE_T;
   g.t += dt;
+  if (g.door < TUNNEL_DOOR.opens){ g.door += dt; garageTunnelDoor(g.door); }
   if (g.phase === 'pick'){
     walker.update(dt, (keys.up ? 1 : 0) - (keys.down ? 1 : 0), (keys.right ? 1 : 0) - (keys.left ? 1 : 0), true);
     if (walker.gliding()) return;

@@ -238,6 +238,14 @@ test('the story runs on from room 1 into room 2', () => {
   assert.match(room, /location\.assign\(CHASE_URL\)/, 'room 2 opens by itself, with no card in between');
   assert.match(read('room-2-chase/styles.css'), /#arrive:target\{display:block\}/, 'room 2 opens in the glare room 1 ended in');
   assert.doesNotMatch(game, /data-action="heist"/, 'no card stands between the tunnel and the garage');
+  // the garage's way in is the end of room 1's tunnel: the same door measures and the same scanned surfaces
+  const room1 = room.match(/const TDOOR = \{ w: ([\d.]+), h: ([\d.]+), leafH: ([\d.]+)/), room2 = game.match(/const TUNNEL_DOOR = Object\.freeze\(\{ w: ([\d.]+), h: ([\d.]+), leafH: ([\d.]+), r: ([\d.]+)/);
+  assert.deepEqual(room2.slice(1, 4).map(Number), room1.slice(1, 4).map(Number), 'the same door as at the end of the tunnel in room 1');
+  assert.equal(Number(room2[4]), Number(room.match(/const TUN = \{[^}]*r: ([\d.]+)/)[1]), 'the same width of tunnel');
+  for (const f of ['tunnel-brick-color.jpg', 'tunnel-stone-color.jpg', 'tunnel-floor-color.jpg', 'ladder-wood-color.jpg']){
+    assert.ok(game.includes("'" + f + "'") && room.includes("'" + f + "'"), 'both rooms build the tunnel from ' + f);
+    assert.ok(fs.existsSync(path.join(ROOT, 'room-1-escape/textures', f)), f + ' is in the folder of room 1');
+  }
   assert.match(game, /Core\.parseHeist\(readStore\(Core\.HEIST\.key\), Date\.now\(\)\)/, 'room 2 reads the handover through the rules');
   assert.match(read('index.html'), /<a class="start-heist" href="room-1-escape\/">/, 'the start page starts the heist in room 1');
   const sql = read('supabase/schema.sql');
