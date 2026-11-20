@@ -45,6 +45,19 @@ renderer.shadowMap.type = THREE.PCFShadowMap;   // filtered with each light's sh
 renderer.shadowMap.autoUpdate = false;
 let shadowFrames = 2;
 const shadowsMoved = () => { shadowFrames = 2; };
+// ### Loading up front. Every picture and model of the room is loaded as the page opens, through one loading manager
+// ### (ASSETS), so the room knows when all of it has arrived: the briefing scene, where Officer Hale shuts the door, only
+// ### starts once it has (see warmOpening() under "Briefing scene"), and never has to load or build anything while it plays.
+const ASSETS = new THREE.LoadingManager();
+let assetsBusy = false;
+ASSETS.onStart = () => { assetsBusy = true; };
+ASSETS.onLoad = () => { assetsBusy = false; };
+// ### Counts a model (fetched and built in work, a promise) as part of ASSETS; if it fails, its stand-in stays.
+function loading(name, work){
+  ASSETS.itemStart(name);
+  work.catch(() => {}).then(() => ASSETS.itemEnd(name));
+}
+const glbBytes = r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); };
 // sharp textures at grazing angles, but no more than 8 samples: beyond that the cost rises and the picture barely changes
 const ANISO = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 const scene = new THREE.Scene();
@@ -585,7 +598,7 @@ function panelGeo(w, h, t, r = .012){
 // ### caged concrete vault under a fluorescent tube) that every metal surface reflects. Each file loads once; every
 // ### surface that uses it gets its own copy with its own repeat, and all copies are refreshed when the picture arrives.
 const SCAN = (() => {
-  const loader = new THREE.TextureLoader(), files = {};
+  const loader = new THREE.TextureLoader(ASSETS), files = {};
   return (file, srgb, rx = 1, ry = 1, aniso = ANISO) => {
     let f = files[file];
     if (!f){
@@ -1273,7 +1286,7 @@ const FLUO = (() => {
   }
   // ### Loads the scanned batten and puts it in place of the stand-in boxes; if it fails, the boxes stay.
   function load(){
-    fetch('models/fluorescent-fitting.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(buf => {
+    loading('fluorescent fitting', fetch('models/fluorescent-fitting.glb').then(glbBytes).then(buf => {
       const { json, acc } = glbParts(buf), prim = json.meshes[0].primitives[0], A = prim.attributes;
       const color = SCAN('fluorescent-fitting-color.jpg', true, 1, 1, 4), normal = SCAN('fluorescent-fitting-normal.jpg', false, 1, 1, 4), arm = SCAN('fluorescent-fitting-arm.jpg', false, 1, 1, 4);
       for (const t of [color, normal, arm]) t.flipY = false;   // glTF pictures are not flipped
@@ -1290,7 +1303,7 @@ const FLUO = (() => {
         const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; l.housing.add(m);
       }
       shadowsMoved();
-    }).catch(() => {});
+    }));
   }
   return { build, load, lamps };
 })();
@@ -1431,7 +1444,7 @@ function updateLights(dt){
 // ### push. The picture spans the leaf from edge to edge; the frame, the hinges and the window frame read the same plate at
 // ### their own size (steelUV). Until the three pictures arrive, or if they never do, the plain grey steel of M.door shows.
 const doorSteel = (() => {
-  const m = M.door.clone(), maps = {}, loader = new THREE.TextureLoader();
+  const m = M.door.clone(), maps = {}, loader = new THREE.TextureLoader(ASSETS);
   for (const [k, file] of [['map', 'door-steel-color.jpg'], ['normalMap', 'door-steel-normal.jpg'], ['roughnessMap', 'door-steel-rough.jpg']])
     loader.load('textures/' + file, t => {
       t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = ANISO; if (k === 'map') t.encoding = THREE.sRGBEncoding;
@@ -1794,7 +1807,7 @@ function readHuman(buf){
 function buildRealHale(buf){
   const h = readHuman(buf), g = new THREE.Group(), mats = [];
   const mat = o => { const m = new THREE.MeshStandardMaterial(Object.assign({ transparent: true, opacity: 0, skinning: true }, o)); mats.push(m); return m; };
-  const own = (file, srgb) => { const t = new THREE.TextureLoader().load(file, shadowsMoved); t.flipY = false; t.anisotropy = ANISO; if (srgb) t.encoding = THREE.sRGBEncoding; return t; };
+  const own = (file, srgb) => { const t = new THREE.TextureLoader(ASSETS).load(file, shadowsMoved); t.flipY = false; t.anisotropy = ANISO; if (srgb) t.encoding = THREE.sRGBEncoding; return t; };
   // the scans of the old figure, in units of one scan: the cloth pieces carry their UVs in metres
   const tiled = (file, srgb, size) => SCAN(file, srgb, 1 / size, 1 / size);
   const scanned = ([color, normal, rough], size, o) => mat(Object.assign({ map: tiled(color, true, size), normalMap: tiled(normal, false, size), roughnessMap: tiled(rough, false, size), side: THREE.DoubleSide }, o));
@@ -1912,14 +1925,12 @@ function buildRealHale(buf){
 }
 // ### Loads the real Hale and swaps him in for the stand-in, in the same place and with the same fade.
 function loadRealHale(){
-  fetch('models/hale.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
-    .then(buf => {
-      const real = buildRealHale(buf), o = hale.mats[0].opacity;
-      real.g.position.copy(hale.g.position); real.g.rotation.copy(hale.g.rotation);
-      room.remove(hale.g); room.add(real.g);
-      Object.assign(hale, real); haleFade(o); shadowsMoved();
-    })
-    .catch(() => {});
+  loading('Hale', fetch('models/hale.glb').then(glbBytes).then(buf => {
+    const real = buildRealHale(buf), o = hale.mats[0].opacity;
+    real.g.position.copy(hale.g.position); real.g.rotation.copy(hale.g.rotation);
+    room.remove(hale.g); room.add(real.g);
+    Object.assign(hale, real); haleFade(o); shadowsMoved();
+  }));
 }
 loadRealHale();
 // the cold light that falls in through the open door
@@ -3540,7 +3551,11 @@ function linenCloth(cloth, mat, strength = 1){
   };
   if (LINEN.img) paint();
   else {
-    if (!LINEN.waiting.length){ const im = new Image(); im.onload = () => { LINEN.img = im; LINEN.waiting.splice(0).forEach(f => f()); }; im.src = 'textures/uniform-linen-detail.jpg'; }
+    if (!LINEN.waiting.length){
+      const im = new Image(), file = 'textures/uniform-linen-detail.jpg', done = () => ASSETS.itemEnd(file);
+      im.onload = () => { LINEN.img = im; LINEN.waiting.splice(0).forEach(f => f()); done(); }; im.onerror = done;
+      ASSETS.itemStart(file); im.src = file;
+    }
     LINEN.waiting.push(paint);
   }
   mat.bumpMap = null;
@@ -3709,7 +3724,7 @@ function linenCloth(cloth, mat, strength = 1){
   scene.background = new THREE.Color(0x050607);
   // ### Then the real thing: Poly Haven's "Bank Vault" HDRI, stored as RGBE in a PNG (red, green, blue and a shared
   // ### exponent in the alpha channel), so the fluorescent tube in it is many times brighter than the walls, as in life.
-  new THREE.TextureLoader().load('textures/bank-vault-rgbe.png', t => {
+  new THREE.TextureLoader(ASSETS).load('textures/bank-vault-rgbe.png', t => {
     t.encoding = THREE.RGBEEncoding; t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.flipY = true;
     const env = pmrem.fromEquirectangular(t).texture;
     scene.environment.dispose(); scene.environment = env; t.dispose(); pmrem.dispose();
@@ -3736,7 +3751,7 @@ function extinguisherStandIn(){
 extinguisherStandIn(); loadExtinguisher();
 flat(.5, .5, M.blob, -1.25, D / 2 - .14);
 function loadExtinguisher(){
-  fetch('models/fire-extinguisher.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(buf => {
+  loading('fire extinguisher', fetch('models/fire-extinguisher.glb').then(glbBytes).then(buf => {
     const { json, acc } = glbParts(buf);
     const arm = SCAN('fire-extinguisher-arm.jpg', false, 1, 1, 4), normal = SCAN('fire-extinguisher-normal.jpg', false, 1, 1, 4), color = SCAN('fire-extinguisher-color.jpg', true);
     for (const t of [arm, normal, color]) t.flipY = false;   // glTF pictures are not flipped
@@ -3757,7 +3772,7 @@ function loadExtinguisher(){
       extinguisher.add(m);
     });
     shadowsMoved();
-  }).catch(() => {});
+  }));
 }
 // ### Static meshes that share a material are merged into one mesh, so the room is drawn in a few dozen draw calls instead
 // ### of several hundred (and each shadow-casting light draws every caster once more). Objects that move or can be clicked
@@ -4167,15 +4182,14 @@ function buildRealHand(side, buf){
 }
 // ### Loads the two real hands and swaps them in for the drawn ones. If they cannot be loaded, the drawn hands stay.
 function loadRealHands(){
-  Promise.all(['right', 'left'].map(n => fetch('models/hand-' + n + '.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })))
+  loading('hands', Promise.all(['right', 'left'].map(n => fetch('models/hand-' + n + '.glb').then(glbBytes)))
     .then(([r, l]) => {
       for (const [key, buf, side] of [['r', r, 1], ['l', l, -1]]){
         const h = buildRealHand(side, buf);
         handScene.remove(HANDS[key].arm);
         Object.assign(HANDS[key], h);
       }
-    })
-    .catch(() => {});
+    }));
 }
 // one hand's state: where it is and how fast it moves (springs), its swing size this stride, and its idle gesture
 const handState = () => ({ p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Vector3(), w: new THREE.Vector3(), wr: new THREE.Vector2(), wv: new THREE.Vector2(),
@@ -4949,6 +4963,37 @@ function cue(name){
 const DOOR_OPEN = 1.35, CINE_END = 5;
 const HALE_GRIP = new THREE.Vector3(), HALE_EYE = new THREE.Vector3();   // where his right hand holds the door, and where he looks
 let cineT = -1, shake = 0;
+// ### Made ready before it plays, so it runs smoothly from the first frame. Everything the room loads (Hale's model and
+// ### skin, his uniform, the door's steel, the other models and pictures) comes in while the first cards are read; once all
+// ### of it is there, warmOpening() draws one frame with the corridor, the door light and Hale switched on (he is behind the
+// ### shut door then, and fully faded out, so nothing shows): the graphics card builds every shader the scene needs and
+// ### takes every picture before the scene starts, instead of in its first frames. (The door light alone changes the shader
+// ### of every lit surface in the room.) Its sounds are made in code (see cue()), so there is nothing of theirs to load.
+// ### The scene waits for this on its card, at most CINE_WAIT seconds; on a very slow connection it then plays anyway, with
+// ### what has arrived. On the heist page room 2 is loaded ahead in the same window, and while it builds its world the
+// ### scene waits for that too (nextDoorBusy, told by the heist page).
+const CINE_WAIT = 12;
+let openingWarm = false, nextDoorBusy = false, cineFrom = 0, cineLoading = false;
+function warmOpening(){
+  openingWarm = true;
+  const was = [hall.visible, doorLight.visible, hale.g.visible];
+  hall.visible = doorLight.visible = hale.g.visible = true;
+  renderer.compile(scene, camera);
+  // every picture on every surface goes to the graphics card now, also on what is out of view (the door behind you)
+  const sent = new Set(), send = t => {
+    if (!t || !t.isTexture || t.isCubeTexture || sent.has(t) || !t.image || t.image.complete === false) return;
+    sent.add(t); renderer.initTexture(t);
+  };
+  scene.traverse(o => { for (const m of [].concat(o.material || [])){ for (const k in m) send(m[k]); if (m.uniforms) for (const k in m.uniforms) send(m.uniforms[k].value); } });
+  renderer.shadowMap.needsUpdate = true;   // and Hale's shadow
+  // after this frame has been drawn, all is put back as it was
+  return () => { [hall.visible, doorLight.visible, hale.g.visible] = was; shadowsMoved(); };
+}
+addEventListener('message', e => {
+  if (e.origin !== location.origin || e.source !== parent || !e.data) return;
+  if (e.data.shardHeist === 'busy') nextDoorBusy = true;
+  else if (e.data.shardHeist === 'calm') nextDoorBusy = false;
+});
 const LINES = [
   [0, '<span class="narr">Officer Hale walks you to washroom 2 and holds the door open.</span>'],
   [.9, '<b>Hale:</b> “Inside, 4471.”'],
@@ -4956,7 +5001,7 @@ const LINES = [
 ];
 function cineLine(html){ const el = card.querySelector('#cineLine'); if (el) el.innerHTML = html; }
 function startCine(){
-  hall.visible = true; doorLight.visible = true; cineT = REDUCED ? CINE_END : 0;
+  hall.visible = true; doorLight.visible = true; cineT = REDUCED ? CINE_END : 0; cineFrom = performance.now(); cineLoading = false;
   overlay.classList.add('cine'); $('lookHint').classList.add('hush'); goView('closing', 1.2);
   if (REDUCED){ cineLine(LINES[2][1]); card.querySelector('#cineClock').classList.add('on'); guardShow = 5; }
   else cineLine(LINES[0][1]);
@@ -4971,6 +5016,13 @@ function stopCine(){
 // ### One step of the scene: the door, the light and Hale follow the time; the sounds and words come once each.
 function updateCine(dt){
   if (cineT < 0) return;
+  // not ready yet: the door stays shut and the card says so, until it is (or has waited long enough)
+  const waited = (performance.now() - cineFrom) / 1000;   // in real seconds, however slow the frames are
+  if (cineT === 0 && (!openingWarm || nextDoorBusy) && waited < CINE_WAIT){
+    if (waited > .5 && !cineLoading){ cineLoading = true; cineLine('<span class="narr">Loading the scene…</span>'); }
+    return;
+  }
+  if (cineLoading){ cineLoading = false; cineLine(LINES[0][1]); }
   const t0 = cineT, t = cineT = Math.min(CINE_END + 1, cineT + dt), at = s => t0 < s && t >= s;
   if (t !== t0) shadowsMoved();
   const k = clamp((t - 1.7) / .95, 0, 1), open = 1 - k * k;   // held open, then swung shut, faster and faster
@@ -5829,11 +5881,14 @@ function frame(now){
   // a new size is applied just before drawing: resizing after it would clear the picture and show a black frame
   if (!mini){
     if (sizeDirty){ sizeDirty = false; renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); WATER.resize(); MIRROR.resize(); }
+    // all of the room has arrived: the briefing scene is made ready (see warmOpening)
+    const warmed = !openingWarm && !assetsBusy ? warmOpening() : null;
     camera.updateMatrixWorld();
     WATER.update(clock, dt);
     MIRROR.update(clock);
     renderer.render(scene, camera);
     drawHands();
+    if (warmed) warmed();
   }
   adaptResolution(elapsed);
 }

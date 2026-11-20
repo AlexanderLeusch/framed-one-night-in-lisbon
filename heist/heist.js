@@ -8,7 +8,9 @@
    ###    this page, see showEnding in its room.js), room 2 is shown at once and told to begin: no page is loaded at that moment,
    ###    so there is nothing to wait for. If room 2 is still loading by then, it is shown as it is, in the glare of the headlights,
    ###    and begins the moment it is ready: what has been loaded is never thrown away. Only a phone, which has too little
-   ###    memory for both worlds at once, loads room 2 after room 1.
+   ###    memory for both worlds at once, loads room 2 after room 1. Both frames share the window's time, so while room 2
+   ###    builds its world, room 1 is told so ('busy', then 'calm' once room 2 has loaded): its opening scene, where Officer
+   ###    Hale shuts the door, waits for that and then plays without a stutter.
    ### The two rooms stay separate pages that know nothing of each other's files: only this page holds both. */
 (function (){
   'use strict';
@@ -110,9 +112,16 @@
     frame1.addEventListener('load', () => {
       try { frame1.contentWindow.focus(); } catch (e) {}
       // (room 2 goes under room 1: the frame that comes first on the page lies below)
-      setTimeout(() => { if (state.left || frame2 || !frame1) return; frame2 = makeFrame(ROOM2_WAIT, 'Room 2 · The chase', true); rooms.insertBefore(frame2, frame1); }, 2500);
+      setTimeout(() => {
+        if (state.left || frame2 || !frame1) return;
+        tellRoomOne('busy');
+        frame2 = makeFrame(ROOM2_WAIT, 'Room 2 · The chase', true); rooms.insertBefore(frame2, frame1);
+        // loaded (or failed to): room 1 may play its scenes again
+        frame2.addEventListener('load', () => tellRoomOne('calm'), { once: true });
+      }, 2500);
     }, { once: true });
   }
+  const tellRoomOne = what => { if (frame1) frame1.contentWindow.postMessage({ shardHeist: what }, location.origin); };
   // ### Room 1 was left through the tunnel door: room 2 comes up. Ready and waiting, it is shown and told to begin; otherwise
   // ### it is opened now and loads behind the glare.
   function toRoomTwo(){
