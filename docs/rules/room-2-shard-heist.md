@@ -1,4 +1,4 @@
-# Room 2 · Shard Heist
+# Room 2 · The Chase
 
 > This document describes the rules in `room-2-chase/js/core.js`, and the pickups and police in `room-2-chase/js/game.js`.
 

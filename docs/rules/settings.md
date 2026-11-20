@@ -2,7 +2,7 @@
 
 > Every setting the player can change, in both rooms: where it is, what each choice does, and what the game remembers. Settings are stored only in this browser (`localStorage`). The one thing that leaves the device is the online leaderboard of room 2: your driver name and your finished free rides (map, time, vehicle, stars) go to the game's Supabase database, where everybody can see them. The quick way needs only a driver name (no email, no password); an email account is optional. The other request the game makes on its own is the escape room's search for an air vent recording (below).
 
-## Room 2 · Shard Heist: the main menu
+## Room 2 · The Chase: the main menu
 
 | Setting | Choices | What it does |
 |---|---|---|

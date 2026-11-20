@@ -7,7 +7,7 @@ The game has two rooms that are played one after the other. Until the group conn
 | Room | Document | Code with the rules | Tests |
 |---|---|---|---|
 | 1 · Plot Twist: Cell Block D (escape room) | [room-1-escape-room.md](room-1-escape-room.md) | `room-1-escape/js/rules.js` | `tests/room-1/rules.test.js` |
-| 2 · Shard Heist (police chase) | [room-2-shard-heist.md](room-2-shard-heist.md) | `room-2-chase/js/core.js` (rules), `room-2-chase/js/game.js` (pickups, police AI) | `tests/room-2/rules.test.js`, `tests/room-2/story.test.js`, `tests/room-2/input.test.js` |
+| 2 · The Chase (police chase) | [room-2-shard-heist.md](room-2-shard-heist.md) | `room-2-chase/js/core.js` (rules), `room-2-chase/js/game.js` (pickups, police AI) | `tests/room-2/rules.test.js`, `tests/room-2/story.test.js`, `tests/room-2/input.test.js` |
 | Both rooms: every setting and option | [settings.md](settings.md) | `room-2-chase/js/core.js`, `room-1-escape/js/rules.js` (checks of stored values) | `tests/room-2/rules.test.js`, `tests/room-1/rules.test.js`, `tests/browser/browser.test.js` |
 
 ## The whole game in one paragraph

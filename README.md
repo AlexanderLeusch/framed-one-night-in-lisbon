@@ -1,12 +1,12 @@
 # Framed: One Night in Lisbon
 
-*Framed: One Night in Lisbon* is a two-room browser game (the repository and the links keep its working title, *Shard Heist*, which is still the name of room 2). **Room 1, *Plot Twist: Cell Block D***, is a 3D prison escape room: find the code for the hatch in the washroom floor before the guard comes back. **Room 2, *Shard Heist***, is the 3D police chase that follows. A start page leads to both rooms.
+*Framed: One Night in Lisbon* is a two-room browser game (its working title was *Shard Heist*, which the repository carried until 20 November 2026; the code still uses it in the names of saved values). **Room 1, *Plot Twist: Cell Block D***, is a 3D prison escape room: find the code for the hatch in the washroom floor before the guard comes back. **Room 2, *The Chase***, is the 3D police chase that follows. A start page leads to both rooms.
 
 | Page | Play |
 |---|---|
-| Start page (both rooms) | https://alexanderleusch.github.io/shard-heist/ |
-| 1 · Escape room | https://alexanderleusch.github.io/shard-heist/room-1-escape/ |
-| 2 · Police chase | https://alexanderleusch.github.io/shard-heist/room-2-chase/ |
+| Start page (both rooms) | https://alexanderleusch.github.io/framed-one-night-in-lisbon/ |
+| 1 · Escape room | https://alexanderleusch.github.io/framed-one-night-in-lisbon/room-1-escape/ |
+| 2 · Police chase | https://alexanderleusch.github.io/framed-one-night-in-lisbon/room-2-chase/ |
 
 Both rooms take place on the same night and share one design system (the same fonts, panels, buttons and cards), with orange as the accent of the prison and cyan as the accent of the chase. Room 2's story starts where room 1 ends: inmate 4471 is on the run, and Officer Hale helps over the radio.
 
@@ -40,11 +40,11 @@ You were the detective on the Ashford necklace case; now you are inmate 4471, co
 
 Progress is saved in the browser after every accepted action, and a reload offers to continue.
 
-## Room 2 · Shard Heist
+## Room 2 · The Chase
 
 A 3D police-chase driving game that runs in any modern browser. Pick a getaway vehicle and find the six pieces of evidence that prove you innocent in Lisbon, shake off up to four police cars and a helicopter and reach the gate before the clock runs out. Or play **The Necklace Job**, the same night as a story with three endings.
 
-**Play:** https://alexanderleusch.github.io/shard-heist/room-2-chase/ (published automatically from `main` once all tests pass)
+**Play:** https://alexanderleusch.github.io/framed-one-night-in-lisbon/room-2-chase/ (published automatically from `main` once all tests pass)
 
 | | |
 |---|---|
@@ -95,7 +95,7 @@ shard-heist/
 │   ├── sounds/              CC0 recordings: the hot tap, the air vent, footsteps (steps/) and the climb down the ladder (ladder.mp3), with their credits
 │   └── fonts/               the two fonts with their licences
 │
-├── room-2-chase/            ROOM 2 · Shard Heist (3D police chase)
+├── room-2-chase/            ROOM 2 · The Chase (3D police chase through Lisbon)
 │   ├── index.html           page structure: HUD, cockpit, menu, error screen; loads the scripts in order
 │   ├── styles.css           the chase look (also used by the start page)
 │   ├── js/core.js           the rules: driving, damage, police, scoring, story, input checks (pure functions)

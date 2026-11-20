@@ -6,7 +6,7 @@
 
 | Requirement | Status | Where / how |
 |---|---|---|
-| Deployed at a public URL | ✅ | https://alexanderleusch.github.io/shard-heist/ (start page), `/room-1-escape/`, `/room-2-chase/`, GitHub Pages |
+| Deployed at a public URL | ✅ | https://alexanderleusch.github.io/framed-one-night-in-lisbon/ (start page), `/room-1-escape/`, `/room-2-chase/`, GitHub Pages |
 | Repository is public, `main` holds the deployed code | ✅ | Pages is deployed only from `main`, by CI |
 | No keys or passwords in the repository | ✅ | The game has no secrets; a test scans every file; GitHub secret scanning and push protection are on |
 | `README.md` has the deployed URL | ✅ | Top of the README |

@@ -4,10 +4,10 @@ This file is the one place for the team's working rules. Every coding agent read
 
 ## The project
 
-*Framed: One Night in Lisbon* (repository: `shard-heist`) is a two-room browser game for the Nova SBE course *Introduction to Programming*. **Room 1**, *Plot Twist: Cell Block D*, is a 3D escape room (`room-1-escape/`). **Room 2**, *Shard Heist*, is the 3D police chase that follows (`room-2-chase/`). `index.html` at the top is the start page that leads to both, and `heist/` is the heist page, which takes the driver name and holds both rooms in frames so that one follows the other without a load. The original Python solo project *Plot Twist* is kept in `original-solo-project/` for reference. The README shows the whole folder tree.
+*Framed: One Night in Lisbon* (repository: `framed-one-night-in-lisbon`, until 20 November 2026 `shard-heist`) is a two-room browser game for the Nova SBE course *Introduction to Programming*. **Room 1**, *Plot Twist: Cell Block D*, is a 3D escape room (`room-1-escape/`). **Room 2**, *The Chase*, is the 3D police chase that follows (`room-2-chase/`). `index.html` at the top is the start page that leads to both, and `heist/` is the heist page, which takes the driver name and holds both rooms in frames so that one follows the other without a load. The original Python solo project *Plot Twist* is kept in `original-solo-project/` for reference. The README shows the whole folder tree.
 
-- Live: https://alexanderleusch.github.io/shard-heist/ (start page), `room-1-escape/` (room 1) and `room-2-chase/` (room 2)
-- Repository: https://github.com/AlexanderLeusch/shard-heist (the only one; `Marco-open-source/plot-twist` is out of date)
+- Live: https://alexanderleusch.github.io/framed-one-night-in-lisbon/ (start page), `room-1-escape/` (room 1) and `room-2-chase/` (room 2)
+- Repository: https://github.com/AlexanderLeusch/framed-one-night-in-lisbon (the only one; `Marco-open-source/plot-twist` is out of date)
 
 ## Stack (decided; do not change it without the whole team)
 

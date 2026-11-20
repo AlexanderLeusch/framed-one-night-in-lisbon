@@ -36,7 +36,7 @@ a{color:var(--accent)}
 <p>The game has two rooms that are played one after the other. Until the group connects them, each room is its own page.</p>
 <table><tr><th>Room</th><th>Document</th><th>Code with the rules</th><th>Tests</th></tr>
 <tr><td>1 · Plot Twist: Cell Block D (escape room)</td><td><a href="#room-1-escape-room">room-1-escape-room.md</a></td><td><code>room-1-escape/js/rules.js</code></td><td><code>tests/room-1/rules.test.js</code></td></tr>
-<tr><td>2 · Shard Heist (police chase)</td><td><a href="#room-2-shard-heist">room-2-shard-heist.md</a></td><td><code>room-2-chase/js/core.js</code> (rules), <code>room-2-chase/js/game.js</code> (pickups, police AI)</td><td><code>tests/room-2/rules.test.js</code>, <code>tests/room-2/story.test.js</code>, <code>tests/room-2/input.test.js</code></td></tr>
+<tr><td>2 · The Chase (police chase)</td><td><a href="#room-2-shard-heist">room-2-shard-heist.md</a></td><td><code>room-2-chase/js/core.js</code> (rules), <code>room-2-chase/js/game.js</code> (pickups, police AI)</td><td><code>tests/room-2/rules.test.js</code>, <code>tests/room-2/story.test.js</code>, <code>tests/room-2/input.test.js</code></td></tr>
 <tr><td>Both rooms: every setting and option</td><td>settings.md</td><td><code>room-2-chase/js/core.js</code>, <code>room-1-escape/js/rules.js</code> (checks of stored values)</td><td><code>tests/room-2/rules.test.js</code>, <code>tests/room-1/rules.test.js</code>, <code>tests/browser/browser.test.js</code></td></tr>
 </table>
 <h2>The whole game in one paragraph</h2>
@@ -155,7 +155,7 @@ a{color:var(--accent)}
 </table>
 </section>
 <section id="room-2-shard-heist">
-<h1>Room 2 · Shard Heist</h1>
+<h1>Room 2 · The Chase</h1>
 <blockquote>This document describes the rules in <code>room-2-chase/js/core.js</code>, and the pickups and police in <code>room-2-chase/js/game.js</code>.</blockquote>
 <h2>Where room 2 starts</h2>
 <p>Room 2 begins where room 1 ends. You (inmate 4471, the framed detective) have climbed out of the tunnel under Cell Block D. It is about 02:30 at night. In a lock-up garage, Officer Hale's getaway vehicle is waiting. Every police car in town is now hunting the escaped inmate.</p>
@@ -317,7 +317,7 @@ a{color:var(--accent)}
 <section id="settings">
 <h1>Settings and options</h1>
 <blockquote>Every setting the player can change, in both rooms: where it is, what each choice does, and what the game remembers. Settings are stored only in this browser (<code>localStorage</code>). The one thing that leaves the device is the online leaderboard of room 2: your driver name and your finished free rides (map, time, vehicle, stars) go to the game's Supabase database, where everybody can see them. The quick way needs only a driver name (no email, no password); an email account is optional. The other request the game makes on its own is the escape room's search for an air vent recording (below).</blockquote>
-<h2>Room 2 · Shard Heist: the main menu</h2>
+<h2>Room 2 · The Chase: the main menu</h2>
 <table><tr><th>Setting</th><th>Choices</th><th>What it does</th></tr>
 <tr><td><b>Vehicle</b></td><td>Car, Motorcycle, Truck</td><td>Speed, acceleration, handling, how much damage a crash does and how the police can push you. The card under the choice shows the numbers</td></tr>
 <tr><td><b>Mode</b></td><td>Start the getaway (free ride), or the story card <i>The Necklace Job</i></td><td>Free ride is one run through Lisbon. The story is the same run with Hale on the radio and three endings</td></tr>
