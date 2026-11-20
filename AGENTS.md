@@ -24,7 +24,7 @@ You need Node.js 22 or newer. There is nothing to install.
 ```bash
 npm start              # the start page and both rooms on http://localhost:8080
 npm test               # all rules, story, input, page and escape-room tests (about 1 s)
-npm run test:browser   # plays both rooms in headless Chrome or Edge (about 8 min; CI runs its two halves, test:browser:chase and test:browser:escape, side by side)
+npm run test:browser   # plays both rooms in headless Chrome or Edge (about 8 min; CI runs its three parts, test:browser:chase-drive, test:browser:chase-pages and test:browser:escape, side by side)
 npm run test:sri       # checks the three.js files against their hashes (needs internet)
 npm run docs           # rebuilds docs/rules/rules.html from docs/rules/*.md
 cd original-solo-project && uv run pytest   # the original Python project's tests (needs uv)

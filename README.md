@@ -62,7 +62,7 @@ You need [Node.js](https://nodejs.org) 22 or newer. There is nothing to install.
 npm start          # serves the start page and both rooms: http://localhost:8080
 npm test           # rules, story, input, page and escape-room tests (about 1 s)
 npm run test:sri   # checks the library files against their integrity hashes (needs internet)
-npm run test:browser   # plays both rooms in headless Chrome or Edge (about 8 min; CI runs its two halves, test:browser:chase and test:browser:escape, side by side)
+npm run test:browser   # plays both rooms in headless Chrome or Edge (about 8 min; CI runs its three parts, test:browser:chase-drive, test:browser:chase-pages and test:browser:escape, side by side)
 npm run test:all   # all of the above
 cd original-solo-project && uv run pytest   # the 36 Python tests of the original Plot Twist project (needs uv)
 ```

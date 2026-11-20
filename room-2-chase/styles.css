@@ -652,3 +652,6 @@ body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:
 #arrive::after{content:"Your eyes adjust to the light";position:absolute;left:0;right:0;bottom:12vh;text-align:center;font-family:var(--f-mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#fff3d6;text-shadow:0 0 10px #000,0 0 3px #000;animation:glare-breathe 1.5s ease-in-out infinite alternate}
 @keyframes glare-breathe{from{opacity:.25}to{opacity:.9}}
 @media (prefers-reduced-motion:reduce){#arrive::after{animation:none;opacity:.8}}
+/* the best heist under the sum on the end screen, like the best time under the drive time */
+.card .heist-best{margin:0;font-family:var(--f-mono);font-size:14px;color:var(--muted);max-width:none}
+.card .heist-best.new{color:var(--gold)}

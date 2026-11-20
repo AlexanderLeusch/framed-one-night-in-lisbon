@@ -6033,6 +6033,7 @@ function heistSection(){
     : `<p class="lb-empty">${driver ? 'No heists yet.' : 'Enter a driver name below to put this heist on the board.'}</p>`;
   return `<div class="eyebrow">The whole heist · Cell Block D to the bridge</div>
     <div class="heist-sum"><div><span class="eyebrow">Escape · room 1</span><b>${fmtTimeExact(h.escape)}</b></div><i>+</i><div><span class="eyebrow">Drive · room 2</span><b>${fmtTimeExact(h.drive)}</b></div><i>=</i><div class="total"><span class="eyebrow">Heist time</span><b>${fmtTimeExact(h.total)}</b></div></div>
+    <p class="heist-best${h.isBest ? ' new' : ''}">${h.isBest ? 'New best heist on this device' : 'Best heist on this device · ' + fmtTimeExact(h.best)}${on && heist.online[0] ? ` · Online record · ${fmtTimeExact(heist.online[0].time)} by ${esc(heist.online[0].name)}` : ''}</p>
     ${head ? `<p class="lb-head${N && N.error ? ' bad' : ''}">${head}</p>` : ''}
     <p class="lb-where${on ? ' on' : ''}">${on ? 'Heist leaderboard · online · everybody\'s heists' : 'Heist leaderboard · this device only'}</p>${body}`;
 }
@@ -6836,8 +6837,8 @@ function witnessCard(){
     </div>`, 'story');
 }
 
-// ### The finale: through the gate you drive the approach road up to the 25 de Abril bridge yourself (updateRamp). On the deck the
-// ### game takes the wheel without a cut, and you cross the bridge with Marta beside you, driving south over the Tejo as the first
+// ### The finale: through the gate the game takes the wheel. The vehicle drives itself up the approach road to the 25 de Abril
+// ### bridge (updateRamp) and, without a cut, on over the deck: you cross the bridge with Marta beside you, driving south over the Tejo as the first
 // ### light comes up behind the towers: no police, no helicopter, heroic music. Then the result card. A black plane in front of the
 // ### camera does the fades. In the story, this ends act 1 (the bridge leads out of the city towards the highway); in a free ride
 // ### it is the end of the run.
@@ -6851,30 +6852,28 @@ function startFinale(){
   state = 'finale';
   Object.assign(finale, { on: true, done: false, t: 0, placed: false, throttle: 0, level: 1, kick: false, ramp: !!CITY.approach, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0, cut: false, shot: 0, music: false });
   hud.classList.add('off');
-  // the police give up at the gate; the keys stay held, so you drive straight on up the approach road
+  // the police give up at the gate, and from here on the vehicle drives itself: every key is let go
   resetPolice();
-  if (finale.ramp){ finale.s = rampLocal(CITY.approach, car.x, car.z, 0).s; toast('Up the ramp and onto the bridge!', 'gold', 2600); }
-  else { held.clear(); Object.keys(keys).forEach(k => keys[k] = false); }
+  held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
+  if (finale.ramp){ finale.s = rampLocal(CITY.approach, car.x, car.z, 0).s; toast('You made it. Up the ramp and onto the bridge!', 'gold', 2600); }
 }
-// ### The drive up to the bridge. Through the gate you keep the wheel and drive the approach road yourself: west along the river
-// ### and round the banked loop that climbs to the deck, 42 m up. The parapets keep you on the road (a scrape throws sparks, a
-// ### hard knock slows you down), from 90 m on the barrier in the middle keeps you on your side, and you can't go back through the
-// ### gate. The clock stopped at the gate. On the deck the drive over the bridge takes over without a cut, at your speed and in
-// ### your lane, and eases into its own. Nobody is put on the bridge: if you let go of every key for RAMP.idle seconds, or are not
-// ### up there after RAMP.auto seconds, the vehicle drives itself up the rest of the road (keys.up and the steering are worked
-// ### for you, aiming RAMP.look metres ahead in your lane, at RAMP.autoSpeed), and any key you press takes the wheel back.
-const RAMP = Object.freeze({ edge: 1.1, median: 1.3, knock: 6, settle: 1.2, idle: 1.2, auto: 15, look: 9, autoSpeed: 22, autoLane: 4.2 });
+// ### The drive up to the bridge. Through the gate the vehicle drives itself, and the keys, the pads and the tilt do nothing
+// ### any more: west along the river and round the banked loop that climbs to the deck, 42 m up. The gas and the steering are
+// ### worked for it, aiming RAMP.look metres ahead in its lane (the side of the road it came through the gate on), at
+// ### RAMP.autoSpeed. Through the gate at an angle or too fast it may still touch a parapet: they keep it on the road (a scrape
+// ### throws sparks, a hard knock slows it down), and from 90 m on the barrier in the middle keeps it on its side. The clock
+// ### stopped at the gate. On the deck the drive over the bridge takes over without a cut, at the same speed and in the same lane.
+const RAMP = Object.freeze({ edge: 1.1, median: 1.3, knock: 6, settle: 1.2, look: 9, autoSpeed: 22, autoLane: 4.2 });
 // ### The long straight along the river is not shown in full. RAMP_CUT.at seconds behind the gate the picture cuts, as in a film,
 // ### to a helicopter shot high outside the loop: the vehicle is now RAMP_CUT.before metres before the loop, in your lane and at
 // ### your speed (at least RAMP_CUT.speed), and the camera, RAMP_CUT.up metres up and RAMP_CUT.out metres outside the road,
-// ### follows it into the curve for RAMP_CUT.shot seconds, then cuts back behind it. You keep the wheel the whole time. Only a
+// ### follows it into the curve for RAMP_CUT.shot seconds, then cuts back behind it. Only a
 // ### vehicle still at least RAMP_CUT.min metres short of the cut point is moved, so a fast driver is never sent back.
 const RAMP_CUT = Object.freeze({ at: 2.5, before: 25, min: 30, speed: 18, shot: 4, out: 34, up: 17 });
 function rampCut(A){
   const f = finale, s = A.loop - RAMP_CUT.before, side = (f.lane > 0 ? 1 : -1) * RAMP.autoLane, p = A.at(s, side);
   Object.assign(car, { x: p.x, z: p.z, y: p.y, heading: p.h, camHeading: p.h, speed: Math.max(car.speed, RAMP_CUT.speed), steer: 0, yaw: 0, pitch: 0, roll: 0, shake: 0 });
-  // with no key held the vehicle drives on by itself at once, so it does not roll to a stop in the shot; any key takes over
-  f.s = s; f.cut = true; f.shot = 0; f.idle = Math.max(f.idle, RAMP.idle + 0.01);
+  f.s = s; f.cut = true; f.shot = 0;
   clearEffects(); resetSkids();
 }
 // the helicopter: high outside the loop, drifting along it, always on the vehicle
@@ -6901,16 +6900,10 @@ function updateRamp(dt){
   // through the gate at any angle: the first moment turns the vehicle onto the road
   if (f.rt < RAMP.settle) car.heading += wrapAngle(q.h - car.heading) * Math.min(1, dt * 5) * (1 - f.rt / RAMP.settle);
   let rel = wrapAngle(car.heading - q.h);
-  // the vehicle drives itself while you leave it alone, or once you have taken too long
-  const touching = keys.up || keys.down || keys.left || keys.right || keys.brake || Math.abs(TILT.value) > 0.05;
-  f.idle = touching ? 0 : (f.idle || 0) + dt;
-  let pedals = keys, steerIn = (keys.left ? 1 : 0) - (keys.right ? 1 : 0) || TILT.value;
-  if (!touching && (f.idle > RAMP.idle || f.rt > RAMP.auto)){
-    // on the right-hand side of the road, as in Portugal (past the barrier, on the side you are on)
-    const tgt = A.at(f.s + RAMP.look, (f.s > 90 ? f.lane : 1) * RAMP.autoLane), err = wrapAngle(Math.atan2(tgt.x - car.x, tgt.z - car.z) - car.heading);
-    pedals = { up: car.speed < RAMP.autoSpeed, down: false, brake: false };
-    steerIn = clamp(err * 3, -1, 1);
-  }
+  // the vehicle drives itself, whatever is pressed: on the right-hand side of the road, as in Portugal (past the barrier, on
+  // the side it is on)
+  const tgt = A.at(f.s + RAMP.look, (f.s > 90 ? f.lane : 1) * RAMP.autoLane), err = wrapAngle(Math.atan2(tgt.x - car.x, tgt.z - car.z) - car.heading);
+  const pedals = { up: car.speed < RAMP.autoSpeed, down: false, brake: false }, steerIn = clamp(err * 3, -1, 1);
   const grade = q.slope * Math.cos(rel);
   car.speed = Core.stepSpeed(car.speed, pedals, dt, Core.slopeTop(Core.topSpeed(M, V, damage, false), grade, V), V, grade);
   car.steer = Core.stepSteer(car.steer, steerIn, dt);
@@ -7118,7 +7111,9 @@ function finish(){
   pendingRun = { mode, time: used, veh: V.key, stars }; lastRank = null;
   // a heist ends here: the escape from room 1 and this drive are one time, and the handover is used up
   const total = heist.run && mode === 'city' ? Core.heistTotal(heist.run.escape, used) : null;
-  heist.last = total === null ? null : { escape: heist.run.escape, drive: used, veh: V.key, total };
+  // the fastest heist on this device before this one, whoever drove it
+  const heistBest = heist.list.length ? heist.list[0].time : null;
+  heist.last = total === null ? null : { escape: heist.run.escape, drive: used, veh: V.key, total, best: heistBest, isBest: Core.isNewBest(heistBest, total) };
   heist.pending = heist.last; heist.rank = null; heist.net = null; heist.run = null;
   if (heist.last){ writeStore(Core.HEIST.key, ''); loadHeists(); }
   recordPending();

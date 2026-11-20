@@ -12,6 +12,8 @@
     "test": "node --test tests/room-2/rules.test.js tests/room-2/story.test.js tests/room-2/input.test.js tests/room-2/online.test.js tests/project/page.test.js tests/room-1/rules.test.js tests/room-1/minigames.test.js",
     "test:browser": "node --test tests/browser/browser.test.js",
     "test:browser:chase": "node --test tests/browser/chase.test.js",
+    "test:browser:chase-drive": "node --test tests/browser/chase-drive.test.js",
+    "test:browser:chase-pages": "node --test tests/browser/chase-pages.test.js",
     "test:browser:escape": "node --test tests/browser/escape.test.js",
     "docs": "node tools/build-rules.js",
     "test:sri": "node tools/check-sri.js",
