@@ -12,7 +12,7 @@ The game has two rooms that are played one after the other. Until the group conn
 
 ## The whole game in one paragraph
 
-In April 2012 the Starfall necklace, lent by the Ashford family to Lisbon's naval museum for the centenary of the Titanic, vanished from its case. You were the detective on the case, until the trail ended at your own door. Now you are inmate 4471, convicted of stealing it. **Room 1:** you have ten minutes in a prison washroom to find the code for a hatch in the floor. If you get out (Ending A), a note shows that the guard wanted you out, and a car is waiting at the end of the tunnel. **Room 2:** the police chase begins. You drive a getaway vehicle through Lisbon's Baixa, on the highway and across the countryside, collecting star shards while up to four police cars and a helicopter hunt you.
+In April 2012 the Starfall necklace, lent by the Ashford family to Lisbon's naval museum for the centenary of the Titanic, vanished from its case. You were the detective on the case, until the trail ended at your own door. Now you are inmate 4471, convicted of stealing it. **Room 1:** you have ten minutes in a prison washroom to find the code for a hatch in the floor. If you get out (Ending A), a note shows that the guard wanted you out, and a car is waiting at the end of the tunnel. **Room 2:** the police chase begins. You drive a getaway vehicle through Lisbon's Baixa, collecting the evidence that proves you innocent while up to four police cars and a helicopter hunt you, and get out over the 25 de Abril bridge.
 
 ## One night, one look
 
@@ -22,7 +22,9 @@ In April 2012 the Starfall necklace, lent by the Ashford family to Lisbon's nava
 
 ## How the two rooms connect: the heist
 
-- The start page has one main button, **Start the heist**, which opens room 1. Below it, each room can still be played on its own.
+- The start page has one main button, **Start the heist**, which opens the **heist page** (`heist/`). Below it, each room can still be played on its own.
+- **The driver name comes first, and it counts in both rooms.** The heist page asks for a driver name before anything is played: type a name and press **Start the heist**, and you are on the online leaderboards of room 2 and of the heist, with no email and no password (the same account and the same rules for names as in room 2; a name someone else has is refused). If the online board can't be reached, the name becomes a driver of this device. A name from an earlier visit is offered again (**Not you?** asks for another). **Play without a name** starts at once; room 2 then asks for a name on its end screen.
+- **Both rooms are on that one page.** Room 1 is played in a frame, and while you play it, room 2 is loaded in a second frame under it, out of sight, down to the garage, and then stands still. When you leave room 1 through the tunnel door, room 2 is simply shown: no page is loaded at that moment, so there is nothing to wait for. A phone has too little memory for both 3D worlds at once: there the heist page only takes the name and then opens room 1 as its own page, and room 2 loads when room 1 is left, behind the light of the headlights. The same happens on a computer if room 2 should not be ready in time.
 - **Ending A** of room 1 hands over the **escape time** (the time used on the clock, wrong codes included) and leads into room 2 without a stop: when the door at the end of the tunnel swings open, the headlights behind it fill the screen and room 2 opens by itself in the same light. There is no card and nothing to click. Ending B stays in room 1 (try again).
 - Room 2 then skips its menu: the light clears and the old plank door of the tunnel swings open and you walk out into the garage, with the three vehicles across the hall. A message shows the escape time. From there it is a free ride through Lisbon.
 - When that drive is finished, **heist time = escape time + drive time**. The escape does not change the drive in any way.

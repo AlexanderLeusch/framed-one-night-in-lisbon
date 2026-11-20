@@ -1,5 +1,5 @@
-// ### Unit tests for the story mode: acts, retries, the hidden letter, the three endings and the radio messages.
-// Story mode "The Necklace Job": acts, items, endings and retries (room-2-chase/js/core.js)
+// ### Unit tests for the story mode: its one act in Lisbon, retries, the hidden letter, the endings and the radio messages.
+// Story mode "The Necklace Job": the act, the letter, endings and retries (room-2-chase/js/core.js)
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Core = require('../../room-2-chase/js/core.js');
@@ -11,71 +11,54 @@ function playthrough(steps){
   return story;
 }
 
-test('a new story starts in act 1 with no items', () => {
+test('a new story starts in its act with no letter', () => {
   const s = Core.newStory();
   assert.equal(s.act, 0);
   assert.equal(s.letter, false);
-  assert.equal(s.clasp, false);
   assert.deepEqual(s.times, []);
+  assert.equal('clasp' in s, false, 'nothing is left of the acts that were played on the highway and in the countryside');
 });
 
-test('the three acts are played on the three maps in order', () => {
+test('the story is one act, played in Lisbon', () => {
+  assert.equal(Core.STORY_ACTS, 1);
+  assert.deepEqual(Object.keys(Core.MODES), ['city'], 'Lisbon is the only map');
   const s = Core.newStory();
-  for (let i = 0; i < Core.STORY_ACTS; i++){ assert.ok(Core.beginAct(s, i)); assert.equal(s.act, i); }
+  assert.ok(Core.beginAct(s, 0)); assert.equal(s.act, 0);
 });
 
-test('rejected: acts outside 1-3 and non-numbers do not change the story', () => {
+test('rejected: any act but the first, and non-numbers, do not change the story', () => {
   const s = Core.newStory();
-  Core.beginAct(s, 1);
-  for (const bad of [-1, 3, 7, 1.5, NaN, '2', null, undefined]){
+  Core.beginAct(s, 0);
+  s.clock = 42;
+  for (const bad of [-1, 1, 2, 7, 0.5, NaN, '0', null, undefined]){
     assert.equal(Core.beginAct(s, bad), false, String(bad));
-    assert.equal(s.act, 1);
+    assert.equal(s.act, 0);
+    assert.equal(s.clock, 42, 'a refused act does not restart the clock of the story');
   }
   assert.equal(Core.beginAct(null, 0), false);
 });
 
-test('Ending A: the letter found in act 1 reveals the real culprit', () => {
-  const s = playthrough([
-    st => Core.beginAct(st, 0), st => { st.letter = true; },
-    st => Core.beginAct(st, 1), st => { st.clasp = true; },
-    st => Core.beginAct(st, 2)
-  ]);
+test('Ending A: the letter found in Lisbon reveals the real culprit', () => {
+  const s = playthrough([st => Core.beginAct(st, 0), st => { st.letter = true; }]);
   assert.equal(Core.storyEnding(s), 'A');
 });
 
 test('Ending B: without the letter the detective is framed', () => {
-  const s = playthrough([st => Core.beginAct(st, 0), st => Core.beginAct(st, 1), st => { st.clasp = true; }, st => Core.beginAct(st, 2)]);
+  const s = playthrough([st => Core.beginAct(st, 0)]);
   assert.equal(Core.storyEnding(s), 'B');
 });
 
-test('the letter only counts if the act it was found in was finished', () => {
+test('the letter only counts if the run it was found in was finished', () => {
   const s = Core.newStory();
   Core.beginAct(s, 0);
-  s.letter = true;                 // found it ...
-  Core.beginAct(s, Core.retryAct(s)); // ... but got busted and retried act 1
+  s.letter = true;                    // found it ...
+  Core.beginAct(s, Core.retryAct(s)); // ... but got busted and tried again
   assert.equal(s.letter, false);
   assert.equal(s.act, 0);
-  // found it and then finished the act: it carries over into later acts and their retries
+  assert.equal(Core.storyEnding(s), 'B');
+  // found it again and finished: it decides the ending
   s.letter = true;
-  Core.beginAct(s, 1);
-  assert.equal(Core.retryAct(s), 1);
-  assert.equal(s.letter, true);
   assert.equal(Core.storyEnding(s), 'A');
-});
-
-test('the toll in act 2 rejects the player without the clasp and opens with it', () => {
-  const s = Core.newStory();
-  Core.beginAct(s, 1);
-  assert.equal(Core.finishOpen(s), false);
-  s.clasp = true;
-  assert.equal(Core.finishOpen(s), true);
-  // retrying act 2 takes the clasp away again
-  Core.beginAct(s, Core.retryAct(s));
-  assert.equal(Core.finishOpen(s), false);
-  // other acts and free ride always let you finish
-  Core.beginAct(s, 0); assert.equal(Core.finishOpen(s), true);
-  Core.beginAct(s, 2); assert.equal(Core.finishOpen(s), true);
-  assert.equal(Core.finishOpen(null), true);
 });
 
 test('radio lines play once each, in order, when their time comes', () => {

@@ -22,7 +22,7 @@
     timeout: 8000,
     keep: 50
   });
-  const MODES = ['city', 'highway', 'country'], VEHS = ['car', 'bike', 'truck'];
+  const MODES = ['city'], VEHS = ['car', 'bike', 'truck'];
   const PW_MIN = 8, EMAIL_MAX = 254;
 
   // ---------- Pure helpers (tested in tests/room-2/online.test.js) ----------

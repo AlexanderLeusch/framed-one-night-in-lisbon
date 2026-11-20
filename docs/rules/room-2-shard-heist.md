@@ -16,14 +16,14 @@ A run in Lisbon begins in that garage, 30 m under the Baixa, and on foot. You ar
 - **Get in:** you run to the driver's door, your right hand goes to the handle and the door swings open; you get in through it, head down under the roof, onto the seat, take the wheel with both hands and pull the door shut. Only now is an engine heard: on foot the garage is quiet apart from your steps. The engine starts, the lights come on, and the view draws back behind the vehicle. The motorcycle has no door: you swing onto the seat and take the bars. *Esc* at the wheel puts you back on your feet beside the door.
 - **Drive out:** drive up the ramp (at most 32 km/h down here). Walls, pillars and the two parked vehicles stop you, but a bump costs only speed, never damage. Over the top of the ramp the vehicle drives itself: a roller door rolls up, and you drive straight out onto the street, with no cut and no fade, across the pavement and round to the left into the lane. The door is in the house north-east of the usual start, on the cross street, and every run in Lisbon can see it there. As soon as you are on the street the map of the evidence opens.
 - **Nothing counts in the garage:** the clock does not run, no police come, and the HUD is hidden. The run starts with *Start driving* on the map, as before.
-- *Skip the garage* goes straight to the street, to the usual start. *Try again* and *Restart* skip it too; so do the highway and the countryside, which start on the road. Act 1 of the story begins in the garage.
+- *Skip the garage* goes straight to the street, to the usual start. *Try again* and *Restart* skip it too. The story begins in the garage as well.
 
 Room 2 plays no sound files, so the steps here are synthesised, where room 1 plays recordings.
 
 ## Two ways to play
 
-- **Free ride:** pick a map and a getaway vehicle, then escape.
-- **Story mode, *The Necklace Job*:** three acts on the three maps, in order, with a story and three endings.
+- **Free ride:** pick a getaway vehicle, then escape from Lisbon.
+- **Story mode, *The Necklace Job*:** the same run through Lisbon with Officer Hale on the radio, a hidden letter and three endings.
 
 ## Vehicles
 
@@ -35,16 +35,15 @@ Room 2 plays no sound files, so the steps here are synthesised, where room 1 pla
 
 Percentages are relative to the map's top speed and to the car. The menu shows the same values as bars (1–5) and as km/h and 0–80 km/h times, computed from these numbers.
 
-## Maps
+## The map
 
-| Map | Goal | Time | Car top speed | Police top speed | Shards | Repair kits |
+| Map | Goal | Time | Car top speed | Police top speed | Evidence | Repair kits |
 |---|---|---|---|---|---|---|
 | **Lisbon · Baixa** | Collect **all 6 pieces of evidence**, pick up the **witness**, then drive through the golden gate that appears at the south-west corner of the Baixa (Rua do Crucifixo at the river avenue), on the way to the 25 de Abril bridge | 3:00 | 122 km/h | 108 km/h | 6 pieces of evidence | 3 |
-| **Highway** | Reach the finish **4 km** ahead. Shards are optional: **+4 s** each | 1:50 | 200 km/h | 173 km/h | 12 | 2 |
-| **Countryside** | Reach the village at the end of the road. Shards: **+4 s** each | 2:30 | 158 km/h | 137 km/h | 10 | 3 |
 
-- A shard or a piece of evidence is picked up within 3.8 m; a repair kit within 3.6 m, and only when you have damage.
-- Lisbon has traffic lights, 26 other cars, two white city buses, four motorcycles and three yellow trams. The trams only run on their tracks, a stone track bed with two rails set into the road: a clockwise loop through Rua da Conceição, Rua da Prata, the north side of the Praça do Comércio and Rua Áurea. As on real Lisbon streets, cars and the player can drive over the tracks. Each wheel that rolls over a rail gives a jolt: the picture and the vehicle shake, the rail clacks, and phones that can vibrate give a short buzz. The faster you go, the harder the jolt; the front wheels hit first and the rear ones a moment later. Driving along the stone track bed rumbles lightly. The trams themselves run on steel railway wheels with a flange on the inside, on a two-axle truck with springs and brake blocks. The buses are 12 m long, so at a crossing they go straight on or turn left in the wide arc, never right into the tight corner (unless that is the only way left at the edge of the map). Everything stops at red lights and keeps its distance to the back of the vehicle ahead, so nobody runs into the long tail of a bus or a tram. On the highway traffic drives both ways: cars, SUVs, lorries, three coaches and six motorcycles; lorries and coaches keep to the middle and slow lanes. On country roads there is oncoming traffic, with one coach and three motorcycles among it, and driving off the road cuts your top speed to 55 %.
+- There is one map, Lisbon. (The highway and the countryside of earlier versions, and the story acts played on them, were removed.)
+- A piece of evidence is picked up within 3.8 m; a repair kit within 3.6 m, and only when you have damage.
+- Lisbon has traffic lights, 26 other cars, two white city buses, four motorcycles and three yellow trams. The trams only run on their tracks, a stone track bed with two rails set into the road: a clockwise loop through Rua da Conceição, Rua da Prata, the north side of the Praça do Comércio and Rua Áurea. As on real Lisbon streets, cars and the player can drive over the tracks. Each wheel that rolls over a rail gives a jolt: the picture and the vehicle shake, the rail clacks, and phones that can vibrate give a short buzz. The faster you go, the harder the jolt; the front wheels hit first and the rear ones a moment later. Driving along the stone track bed rumbles lightly. The trams themselves run on steel railway wheels with a flange on the inside, on a two-axle truck with springs and brake blocks. The buses are 12 m long, so at a crossing they go straight on or turn left in the wide arc, never right into the tight corner (unless that is the only way left at the edge of the map). Everything stops at red lights and keeps its distance to the back of the vehicle ahead, so nobody runs into the long tail of a bus or a tram.
 - **Other vehicles at night:** every vehicle throws its headlights on the road ahead, so a car waiting at a dark crossing can be seen from far away. Its bright brake lights are on while it slows down or stands. You can crash into buses and motorcycles like into any other vehicle, and a hit pushes the other vehicle away by weight: a motorcycle (weight 0.25) flies off, two cars (1 each) both give way, a bus or coach (4) or a lorry (3.5) hardly moves and you bounce off it; a tram on its rails does not move at all. Your motorcycle weighs 0.3, your truck 3.5. A hit off the middle turns the other vehicle; it slides at most 14 m, stops at walls, lamp posts and parked cars, and drives back into its lane once its driver has recovered. You keep more of your speed the lighter the vehicle you hit, and each hit sounds like what you hit: a motorcycle clatters, a bus booms.
 - **Parked cars:** the cars parked along the kerbs in Lisbon can be pushed away too. Their handbrake is on, so they count 1.6 times their weight (a car 1.6, an SUV about 2.1): a hit at city speed shoves one a few metres, and it turns when you hit it off its middle. It stops at houses, lamp posts and other parked cars (and pushes those on), never more than 7 m from its place, and stays where it comes to rest until the next run. You keep more speed than against a wall, but the hit still counts as a crash. Traffic stops behind a parked car that has been pushed into its lane.
 - Each map has an edge you cannot cross. When you near it the screen turns red and a "turn back" arrow appears. In Lisbon the outer streets are part of the map, so there this only happens when you head for the edge.
@@ -72,7 +71,6 @@ In Lisbon you do not collect star shards. Your oldest friend on the force found 
 
 **The finale.** Behind the gate starts the approach road to the bridge, built after the real one: a concrete viaduct on tall twin piers that runs west along the river, passes under the side span and climbs round in a banked loop to the deck, 42 m up. Drive through the gate and the game takes the wheel for good: the clock stops, the police give up, and the vehicle drives itself up the approach road to the bridge, on the side of the road it came through the gate on. The keys, the touch pads and the tilt do nothing from here on. If it comes through the gate at an angle or very fast it may still touch a concrete parapet (scraping along one throws sparks, a hard knock slows it down); from 90 m on the barrier in the middle keeps it on its side. The long straight along the river is not shown in full: 2.5 seconds behind the gate the picture cuts, as in a film, to a helicopter shot high outside the loop, where your vehicle is now 25 m before the curve, in its lane and at its speed (at least 65 km/h). The camera follows it into the loop for 4 seconds and then cuts back behind it. A vehicle that is already close to the loop is not moved. On the deck the drive goes on without a cut: you are on the **25 de Abril bridge** with Marta beside you, driving south over the Tejo, sliding over into the right-hand lane, while the first light of the morning comes up in the east. The heroic music (brass, strings and timpani, about 14 seconds, on the music volume) starts 80 m before the deck, while you are still coming up the loop. From then on the engine fades out bit by bit under it, over 6 seconds, until only the music is left (the vehicle still cruises at about 86 km/h, changes down and accelerates to about 125 km/h). There is nothing more to do: no police, no helicopter. Then the result card. The drive over the bridge does not count towards your time. In the story, it ends act 1.
 
-The highway and the countryside keep their **bonus shards** (+4 s each).
 
 ## The city map: Lisbon's Baixa
 
@@ -115,7 +113,7 @@ The city is a hand-built model of the real Baixa, not map data loaded by the gam
 | Reversing lights | white, on while you roll backwards |
 | Skid marks and tyre squeal | with the handbrake above about 15 km/h, when braking above about 30 km/h, and in very fast corners (above about 80 km/h, steering hard). They only mark the road, and they are cleared when a new run starts |
 
-**Hills.** All three maps have hills, up to about 20 % steep. The Arco, the river front and the two ends of the highway are level. Uphill your top speed falls by up to 16 % and gravity pulls you back, half as strongly as it pushes you downhill. Downhill your top speed rises by up to 22 % and you coast on. The truck feels slopes most, the motorcycle least. Brakes and rolling friction hold a stopped vehicle in place.
+**Hills.** Lisbon has hills, up to about 20 % steep. The Arco and the river front are level. Uphill your top speed falls by up to 16 % and gravity pulls you back, half as strongly as it pushes you downhill. Downhill your top speed rises by up to 22 % and you coast on. The truck feels slopes most, the motorcycle least. Brakes and rolling friction hold a stopped vehicle in place.
 
 **Smooth picture.** If the game runs below 48 frames per second for 2 seconds, it lowers the resolution one step (85, 70, then 60 %). If that does not help, the step is taken back. After 20 seconds at 57 or more it goes back up, at most twice. The choice of Ultra or Balanced stays yours.
 
@@ -124,7 +122,7 @@ The city is a hand-built model of the real Baixa, not map data loaded by the gam
 | Rule | Value |
 |---|---|
 | Crash | impacts under 4 m/s (about 14 km/h) are free; above that, damage = (impact − 4) × 1.0 × the vehicle's damage factor. A wall at 122 km/h costs the car 30 %, the truck 17 %. One crash counts once: for 0.35 s after contact, only a harder hit costs more |
-| Scrape | sliding along a wall or another vehicle faster than 3 m/s (about 11 km/h), measured along the surface, throws sparks and grinds, harder the faster you slide (full at 22 m/s). Along house walls, parked cars and the wall in the middle of the highway it leaves pale scratches with a little of your paint; the newest 400 stay. A scrape costs no damage; only the part of your speed into the wall counts as a crash |
+| Scrape | sliding along a wall or another vehicle faster than 3 m/s (about 11 km/h), measured along the surface, throws sparks and grinds, harder the faster you slide (full at 22 m/s). Along house walls and parked cars it leaves pale scratches with a little of your paint; the newest 400 stay. A scrape costs no damage; only the part of your speed into the wall counts as a crash |
 | Nitro | every third piece of evidence or shard you pick up fills one nitro charge, three at most (with a full tank the next fill is lost). In Lisbon that is a charge after the 3rd and the 6th piece. `E` or the flame button fires one: for 2.5 s your top speed is 30 % higher and the vehicle is pushed forward with 14 m/s² on top of the engine, a blue flame burns behind it and the view widens. One burns at a time, not while reversing, and only during a run. Afterwards the speed falls back to the normal top speed. The charges are shown under the damage bar; the bar beside them fills towards the next charge and drains while one burns |
 | 25 % damage | the paint shows dents (deepest at the nose and the tail), long scratches and dirt, and loses its shine as the damage grows; thin grey smoke rises from the engine |
 | 50 % damage | warning: "Engine damaged: top speed reduced." Loose parts and a smashed light; the engine misfires; the smoke turns dark |
@@ -138,7 +136,7 @@ The city is a hand-built model of the real Baixa, not map data loaded by the gam
 
 | Rule | Value |
 |---|---|
-| First police car | after 4 seconds; in the countryside once you are about 170 m along the road |
+| First police car | after 4 seconds |
 | **Wanted stars** | 1 to 5, shown under the clock. A new star every fifth of the time limit or of the way to the end (evidence in the city, distance on the open roads), whichever is further along. Each wrecked police car counts as 4 % more. Stars never fall. |
 | New police car | until the number for your stars is reached, see the table below |
 | Ramming | every hard hit lowers a police car's health by impact × your ramming power × 0.09; a police car is wrecked when its health is gone and comes back after the time in the table below |
@@ -169,21 +167,19 @@ All of it is composed and synthesised by the game, with no music files. The tune
 
 | Result | When |
 |---|---|
-| **Clean getaway** | Lisbon: reach the gate under the arch, with the six pieces of evidence and the witness; the drive over the bridge follows. Highway: pass the 4 km mark. Countryside: reach the village |
+| **Clean getaway** | Reach the gate, with the six pieces of evidence and the witness; the drive over the bridge follows |
 | **Busted** | the bust meter is full |
 | **Wrecked** | damage reaches 100 % |
 | **Time's up** | the clock reaches 0:00 |
 
 ## Stars and best times
 
-- **Drive time.** In the city this is the time used. On the highway and in the countryside it is the time used plus the bonus seconds the shards gave you, so collecting shards never makes a run look slower.
+- **Drive time.** The time used on the clock.
 - **Stars:**
 
-| Map | ★★★ | ★★ | ★ |
+| | ★★★ | ★★ | ★ |
 |---|---|---|---|
-| City | more than 40 % of the time left | more than 20 % left | otherwise |
-| Highway | under 88 s | under 105 s | otherwise |
-| Countryside | under 115 s | under 135 s | otherwise |
+| Lisbon | more than 40 % of the time left | more than 20 % left | otherwise |
 
 - These limits are for the car. For the other vehicles the drive time counts multiplied by their speed factor (motorcycle 1.12, truck 0.78), so each can earn three stars.
 - More than 50 % damage costs one star, but never the last one.
@@ -192,7 +188,7 @@ All of it is composed and synthesised by the game, with no music files. The tune
 ## Drivers and the leaderboard
 
 - **Driver.** In the main menu (section 03) you type a driver name and press **Play online**: you are on the online leaderboard at once, with no email and no password. The driver belongs to this browser. A name keeps letters, digits, spaces and `. _ ' -`, up to 16 characters; capital letters do not matter, so *alex* and *Alex* are the same driver, and a name someone already has is refused. If you want the same driver on several devices, open *Use an email account instead* and sign up with email and password.
-- **Leaderboards.** Every finished free ride (Lisbon, Highway, Countryside) goes on two boards of its map under the active driver: the **all-time** board and the board of the **current calendar month**. Each driver has one entry per board, their best time; a slower run never replaces it. The fastest time is first, and on a tie the time that was there first stays ahead. When a new month begins, the monthly board starts empty; the all-time board stays.
+- **Leaderboards.** Every finished free ride goes on two boards under the active driver: the **all-time** board and the board of the **current calendar month**. Each driver has one entry per board, their best time; a slower run never replaces it. The fastest time is first, and on a tie the time that was there first stays ahead. When a new month begins, the monthly board starts empty; the all-time board stays.
 - **Leader of the month.** The fastest driver of the current month on a map is named above the two boards.
 - **Where they are shown.** In the main menu (for the map that is chosen) and on the end screen after the finish. Each board shows the top five, and the driver's own place below them if they are further down. The end screen says whether the run is a new personal best and which place it has on both boards. It is set in large type: the drive time is the one big number, with the best time on this device under it, the stars beside the title, and time left (or shards), damage and wrecked police cars next to it. Without a driver, the end screen asks for a name first; the time is saved as soon as the name is entered.
 - Runs that end busted, wrecked or out of time, and the story mode, do not go on the board.
@@ -209,19 +205,19 @@ All of it is composed and synthesised by the game, with no music files. The tune
 
 ## Story mode: The Necklace Job
 
+The story is one act, played in Lisbon. It is the Lisbon run with two things added: Hale and the police dispatch on the radio, and the letter.
+
 | Act | Map | Goal | Special rule |
 |---|---|---|---|
-| **1 · The Evidence** | Lisbon | Recover the 6 pieces of evidence, pick up the witness, then the gate and the bridge | An optional **sealed letter** is hidden in a park. It is **not shown on the radar**. |
-| **2 · The Courier** | Highway | Catch the gold-marked courier lorry (get within 9 m) to take the **clasp**, then the finish | The **toll at the finish only opens with the clasp**: without it you stop there |
-| **3 · Homecoming** | Countryside | Drive back to the Ashford mansion | Officer Hale waits on the right verge 70 m before the finish and calls out when you are close. The confrontation decides the ending |
+| **The Evidence** | Lisbon | Recover the 6 pieces of evidence, pick up the witness, then the gate and the bridge | An optional **sealed letter** is hidden in a park. It is **not shown on the radar**. |
 
 | Ending | When |
 |---|---|
-| **A · The truth** | You found the letter: it proves Lady Ashford staged the theft. Hale gives you your badge back. |
-| **B · Back in 4471** | No letter: the evidence alone, brought by an escaped convict, is not believed. Lady Ashford hands you to the police, and you go back to cell 4471. |
-| **C · Caught** | Busted, wrecked or out of time in any act: back to Cell Block D. You can retry that act. |
+| **A · The truth** | You crossed the bridge with the letter: handed to the prosecutor's investigators who wait with Hale on the far side, it proves Lady Ashford staged the theft. Hale gives you your badge back. |
+| **B · Back in 4471** | You crossed the bridge without the letter: the evidence and the witness show that someone else broke in, but not who sent him. It is not enough, and you go back to cell 4471. |
+| **C · Caught** | Busted, wrecked or out of time: back to Cell Block D. You can try again. |
 
-**Retrying an act:** a letter found during the failed attempt does **not** count. A letter found in an earlier, finished act does.
+**Trying again:** a letter found during the failed attempt does **not** count; you have to find it again.
 
 Radio messages (Hale in orange, police dispatch in red) appear at fixed times in each act, each only once.
 

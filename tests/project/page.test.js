@@ -247,7 +247,7 @@ test('the story runs on from room 1 into room 2', () => {
     assert.ok(fs.existsSync(path.join(ROOT, 'room-1-escape/textures', f)), f + ' is in the folder of room 1');
   }
   assert.match(game, /Core\.parseHeist\(readStore\(Core\.HEIST\.key\), Date\.now\(\)\)/, 'room 2 reads the handover through the rules');
-  assert.match(read('index.html'), /<a class="start-heist" href="room-1-escape\/">/, 'the start page starts the heist in room 1');
+  assert.match(read('index.html'), /<a class="start-heist" href="heist\/">/, 'the start page starts the heist on the heist page');
   const sql = read('supabase/schema.sql');
   assert.match(sql, /total numeric\(7, 2\) generated always as \(escape \+ drive\) stored/, 'the database adds the heist time up itself');
   assert.match(sql, /grant insert \(escape, drive, veh\) on public\.heists to authenticated/, 'a player can only send the two parts');
@@ -329,16 +329,18 @@ test('damage is visible and the rider is posed', () => {
   for (const key of ['car', 'bike', 'truck']) assert.match(game, new RegExp('MODELS\\.' + key + ' = \\{.*damageParts'), key + ' has loose parts');
 });
 
-test('every world is bent over the hills once, and the car feels them', () => {
-  for (const [group, key] of [['CITY', 'city'], ['HWY', 'highway'], ['CTRY', 'country']]) assert.match(game, new RegExp('laySlopes\\(' + group + '\\.group, \'' + key + '\'\\)'));
+test('the city is bent over the hills once, and the car feels them', () => {
+  assert.match(game, /laySlopes\(CITY\.group, 'city'\)/);
+  assert.equal((game.match(/laySlopes\(\w+\.group, /g) || []).length, 1, 'Lisbon is the only world');
   assert.match(game, /Core\.stepSpeed\(car\.speed, keys, dt, maxNow, V, grade\)/);
   assert.match(game, /Core\.slopeTop\(/);
 });
 
-test('the menu previews come from the real models, and every map picture fills its frame', () => {
+test('the menu previews come from the real models, and there is no choice of map: Lisbon is the only one', () => {
   assert.match(game, /function renderPreviews\(\)/);
   assert.match(game, /renderPreviews\(\);/);
-  assert.equal((game.match(/viewBox="0 0 160 80" preserveAspectRatio="xMidYMid slice"/g) || []).length, 3);
+  assert.doesNotMatch(game, /data-pick="mode"/, 'no map buttons in the menu');
+  assert.doesNotMatch(game + read('room-2-chase/js/core.js'), /highway|countryside|buildCountry|buildHighway|courier|clasp/i, 'nothing is left of the highway and the countryside');
 });
 
 test('the radio is synthesised, wired to a key and a button, and its stored choice is validated', () => {
@@ -363,7 +365,6 @@ test('audit: everything placed in a run stands on the hills, and the keyboard ru
   assert.match(game, /if \(!\$\('fatal'\)\.hidden \|\| e\.ctrlKey \|\| e\.metaKey \|\| e\.altKey\) return;/, 'nothing behind the error screen, no browser shortcuts');
   assert.match(game, /\(e\.code === 'Enter' \|\| e\.code === 'Space'\) && onButton/, 'a focused button does its own job');
   assert.doesNotMatch(game, /radio\.next = 0; return;/, 'stopping the radio does not lose its place');
-  assert.match(game, /car\.z = HW\.LEN - 0\.1/, 'the toll stops you without the clasp');
 });
 
 test('the working rules live in the project: AGENTS.md with run and test commands, CLAUDE.md pointing to it', () => {
@@ -485,4 +486,34 @@ test('escape room: the real hand models are shipped with their licence and are w
   }
   assert.match(fs.readFileSync(path.join(dir, 'LICENSE-hands.txt'), 'utf8'), /MIT License/);
   assert.match(fs.readFileSync(path.join(ROOT, 'room-1-escape', 'js', 'room.js'), 'utf8'), /fetch\('models\/hand-' \+ n \+ '\.glb'\)/);
+});
+
+// ---------- The heist page: one driver name, both rooms on one page ----------
+test('the heist page holds both rooms, and the rooms still load nothing of each other', () => {
+  const page = read('heist/index.html'), js = read('heist/heist.js'), room = read('room-1-escape/js/room.js');
+  // scripts and frames only from this site; the one other address is the online leaderboard
+  const csp = page.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)[1];
+  assert.match(csp, /default-src 'self'/); assert.match(csp, /script-src 'self'(;|$)/); assert.match(csp, /frame-src 'self'/); assert.match(csp, /object-src 'none'/);
+  assert.match(csp, /connect-src 'self' https:\/\/nqjeonoudywpdwivfuyp\.supabase\.co(;|$)/);
+  assert.doesNotMatch(csp, /unsafe-inline|unsafe-eval|\*/);
+  assert.doesNotMatch(page, /<script(?![^>]*\bsrc=)[^>]*>|\son\w+=|style="/i, 'no inline script, handler or style');
+  assert.deepEqual([...page.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]), ['../room-2-chase/js/core.js', '../room-2-chase/js/online.js', 'heist.js'], 'the rules and the online account are room 2\'s, not a copy');
+  // the driver: the same names and the same account as in room 2
+  assert.match(js, /Core\.cleanName\(/); assert.match(js, /net\.playAs\(name\)/);
+  assert.match(js, /writeStore\('shard-heist-driver', r\.name\)/, 'room 2 finds the driver where it looks for it');
+  assert.doesNotMatch(js, /innerHTML = [^;]*\$\{(?!esc\(|state\.online|Core\.NAME_MAX|msg|dis)/, 'names and messages are escaped before they go into the page');
+  // the rooms: room 1 in a frame, room 2 loaded under it in its waiting mode, and only our own frames are listened to
+  assert.match(js, /ROOM1 = '\.\.\/room-1-escape\/\?heist=frame'/); assert.match(js, /ROOM2_WAIT = '\.\.\/room-2-chase\/\?heist=wait#arrive'/);
+  assert.match(js, /if \(e\.origin !== location\.origin \|\| !e\.data \|\| typeof e\.data\.shardHeist !== 'string'\) return;/);
+  assert.match(js, /e\.source === frame1\.contentWindow && e\.data\.shardHeist === 'leave'/);
+  assert.match(js, /e\.source === frame2\.contentWindow && e\.data\.shardHeist === 'ready'/);
+  // room 1 tells the page that holds it; on its own it opens room 2's page
+  assert.match(room, /if \(FRAMED\) parent\.postMessage\(\{ shardHeist: 'leave' \}, location\.origin\); else location\.assign\(CHASE_URL\);/);
+  // room 2 waits without drawing and begins only on the heist page's word
+  assert.match(game, /if \(!HEIST_WAIT\) requestAnimationFrame\(frame\);/);
+  assert.match(game, /if \(e\.origin !== location\.origin \|\| e\.source !== parent \|\| !e\.data \|\| e\.data\.shardHeist !== 'go' \|\| heist\.went\) return;/);
+  // each room on its own page still loads no file of the other
+  assert.doesNotMatch(escHtml, /\.\.\//); assert.doesNotMatch(html, /room-1-escape/);
+  // the heist page goes online with the rest
+  assert.match(read('.github/workflows/ci.yml'), /cp -r index\.html heist room-1-escape room-2-chase _site\//);
 });

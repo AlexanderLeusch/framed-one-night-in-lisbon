@@ -4626,9 +4626,12 @@ function miniSound(n){
 
 // ### Ends the game. Ending A has no card: it is the way into room 2. The escape time is handed over (Rules.handover, kept in
 // ### the browser's storage), the headlights of the car behind the door fill the screen (#leave) and the chase opens by
-// ### itself, in the same glare, so the door of the tunnel opens straight into the garage. Should the browser not follow,
-// ### a link appears in the glare after a few seconds. Ending B shows its card.
+// ### itself, in the same glare, so the door of the tunnel opens straight into the garage. Played on the heist page (in its
+// ### frame, opened with ?heist=frame), room 1 only tells that page that it has been left: room 2 is already loaded there
+// ### and is shown at once. On its own, room 1 opens room 2's page. Should the browser not follow, a link appears in the
+// ### glare after a few seconds. Ending B shows its card.
 const CHASE_URL = '../room-2-chase/?heist=1#arrive';
+const FRAMED = window.parent !== window && /[?&]heist=frame(&|$)/.test(location.search);
 // back from room 2 with the browser's Back button: a browser that kept this page as it was left (in the glare) loads it afresh
 addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
 function showEnding(){
@@ -4638,7 +4641,7 @@ function showEnding(){
     const g = $('leave');
     $('leaveLink').href = CHASE_URL;
     g.hidden = false; void g.offsetWidth; g.classList.add('on');
-    setTimeout(() => { location.assign(CHASE_URL); }, REDUCED ? 50 : 1100);
+    setTimeout(() => { if (FRAMED) parent.postMessage({ shardHeist: 'leave' }, location.origin); else location.assign(CHASE_URL); }, REDUCED ? 50 : 1100);
     return;
   }
   showCard(`<div class="eyebrow">${A ? 'Ending A of 2' : 'Ending B of 2'}</div>

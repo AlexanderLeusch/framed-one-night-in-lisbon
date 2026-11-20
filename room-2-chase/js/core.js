@@ -9,21 +9,19 @@
   'use strict';
 
   // ---------- Tuning tables ----------
-  // ### MODES holds one entry per map (city, highway, countryside): top speed and police speed in m/s, time limit in seconds,
-  // ### speedometer range, radar range, number of shards and repair kits. VEH holds the three getaway vehicles: speed,
+  // ### MODES holds the map, Lisbon (key city): top speed and police speed in m/s, time limit in seconds, speedometer range,
+  // ### radar range, number of pieces of evidence (shards) and repair kits. VEH holds the three getaway vehicles: speed,
   // ### acceleration and handling multipliers, damage taken (dmg), ramming power (ram) and the collision circles (samples, r).
   // ### Change a number here and the whole game, including the stat bars in the menu, follows it.
   const MODES = {
-    city: { key: 'city', title: 'Lisbon · Baixa', eyebrow: 'Baixa · Lisbon', mission: 'Evidence', max: 34, police: 30, time: 180, gaugeMax: 180, redline: 140, radar: 70, shards: 6, kits: 3, store: 'shard-heist-city-best' },
-    highway: { key: 'highway', title: 'Highway', eyebrow: 'Highway', mission: 'Bonus Shards', max: 55.6, police: 48, time: 110, gaugeMax: 290, redline: 230, radar: 110, shards: 12, kits: 2, bonus: 4, store: 'shard-heist-highway-best', linear: true },
-    country: { key: 'country', title: 'Countryside', eyebrow: 'Country roads', mission: 'Bonus Shards', max: 44, police: 38, time: 150, gaugeMax: 240, redline: 190, radar: 90, shards: 10, kits: 3, bonus: 4, store: 'shard-heist-country-best', linear: true }
+    city: { key: 'city', title: 'Lisbon · Baixa', eyebrow: 'Baixa · Lisbon', mission: 'Evidence', max: 34, police: 30, time: 180, gaugeMax: 180, redline: 140, radar: 70, shards: 6, kits: 3, store: 'shard-heist-city-best' }
   };
   const VEH = {
     car: { key: 'car', name: 'Car', cls: 'Muscle coupe', blurb: 'A fastback V8 coupe. Balanced speed and grip, average toughness.', speed: 1.0, accel: 1.0, handling: 1.0, dmg: 1.0, ram: 1.0, samples: [-1.1, 1.1], r: 1.2, cam: [10, 4.4], show: [7.5, 2.0, 0.7], light: 2.45, lightY: 0.7 },
     bike: { key: 'bike', name: 'Motorcycle', cls: 'Superbike', blurb: 'Fastest and most agile. Slips through gaps, but barely nudges a police car.', speed: 1.12, accel: 1.3, handling: 1.4, dmg: 1.0, ram: 0.4, samples: [-0.45, 0.45], r: 0.8, cam: [8.5, 3.7], show: [4.6, 1.6, 0.8], light: 1.0, lightY: 0.8 },
     truck: { key: 'truck', name: 'Truck', cls: 'Tractor unit', blurb: 'A high-roof tractor unit. Slow, but built like a tank and shoves police cars aside.', speed: 0.78, accel: 0.7, handling: 0.72, dmg: 0.55, ram: 2.4, samples: [-2.1, 0, 2.0], r: 1.4, cam: [12.5, 5.8], show: [11, 3.4, 1.9], light: 3.35, lightY: 0.92 }
   };
-  const REV_SPEED = -11, REPAIR_AMOUNT = 40, MAX_DT = 0.05, STORY_ACTS = 3;
+  const REV_SPEED = -11, REPAIR_AMOUNT = 40, MAX_DT = 0.05, STORY_ACTS = 1;
   const KEY_MAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'brake' };
 
   // ### Tilt steering on a phone held sideways, like a steering wheel. beta is the sensor's angle of the phone's long side against the
@@ -268,14 +266,13 @@
     if (state === 'play') return false;
     switch (action){
       case 'go': return state === 'menu';
-      case 'story': return state === 'menu' || (state === 'done' && !!story && story.act + 1 >= STORY_ACTS);
+      case 'story': return state === 'menu' || (state === 'done' && !!story);
       case 'again': return state === 'done' || state === 'over' || state === 'pause';
       case 'resume': return state === 'pause';
       case 'menu': return state === 'menu' || state === 'pause' || state === 'done' || state === 'over' || state === 'garage';
       // the garage card: get into the chosen vehicle, or go straight to the street
       case 'board': case 'street': return state === 'garage';
       case 'act': return !!story && (state === 'menu' || state === 'done');
-      case 'next-act': return !!story && state === 'done' && story.act + 1 < STORY_ACTS;
       case 'retry-act': return !!story && (state === 'over' || state === 'pause');
       default: return false;
     }
@@ -355,7 +352,7 @@
   // ### Top speed falls by up to 40 % with damage and by 45 % off-road. stepSpeed applies throttle, brake/reverse, coasting
   // ### drag and the handbrake for one frame; gas and brake held together both apply, which is how a real pedal pair works.
   // ### On level ground the throttle can never push past the top speed, so the km/h on the menu card is the real maximum there.
-  const topSpeed = (m, v, damage, offRoad) => m.max * v.speed * (1 - 0.4 * clamp(damage, 0, 100) / 100) * (offRoad ? 0.55 : 1);
+  const topSpeed = (m, v, damage) => m.max * v.speed * (1 - 0.4 * clamp(damage, 0, 100) / 100);
   // ### One physics step of speed: gravity on the slope, throttle, brakes, rolling drag and the top speed. dt is capped, so a slow frame cannot launch a vehicle.
   function stepSpeed(speed, keys, dt, maxNow, v, grade){
     dt = clamp(dt, 0, MAX_DT);
@@ -422,7 +419,7 @@
   // ### motorcycle flies off a car, two cars both give way and a bus hardly moves. A tram on its rails (infinite weight) does not
   // ### move at all. The hitter keeps more of its own speed the lighter the vehicle it hit (keepSpeed). A hit off the middle turns
   // ### the vehicle (shoveSpin), less for a heavy one. game.js lets the push slide out over the tyres' friction, up to SHOVE.max.
-  const MASS = Object.freeze({ sedan: 1, suv: 1.3, moto: 0.25, bus: 4, coach: 4, truck: 3.5, courier: 3.5, tram: Infinity });
+  const MASS = Object.freeze({ sedan: 1, suv: 1.3, moto: 0.25, bus: 4, coach: 4, truck: 3.5, tram: Infinity });
   const PLAYER_MASS = Object.freeze({ car: 1, bike: 0.3, truck: 3.5 });
   const SHOVE = Object.freeze({ boost: 1.25, spin: 0.12, max: 14, grip: 2.2, turnGrip: 2.6, back: 0.9, turnBack: 1.3, rest: 0.6 });
   // the speed (m/s) the hit vehicle gets and the share of the momentum that went into it; nothing for bad values or a tram
@@ -554,38 +551,32 @@
   }
 
   // ---------- Hills ----------
-  // ### hillHeight is the height of the land in metres at a point on a map. Every map is built flat and then bent over this
-  // ### field, so the roads, buildings and all vehicles share one shape. In Lisbon it fades out towards the river, so the Arco
-  // ### and the Praça stay level, and on the highway towards the start and the finish. grade is the rise per metre along the
+  // ### hillHeight is the height of the land in metres at a point on the map. The city is built flat and then bent over this
+  // ### field, so the roads, buildings and all vehicles share one shape. It fades out towards the river, so the Arco and the
+  // ### Praça stay level. grade is the rise per metre along the
   // ### direction of travel: uphill the top speed falls and gravity pulls back, downhill both help. A heavy truck feels it most.
   // uphill is felt half as much as downhill: climbing should slow you a little, not stop the chase
   const GRAVITY_PULL = 42, UPHILL = 0.5, HOLD_SPEED = 0.6;
   const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-  const HILL_BOX = Object.freeze({ city: [-184, 184, -184, 72], highway: [-Infinity, Infinity, 48, 3960], country: [-Infinity, Infinity, -Infinity, Infinity] });
-  const HILL_GRID = Object.freeze({ city: 8, highway: 24, country: 30 });
+  const HILL_BOX = Object.freeze({ city: [-184, 184, -184, 72] });
+  const HILL_GRID = Object.freeze({ city: 8 });
   // ### The height of the land at a point on a map. It is a sum of sine waves, faded out where the map must stay level.
   function hillHeight(modeKey, x, z){
     if (modeKey === 'city'){
       const w = (1 - smooth(105, 180, Math.abs(x))) * smooth(-180, -105, z) * (1 - smooth(-30, 70, z));
       return w ? w * (4.5 * Math.sin(x * 0.021 + 0.6) + 3 * Math.sin(z * 0.026 - 0.4) + 2.5 * Math.sin((x + z) * 0.0125 + 1) + 3) : 0;
     }
-    if (modeKey === 'highway'){
-      const w = smooth(60, 220, z) * (1 - smooth(3700, 3950, z));
-      return w ? w * (13 * Math.sin(z * 0.0046) + 7 * Math.sin(z * 0.0107 + 1)) : 0;
-    }
-    if (modeKey === 'country') return 13 * Math.sin(x * 0.0061 + 0.7) * Math.cos(z * 0.0053) + 4.5 * Math.sin(x * 0.015 + z * 0.011);
     return 0;
   }
   // ### The ground as it is really drawn: flat triangles between the grid points of hillHeight. Every layer of the world is cut
   // ### along the same grid lines and uses this height, so layers can never pass through each other, and a vehicle placed with
-  // ### it stands exactly on the road. On the highway the hills only depend on z, so the grid is a set of cross lines.
+  // ### it stands exactly on the road.
   function hillMesh(modeKey, x, z){
     const L = Object.hasOwn(HILL_GRID, modeKey) ? HILL_GRID[modeKey] : 0;
     if (!L) return 0;
     const [x0, x1, z0, z1] = HILL_BOX[modeKey];
     if (x < x0 || x > x1 || z < z0 || z > z1) return 0;
     const j = Math.floor(z / L), fz = z / L - j;
-    if (modeKey === 'highway'){ const a = hillHeight(modeKey, 0, j * L); return a + (hillHeight(modeKey, 0, (j + 1) * L) - a) * fz; }
     const i = Math.floor(x / L), fx = x / L - i, h10 = hillHeight(modeKey, (i + 1) * L, j * L), h01 = hillHeight(modeKey, i * L, (j + 1) * L);
     if (fx + fz <= 1){ const h00 = hillHeight(modeKey, i * L, j * L); return h00 + fx * (h10 - h00) + fz * (h01 - h00); }
     const h11 = hillHeight(modeKey, (i + 1) * L, (j + 1) * L);
@@ -640,27 +631,22 @@
   }
 
   // ---------- Map boundary ----------
-  // ### Distance from the player to the nearest map edge (rect = [x0, x1, z0, z1]); on the highway only the two ends count.
-  function edgeDistance(rect, x, z, pad, zOnly){
+  // ### Distance from the player to the nearest map edge (rect = [x0, x1, z0, z1]).
+  function edgeDistance(rect, x, z, pad){
     const [x0, x1, z0, z1] = rect;
-    if (zOnly) return Math.min(z - z0, z1 - z) - pad;
     return Math.min(x - x0, x1 - x, z - z0, z1 - z) - pad;
   }
 
   // ---------- Scoring ----------
-  // ### Drive time on the open-road maps adds back the bonus seconds the shards gave you, so shards never make a run look
-  // ### slower. Stars come from the time; heavy damage (over 50 %) costs one star but never the last one.
-  function driveTime(modeKey, m, timeLeft, collected){
-    return modeKey === 'city' ? m.time - timeLeft : m.time + collected * (m.bonus || 0) - timeLeft;
-  }
+  // ### The drive time is the part of the clock that was used. Stars come from the time; heavy damage (over 50 %) costs one
+  // ### star but never the last one.
+  const driveTime = (modeKey, m, timeLeft) => m.time - timeLeft;
   // ### The one to three stars for a finished run, from the time left and the damage.
   function runStars(modeKey, m, timeLeft, used, damage, v){
     // the limits are for the car; a slower vehicle gets more time and a faster one less, so each can earn three stars
     const t = used * (v ? v.speed : 1);
-    let stars;
-    if (modeKey === 'city'){ const frac = 1 - t / m.time; stars = frac > 0.4 ? 3 : frac > 0.2 ? 2 : 1; }
-    else if (modeKey === 'country') stars = t < 115 ? 3 : t < 135 ? 2 : 1;
-    else stars = t < 88 ? 3 : t < 105 ? 2 : 1;
+    const frac = 1 - t / m.time;
+    let stars = frac > 0.4 ? 3 : frac > 0.2 ? 2 : 1;
     if (damage > 50) stars = Math.max(1, stars - 1);
     return stars;
   }
@@ -678,7 +664,7 @@
   }
   // Names are matched without case, so "alex" and "Alex" are the same driver
   const sameName = (a, b) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
-  const emptyRuns = () => ({ city: [], highway: [], country: [] });
+  const emptyRuns = () => ({ city: [] });
   // ### Two boards per map: the all-time board (runs) and the board of one calendar month (month.runs, for the month in month.key).
   function newBoard(){ return { drivers: [], runs: emptyRuns(), month: { key: '', runs: emptyRuns() } }; }
   // The calendar month of a moment, as "2026-11" (local time), or '' for a bad value; and its name, "November 2026"
@@ -839,20 +825,17 @@
   }
 
   // ---------- Story mode rules ----------
-  // ### The Necklace Job: three acts on the three maps. The optional letter (act 1) decides Ending A or B; being busted,
-  // ### wrecked or out of time is Ending C and lets you retry the act. Retrying restores the letter to what you had when
-  // ### the act began, so a letter found in a failed attempt does not count.
-  const newStory = () => ({ act: 0, letter: false, letterAtStart: false, clasp: false, times: [], cops: 0, clock: 0, radioIdx: 0 });
+  // ### The Necklace Job: one act, in Lisbon. The optional letter decides Ending A or B; being busted, wrecked or out of
+  // ### time is Ending C and lets you try again. Trying again restores the letter to what you had when the act began, so a
+  // ### letter found in a failed attempt does not count.
+  const newStory = () => ({ act: 0, letter: false, letterAtStart: false, times: [], cops: 0, clock: 0, radioIdx: 0 });
   function beginAct(story, i){
     if (!story || !Number.isInteger(i) || i < 0 || i >= STORY_ACTS) return false;
-    story.act = i; story.clock = 0; story.radioIdx = 0; story.letterAtStart = story.letter; story.tollHint = false;
-    if (i === 1) story.clasp = false;
+    story.act = i; story.clock = 0; story.radioIdx = 0; story.letterAtStart = story.letter;
     return true;
   }
   // ### Starts the current story act again, keeping what the player has already earned.
   function retryAct(story){ story.letter = story.letterAtStart; return story.act; }
-  // The toll at the end of act 2 only opens with the clasp; every other finish line is always open
-  const finishOpen = story => !story || story.act !== 1 || story.clasp;
   const storyEnding = story => story.letter ? 'A' : 'B';
   // Radio lines are [seconds, text, tone]; returns the lines that are due and the next index
   function dueRadio(lines, idx, clock){
@@ -1157,7 +1140,7 @@
     driveTime, runStars, isNewBest,
     NAME_MAX, DRIVERS_MAX, BOARD_KEEP, BOARD_SHOW, cleanName, sameName, newBoard, parseBoard, addDriver, recordRun, boardRows, boardList, monthKey, monthName,
     HEIST, parseHeist, heistTotal, parseHeistBoard, recordHeist, heistRows,
-    newStory, beginAct, retryAct, finishOpen, storyEnding, dueRadio,
+    newStory, beginAct, retryAct, storyEnding, dueRadio,
     ENGINES, ENGINE_SR, gearFor, engineTarget, isBraking, isReversing, skidAmount, engineLoop, engineLoops, ROTOR, rotorLoop,
     RADIO, RADIO_ORDER, BACH, parseRadio, radioNext, radioBar
   });

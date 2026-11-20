@@ -6,9 +6,8 @@
 
 | Setting | Choices | What it does |
 |---|---|---|
-| **Map** | Lisbon (Baixa), Highway, Country Roads | Where the run takes place. Each map has its own goal, time limit and top speed (see *Maps* in the room 2 rules) |
 | **Vehicle** | Car, Motorcycle, Truck | Speed, acceleration, handling, how much damage a crash does and how the police can push you. The card under the choice shows the numbers |
-| **Mode** | Start the getaway (free ride), or the story card *The Necklace Job* | Free ride is one run on the chosen map. The story plays all three maps in order, with Hale on the radio and three endings |
+| **Mode** | Start the getaway (free ride), or the story card *The Necklace Job* | Free ride is one run through Lisbon. The story is the same run with Hale on the radio and three endings |
 | **Radio** | Off, Reggae, Techno, Hardstyle, Schlager, Sing-Along Pop, Classical, Heavy Metal | The station that plays while you drive. `R` changes it at any time, `Shift` + `R` goes back one |
 | **Graphics** | Ultra, Balanced | **Ultra:** sharper picture (up to twice the screen resolution), smoothed edges, glowing lights and the finest shadows (4096 × 4096). **Balanced:** a lighter picture without the glow and with smaller shadows (2048 × 2048). Computers start in Ultra, phones in Balanced |
 | **Steering** (phones only) | Tilt, Buttons | **Tilt:** hold the phone sideways and lower one side like a steering wheel. **Buttons:** steer with the arrow pads. Tilt is the default on a phone with a motion sensor |

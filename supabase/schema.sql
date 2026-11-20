@@ -17,6 +17,8 @@ create unique index if not exists drivers_name_lower on public.drivers (lower(na
 create table if not exists public.runs (
   id bigint generated always as identity primary key,
   driver_id uuid not null default auth.uid() references public.drivers (id) on delete cascade,
+  -- the game now has one map, 'city' (Lisbon); 'highway' and 'country' stay allowed here only because runs on those two
+  -- removed maps are still in the table. The page never sends them and no board of them is shown.
   mode text not null check (mode in ('city', 'highway', 'country')),
   time numeric(6, 2) not null check (time between 10 and 900),
   veh text not null check (veh in ('car', 'bike', 'truck')),

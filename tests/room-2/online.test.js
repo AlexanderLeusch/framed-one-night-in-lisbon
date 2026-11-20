@@ -96,12 +96,16 @@ test('a run is sent with the login, without an owner or date (the database sets 
   const f = fake({ 'POST /rest/v1/runs': [201] });
   f.store.set('shard-heist-session', JSON.stringify(login()));
   const c = O.createClient({ fetch: f.fetch, store: f.store, now: () => T0 });
-  const r = await c.submitRun({ mode: 'highway', time: 88.888, veh: 'truck', stars: 2 });
+  const r = await c.submitRun({ mode: 'city', time: 88.888, veh: 'truck', stars: 2 });
   assert.equal(r.ok, true);
   const call = f.calls[0];
   assert.equal(call.opts.headers.Authorization, 'Bearer ' + 'a'.repeat(40));
   assert.equal(call.opts.headers.apikey, O.CONFIG.key);
-  assert.deepEqual(call.body, { mode: 'highway', time: 88.89, veh: 'truck', stars: 2 });
+  assert.deepEqual(call.body, { mode: 'city', time: 88.89, veh: 'truck', stars: 2 });
+  // rejected: a run on a map that was removed is never sent
+  const before = f.calls.length;
+  for (const mode of ['highway', 'country']) assert.equal((await c.submitRun({ mode, time: 88, veh: 'car', stars: 2 })).ok, false, mode);
+  assert.equal(f.calls.length, before);
   assert.equal(call.opts.credentials, 'omit');
 });
 

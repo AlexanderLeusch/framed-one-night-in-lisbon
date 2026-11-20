@@ -21,7 +21,6 @@ const writeStore = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} 
 const sel = Core.parsePick(readStore('shard-heist-pick'));
 
 const PITCH = 48, HALF_BLOCK = 17, LIMIT = 150;
-const HW = { LEN: 4000, Z0: -150, Z1: 4500, our: [-3.4, -7.15, -10.9], opp: [3.4, 7.15, 10.9], rail: 15.6 };
 const BAY = 3, FLOOR = 3.5, GROUND = 4.5, TU = BAY * 8, TV = FLOOR * 8;
 const COARSE = matchMedia('(pointer: coarse)').matches;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1072,7 +1071,7 @@ const HAZE_MAT = new THREE.MeshBasicMaterial({ map: coneTex, color: 0xfff4e4, tr
 
 // ---------- Worlds ----------
 // ### Each map is a "world" object: a scene group, a list of colliders (boxes, circles, walls) and radar shapes.
-// ### groundH returns the ground height at any point (kerbs in the city, the hill height field in the countryside).
+// ### groundH returns the ground height at any point: the hills, and in the streets the kerbs.
 // ### Traffic lights: every corner lamp post carries one signal head; two groups of intersections switch in turn.
 // ### buildCity lays out Lisbon's Baixa as a 6x6 grid of closed blocks of Pombaline houses, plain and even in height, with
 // ### arched ground floors and tile roofs with dormers; heights come from OpenStreetMap (most have 5 levels). In the north the
@@ -1081,8 +1080,7 @@ const HAZE_MAT = new THREE.MeshBasicMaterial({ map: coneTex, color: 0xfff4e4, tr
 // ### the castle on its hill, the 25 de Abril bridge and Cristo Rei.
 // ### The grid is simplified: real blocks are longer than wide, here they are square. x grows east, z grows south.
 const CITY = { group: new THREE.Group(), colliders: [], radar: [], built: false };
-const HWY = { group: new THREE.Group(), colliders: [], radar: [], built: false };
-scene.add(CITY.group, HWY.group);
+scene.add(CITY.group);
 let W = CITY;
 const shardSpots = [], roadSpots = [], intersections = [];
 
@@ -1096,8 +1094,7 @@ const garage = { on: false, live: false, phase: '', t: 0, sit: -1, path: [], shi
 const hill = (x, z) => Core.hillMesh(mode, x, z);
 function groundH(x, z){
   if (garage.on) return garageGround(x, z);
-  if (mode === 'country') return terrainH(x, z) + hill(x, z);
-  if (mode !== 'city' || Math.abs(x) > 192 || Math.abs(z) > 192) return hill(x, z);
+  if (Math.abs(x) > 192 || Math.abs(z) > 192) return hill(x, z);
   const lx = x - Math.floor(x / PITCH) * PITCH - PITCH / 2, lz = z - Math.floor(z / PITCH) * PITCH - PITCH / 2;
   return hill(x, z) + ((Math.abs(lx) <= HALF_BLOCK && Math.abs(lz) <= HALF_BLOCK) ? 0.18 : 0);
 }
@@ -1129,7 +1126,7 @@ function groundPool(batch, x, z, r, col){
 // ### move as one, so lamps and trees stay upright. Vehicles are placed every frame on the hills, so they are left alone.
 function laySlopes(group, key){
   const H = (x, z) => Core.hillMesh(key, x, z), [bx0, bx1, bz0, bz1] = Core.HILL_BOX[key];
-  const fine = Core.HILL_GRID[key], coarse = key === 'city' ? 18 : 70, zOnly = key === 'highway';
+  const fine = Core.HILL_GRID[key], coarse = 18;
   const tmp = new THREE.Vector3(), mat4 = new THREE.Matrix4();
   const shift = o => { o.getWorldPosition(tmp); o.position.y += H(tmp.x, tmp.z); };
   function tessellate(geo, mw){
@@ -1188,7 +1185,7 @@ function laySlopes(group, key){
         inside = next;
       }
       let cells = cut(inside, atZ, fine);
-      if (!zOnly){ cells = cut(cells, atX, fine); cells = cut(cells, v => atX(v) + atZ(v), fine); }
+      cells = cut(cells, atX, fine); cells = cut(cells, v => atX(v) + atZ(v), fine);
       cells.forEach(fan);
     };
     const P = src.attributes.position.array, posI = names.indexOf('position');
@@ -2867,570 +2864,8 @@ function updateNpcs(dt){
 // ### Returns the city traffic to its starting places for a new run.
 function resetNpcs(){ npcs.forEach(n => { n.on = false; }); npcs.forEach(n => spawnNpc(n, 25)); }
 
-// ---------- Highway ----------
-// ### buildHighway creates a 4 km three-lane motorway in both directions: asphalt, lane markings, median barrier,
-// ### guard rails, median lights, overhead signs with the remaining distance, forests, hills and a skyline at the finish.
-function makeSign(dist){
-  const c = document.createElement('canvas'); c.width = 512; c.height = 160;
-  const g = c.getContext('2d');
-  g.fillStyle = '#0f5c3c'; g.fillRect(0, 0, 512, 160);
-  g.strokeStyle = '#f2f2f2'; g.lineWidth = 6; g.strokeRect(9, 9, 494, 142);
-  g.fillStyle = '#f2f2f2'; g.textBaseline = 'middle';
-  g.font = '700 54px "Segoe UI", sans-serif'; g.fillText('FINISH', 40, 60);
-  g.font = '700 40px "JetBrains Mono", Consolas, monospace'; g.fillText(dist, 40, 116);
-  g.beginPath(); g.moveTo(440, 34); g.lineTo(478, 80); g.lineTo(452, 80); g.lineTo(452, 128); g.lineTo(428, 128); g.lineTo(428, 80); g.lineTo(402, 80); g.closePath(); g.fill();
-  const t = new THREE.CanvasTexture(c); t.anisotropy = ANISO; t.encoding = THREE.sRGBEncoding;
-  return t;
-}
-
-// ### Builds the highway: three lanes each way, barriers, lamps, signs, toll gates and the landscape.
-function buildHighway(){
-  const grp = HWY.group, colliders = HWY.colliders, radarRects = HWY.radar;
-  const rng = mulberry32(77);
-  const { Z0, Z1 } = HW;
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(1600, Z1 - Z0 + 1400), surfaceMat(GRASS, [200, Math.round((Z1 - Z0 + 1400) / 8)], { color: 0x8a9a8c }));
-  ground.rotation.x = -Math.PI / 2; ground.position.set(0, -0.03, (Z0 + Z1) / 2); ground.receiveShadow = true;
-  grp.add(ground);
-  const road = new Batch(), marks = new Batch(), conc = new Batch(), metal = new Batch(), neon = new Batch(), pools = new Batch();
-  road.top(-17.5, 17.5, 0, Z0, Z1, C(0xb8bcc8), [-17.5 / 8, Z1 / 8, 17.5 / 8, Z0 / 8]);
-  road.top(-17.5, -12.95, 0.004, Z0, Z1, C(0xd0d3da), [-17.5 / 8, Z1 / 8, -12.95 / 8, Z0 / 8]);
-  road.top(12.95, 17.5, 0.004, Z0, Z1, C(0xd0d3da), [12.95 / 8, Z1 / 8, 17.5 / 8, Z0 / 8]);
-  const wht = C(0xdfe2ea);
-  for (const s of [-1, 1]){
-    const line = (a, b, z0, z1) => marks.top(Math.min(s * a, s * b), Math.max(s * a, s * b), 0.02, z0, z1, wht);
-    line(1.45, 1.6, Z0, Z1);
-    line(12.8, 12.95, Z0, Z1);
-    for (const lx of [5.275, 9.025]) for (let z = Z0; z < Z1; z += 12) line(lx - 0.08, lx + 0.08, z, z + 4.5);
-  }
-  for (let k = 0; k < 12; k++) for (let q = 0; q < 2; q++){
-    const x0 = -12.8 + k * 0.94, z0 = HW.LEN - 0.9 + q * 0.9;
-    if ((k + q) % 2 === 0) marks.top(x0, x0 + 0.94, 0.025, z0, z0 + 0.9, wht);
-  }
-  conc.sides(-0.45, 0.45, 0, 0.35, Z0, Z1, C(0x9a9caa));
-  conc.sides(-0.22, 0.22, 0.35, 0.95, Z0, Z1, C(0xa8aab6));
-  conc.top(-0.22, 0.22, 0.95, Z0, Z1, C(0xb4b6c2));
-  colliders.push({ t: 'w', x0: -0.5, x1: 0.5, z0: Z0, z1: Z1 });
-  radarRects.push({ x0: -13, x1: 13, z0: Z0, z1: Z1, c: 'rgba(255,255,255,.07)' });
-  radarRects.push({ x0: -0.5, x1: 0.5, z0: Z0, z1: Z1, c: 'rgba(255,255,255,.4)' });
-  for (const s of [-1, 1]){
-    const x = s * HW.rail;
-    metal.box(x - 0.08, x + 0.08, 0.55, 0.9, Z0, Z1, C(0xb9c0cc));
-    for (let z = Z0; z < Z1; z += 6){ const px = x + s * 0.2; metal.box(px - 0.07, px + 0.07, 0, 0.8, z - 0.07, z + 0.07, C(0x8a919d)); }
-    colliders.push({ t: 'w', x0: x - 0.3, x1: x + 0.3, z0: Z0, z1: Z1 });
-    radarRects.push({ x0: x - 0.3, x1: x + 0.3, z0: Z0, z1: Z1, c: 'rgba(255,255,255,.4)' });
-  }
-  for (const z of [Z0, Z1]){
-    conc.box(-17.5, 17.5, 0, 1.2, z - 0.6, z + 0.6, C(0xd8c25a));
-    colliders.push({ t: 'w', x0: -18, x1: 18, z0: z - 0.8, z1: z + 0.8 });
-  }
-  const glow = [], cones = [];
-  for (let z = 30; z < Z1; z += 55){
-    metal.box(-0.15, 0.15, 0.95, 11, z - 0.15, z + 0.15, C(0x6c7382));
-    metal.box(-4.6, 4.6, 10.8, 11.05, z - 0.1, z + 0.1, C(0x6c7382));
-    for (const s of [-1, 1]){
-      const hx = s * 4.6;
-      neon.box(hx - 0.6, hx + 0.6, 10.6, 10.85, z - 0.25, z + 0.25, C(0xffe1b0));
-      glow.push(hx, 10.6, z);
-      cones.push(coneGeo(hx, z, 10.6, 5));
-      pools.top(hx - 9, hx + 9, 0.03, z - 9, z + 9, C(0xffc98a));
-    }
-  }
-  grp.add(lightCones(cones, 0.04));
-  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(glow, 3));
-  grp.add(new THREE.Points(pg, lampHalo(2.8)));
-  for (let z = 400; z < HW.LEN; z += 800){
-    for (const s of [-1, 1]){ const x = s * 16.9; metal.box(x - 0.25, x + 0.25, 0, 7.6, z - 0.25, z + 0.25, C(0x7d8594)); }
-    metal.box(-17.2, 17.2, 7.0, 7.55, z - 0.3, z + 0.3, C(0x7d8594));
-    metal.box(-13.1, -1.9, 5.0, 8.6, z - 0.32, z - 0.22, C(0x5a606c));
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(11, 3.44), new THREE.MeshStandardMaterial({ map: makeSign(((HW.LEN - z) / 1000).toFixed(1) + ' km'), emissive: 0xffffff, emissiveIntensity: 0.28, roughness: 0.5 }));
-    sign.material.emissiveMap = sign.material.map;
-    sign.position.set(-7.5, 6.8, z - 0.35); sign.rotation.y = Math.PI;
-    grp.add(sign);
-  }
-  const trees = [];
-  for (let i = 0; i < 950; i++){
-    const side = rng() < 0.5 ? -1 : 1;
-    trees.push({ x: side * (21 + rng() * rng() * 130), z: Z0 - 100 + rng() * (Z1 - Z0 + 300), s: 0.9 + rng() * 1.0, rot: rng() * 6.28, v: rng(), pine: rng() < 0.6 });
-  }
-  const pines = trees.filter(t => t.pine), rounds = trees.filter(t => !t.pine);
-  const place = (o, d) => { d.position.set(o.x, 0, o.z); d.rotation.set(0, o.rot, 0); d.scale.setScalar(o.s); };
-  const leafTint = base => (o, t) => t.set(base).offsetHSL((o.v - 0.5) * 0.06, (o.v - 0.5) * 0.08, (o.v - 0.5) * 0.12);
-  instanced(grp, treeTrunk(2.4, 0.27, 0, 21), barkMat(), pines, place);
-  instanced(grp, treeTrunk(2.6, 0.28, 3, 22), barkMat(), rounds, place);
-  instanced(grp, treePine(4, 2.2, 1.6, 8.2, 23), leafMat(), pines, place, leafTint(0x376b4c));
-  instanced(grp, treeCrown(5, 0, 1.75, 4.1, 24), leafMat(), rounds, place, leafTint(0x4f8250));
-  const hillGeo = new THREE.IcosahedronGeometry(1, 1);
-  for (let i = 0; i < 46; i++){
-    const side = rng() < 0.5 ? -1 : 1;
-    const h = new THREE.Mesh(hillGeo, flatMat({ color: rng() < 0.5 ? 0x2b3a3c : 0x33404a, roughness: 1 }));
-    h.scale.set(60 + rng() * 90, 18 + rng() * 45, 60 + rng() * 90);
-    h.position.set(side * (170 + rng() * 260), -6, Z0 + rng() * (Z1 - Z0 + 400));
-    grp.add(h);
-  }
-  const FB = { office: new Batch(), glass: new Batch() }, roofs = new Batch();
-  for (let i = 0; i < 70; i++){
-    const side = rng() < 0.5 ? -1 : 1;
-    const x = side * (40 + rng() * 210), z = HW.LEN - 250 + rng() * 800;
-    const w = 12 + Math.floor(rng() * 6) * 3, d = 12 + Math.floor(rng() * 6) * 3, h = 20 + Math.floor(rng() * 22) * FLOOR;
-    const style = rng() < 0.6 ? 'glass' : 'office';
-    FB[style].sides(x - w / 2, x + w / 2, 0, h, z - d / 2, z + d / 2, C(PAL[style][Math.floor(rng() * 5)]), TU, TV, Math.floor(rng() * 8) / 8, Math.floor(rng() * 8) / 8);
-    roofs.top(x - w / 2, x + w / 2, h, z - d / 2, z + d / 2, C(0x343947));
-  }
-  const add = (mesh, cast, recv) => { mesh.castShadow = !!cast; mesh.receiveShadow = !!recv; grp.add(mesh); return mesh; };
-  add(road.mesh(surfaceMat(ASPHALT, [1, 1], { vertexColors: true })), false, true);
-  add(marks.mesh(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })), false, true);
-  add(conc.mesh(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })), true, true);
-  add(metal.mesh(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.6 })), true, true);
-  add(neon.mesh(new THREE.MeshBasicMaterial({ vertexColors: true })), false, false);
-  add(pools.mesh(lampPool()), false, false);
-  add(FB.office.mesh(MAT.office), false, false);
-  add(FB.glass.mesh(MAT.glass), false, false);
-  add(roofs.mesh(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })), false, false);
-  initTraffic();
-  tuneEnv(grp);
-  HWY.built = true;
-}
-
-// ---------- Highway traffic ----------
-// ### Cars, SUVs and lorries move along fixed lanes. Each one cruises at its lane speed, slows behind the vehicle ahead
-// ### (including the player and police) and is recycled ahead of or behind the player when it leaves the visible window.
-const traffic = [];
-let hwFleets = null, headPts = null, tailPts = null, stopPts = null, hwPools = null;
-const HW_FLEET = { sedan: 30, suv: 14, truck: 10, coach: 3, moto: 6 };
-const VDIM = { sedan: { len: 4.6, hw: 0.95, front: 2.3, back: 2.3, y: 0.75, off: 0.62 }, suv: { len: 4.6, hw: 1.0, front: 2.3, back: 2.3, y: 0.86, off: 0.62 }, truck: { len: 9.7, hw: 1.3, front: 4.35, back: 5.35, y: 1.05, off: 0.9 },
-  coach: { len: 12, hw: 1.27, front: 6, back: 6, y: 0.85, off: 0.86 }, moto: { len: 2.1, hw: 0.45, front: 0.8, back: 0.75, y: 1.02, off: 0.01 } };
-// the coloured body of each kind: the coaches are all in one livery, everything else gets a random paint
-const FLEET_COL = { coach: COACH_COL };
-// lorries and coaches keep to the middle and slow lanes, and drive slower
-const HEAVY = { truck: true, coach: true };
-// ### Creates the highway traffic in both directions.
-function initTraffic(){
-  const grp = HWY.group, rnd = mulberry32(5);
-  hwFleets = {};
-  for (const type of Object.keys(HW_FLEET)) hwFleets[type] = new Fleet(grp, PARTS[type], HW_FLEET[type], rnd, FLEET_COL[type]);
-  const total = Object.values(HW_FLEET).reduce((a, b) => a + b, 0);
-  headPts = new GlowPts(grp, total * 2, 0xfff1cc, 1.8); tailPts = new GlowPts(grp, total * 2, 0xff3344, 1.3);
-  stopPts = new GlowPts(grp, total * 2, 0xff1e2a, 2.4); hwPools = new RoadLights(grp, total);
-  for (const type of Object.keys(HW_FLEET)) for (let i = 0; i < HW_FLEET[type]; i++){
-    const d = VDIM[type];
-    traffic.push({ type, mi: i, len: d.len, hw: d.hw, dir: i < HW_FLEET[type] * 0.6 ? 1 : -1, x: 0, z: 0, speed: 0, cruise: 30, on: false });
-  }
-}
-function laneSet(t){ return t.dir > 0 ? HW.our : HW.opp; }
-function spawnVehicle(t, zMin, zMax){
-  resetShove(t);
-  const lanes = laneSet(t);
-  for (let k = 0; k < 24; k++){
-    const li = HEAVY[t.type] ? 1 + Math.floor(Math.random() * 2) : Math.floor(Math.random() * 3);
-    const x = lanes[li], z = zMin + Math.random() * (zMax - zMin);
-    if (z < HW.Z0 + 20 || z > HW.Z1 - 30) continue;
-    if (traffic.some(o => o !== t && o.on && o.dir === t.dir && Math.abs(o.x - x) < 1 && Math.abs(o.z - z) < 30 + (o.len + t.len) / 2)) continue;
-    if (Math.abs(car.x - x) < 2.6 && Math.abs(car.z - z) < 40) continue;
-    t.x = x; t.z = z; t.on = true;
-    t.cruise = t.type === 'truck' ? 22 + Math.random() * 3 : t.type === 'coach' ? 25 + Math.random() * 2 : [34, 29, 24][li] + Math.random() * (t.type === 'moto' ? 8 : 5);
-    t.speed = t.cruise;
-    return;
-  }
-  t.on = false;
-}
-function resetTraffic(){
-  traffic.forEach(t => { t.on = false; });
-  traffic.forEach(t => spawnVehicle(t, car.z - 120, car.z + 700));
-}
-// ### Moves the highway traffic: vehicles keep their lane and distance, and are recycled around the player.
-function updateTraffic(dt){
-  for (const t of traffic){
-    if (!t.on){ if (Math.random() < dt * 2) spawnVehicle(t, car.z + 380, car.z + 760); continue; }
-    let gap = Infinity, aheadV = 0;
-    for (const o of traffic){
-      if (o === t || !o.on || o.dir !== t.dir || Math.abs(o.x - t.x) > 1) continue;
-      const dz = (o.z - t.z) * t.dir;
-      if (dz <= 0) continue;
-      const g = dz - (o.len + t.len) / 2;
-      if (g < gap){ gap = g; aheadV = o.speed; }
-    }
-    const obstacle = (x, z, v) => {
-      if (Math.abs(x - t.x) > 2.6) return;
-      const dz = (z - t.z) * t.dir;
-      if (dz <= 0) return;
-      const g = dz - (t.len / 2 + 2.4);
-      if (g < gap){ gap = g; aheadV = Math.max(0, v * t.dir); }
-    };
-    obstacle(car.x, car.z, car.speed * Math.cos(car.heading));
-    if (courier && courier.on) obstacle(courier.x, courier.z, courier.speed);
-    for (const p of police) if (p.active || p.g.visible) obstacle(p.x, p.z, p.active ? p.speed * Math.cos(p.heading) : 0);
-    let desired = t.cruise;
-    if (gap < 45) desired = Math.min(desired, aheadV + (gap - 10) * 0.5);
-    t.speed = Math.max(0, t.speed + clamp((desired - t.speed) * Math.min(1, dt * 3), -14 * dt, 3.5 * dt));
-    if (gap < 1) t.speed = Math.min(t.speed, aheadV);
-    t.z += t.speed * t.dir * dt;
-    const rel = t.z - car.z;
-    if (rel < -180) spawnVehicle(t, car.z + 380, car.z + 760);
-    else if (rel > 820){ if (t.dir > 0) spawnVehicle(t, car.z - 170, car.z - 110); else t.on = false; }
-    if (t.on && (t.z < HW.Z0 + 10 || t.z > HW.Z1 - 20)) t.on = false;
-  }
-  traffic.forEach((t, i) => {
-    if (t.on) stepShove(t, dt);
-    const h = (t.dir > 0 ? 0 : Math.PI) + (t.ph || 0), d = VDIM[t.type], X = t.x + (t.px || 0), Z = t.z + (t.pz || 0);
-    hwFleets[t.type].set(t.mi, X, 0, Z, h, t.on);
-    vehicleGlow(headPts, tailPts, i, X, Z, h, d.front, d.back, d.y, d.off, t.on);
-    stopGlow(stopPts, i, X, Z, h, d.back + 0.05, d.y, d.off, t.on && braking(t, t.speed, t.cruise));
-    hwPools.set(i, X, Z, h, d.front, t.type === 'moto' ? 10 : 18, t.type === 'moto' ? 3 : 5.5, t.on);
-  });
-  Object.values(hwFleets).forEach(f => f.commit());
-  headPts.commit(); tailPts.commit(); stopPts.commit(); hwPools.commit();
-}
-
-// ---------- Countryside: a winding two-lane road through hills, fields, farms and a village ----------
-// ### The road is a Catmull-Rom spline sampled every ~2 m. roadPoint(s, lat) converts "distance along the road + sideways
-// ### offset" into world coordinates (interpolated, so traffic glides); roadQuery does the reverse for the player and police.
-// ### The terrain is a height field: hills from noise, flattened near the road. Fields, forests, farms, a village with a
-// ### church and distant mountains are placed around it. Colliders sit in a 24 m grid (collidersNear) so thousands of trees
-// ### stay cheap to test. Country traffic drives both directions on the spline with the same following logic.
-const CTRY = { group: new THREE.Group(), colliders: [], radar: [], grid: new Map(), built: false };
-scene.add(CTRY.group);
-const ROAD = { pts: [], step: 2, len: 0, lane: 1.75, half: 4.1 };
-const TERR = { x0: 0, z0: 0, cell: COARSE ? 10 : 6, nx: 0, nz: 0, h: null };
-const roadPos = { s: 0, lat: 0, ri: undefined };
-const DETAIL = surfaceSet(COARSE ? 256 : 512, 21, (h, p) => { const k = 175 + h * 55 + p * 25; return [k, k, k]; }, h => 0.85 + h * 0.15, 2.2);
-function hash2(ix, iz, seed){
-  let h = Math.imul(ix, 374761393) ^ Math.imul(iz, 668265263) ^ Math.imul(seed || 1, 1103515245);
-  h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16;
-  return (h >>> 0) / 4294967296;
-}
-function vnoise(x, z, seed){
-  const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
-  const a = hash2(ix, iz, seed), b = hash2(ix + 1, iz, seed), c = hash2(ix, iz + 1, seed), d = hash2(ix + 1, iz + 1, seed);
-  return (a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v) * 2 - 1;
-}
-const fbm = (x, z, seed) => vnoise(x, z, seed) * 0.6 + vnoise(x * 2.03 + 11, z * 2.03 - 7, seed) * 0.27 + vnoise(x * 4.1 - 3, z * 4.1 + 5, seed) * 0.13;
-// Interpolates between the 2 m samples so vehicles glide instead of stepping from point to point
-function roadPoint(s, lat){
-  const P = ROAD.pts, f = clamp(s / ROAD.step, 0, P.length - 1.0001), i = Math.floor(f), u = f - i, a = P[i], b = P[i + 1];
-  let rx = a.rx + (b.rx - a.rx) * u, rz = a.rz + (b.rz - a.rz) * u;
-  const l = Math.hypot(rx, rz) || 1; rx /= l; rz /= l;
-  const x = a.x + (b.x - a.x) * u, z = a.z + (b.z - a.z) * u;
-  return { x: x + rx * lat, z: z + rz * lat, h: Math.atan2(rz, -rx) };
-}
-const roadHeadingAt = s => roadPoint(s, 0).h;
-// Nearest point on the road: arc length s and signed lateral offset (positive = right of travel)
-function roadQuery(x, z, cache){
-  const P = ROAD.pts, n = P.length;
-  let best = Infinity, bi = 0;
-  const scan = (lo, hi, st) => { for (let i = lo; i <= hi; i += st){ const dx = x - P[i].x, dz = z - P[i].z, d = dx * dx + dz * dz; if (d < best){ best = d; bi = i; } } };
-  const hint = cache && cache.ri !== undefined ? cache.ri : -1;
-  if (hint >= 0) scan(Math.max(0, hint - 60), Math.min(n - 1, hint + 60), 1);
-  if (hint < 0 || best > 900){ best = Infinity; scan(0, n - 1, 5); const c = bi; scan(Math.max(0, c - 5), Math.min(n - 1, c + 5), 1); }
-  if (cache) cache.ri = bi;
-  const p = P[bi], dx = x - p.x, dz = z - p.z;
-  return { s: bi * ROAD.step + dx * p.tx + dz * p.tz, lat: dx * p.rx + dz * p.rz };
-}
-// ### The height of the countryside terrain at a point, read from a height grid.
-function terrainH(x, z){
-  if (!TERR.h) return 0;
-  const gx = clamp((x - TERR.x0) / TERR.cell, 0, TERR.nx - 1.001), gz = clamp((z - TERR.z0) / TERR.cell, 0, TERR.nz - 1.001);
-  const ix = Math.floor(gx), iz = Math.floor(gz), u = gx - ix, v = gz - iz, n = TERR.nx, H = TERR.h;
-  const a = H[iz * n + ix], b = H[iz * n + ix + 1], c = H[(iz + 1) * n + ix], d = H[(iz + 1) * n + ix + 1];
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
-// Colliders live in a 24 m grid so thousands of trees stay cheap to test
-function gridAdd(c){
-  const G = CTRY.grid, circ = c.t === 'c';
-  const x0 = circ ? c.x - c.r : c.x0, x1 = circ ? c.x + c.r : c.x1, z0 = circ ? c.z - c.r : c.z0, z1 = circ ? c.z + c.r : c.z1;
-  for (let i = Math.floor(x0 / 24); i <= Math.floor(x1 / 24); i++) for (let j = Math.floor(z0 / 24); j <= Math.floor(z1 / 24); j++){
-    const k = i + ',' + j; let a = G.get(k); if (!a) G.set(k, a = []); a.push(c);
-  }
-  CTRY.colliders.push(c);
-}
-let nearStamp = 0;
-// ### Returns only the walls near a point, from a spatial grid, so collision checks stay fast.
-function collidersNear(x, z){
-  if (W !== CTRY) return W.colliders;
-  nearStamp++;
-  const out = [], cx = Math.floor(x / 24), cz = Math.floor(z / 24);
-  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++){
-    const a = CTRY.grid.get((cx + i) + ',' + (cz + j));
-    if (a) for (const c of a) if (c._seen !== nearStamp){ c._seen = nearStamp; out.push(c); }
-  }
-  return out;
-}
-// Strip that follows the road between two lateral offsets (a < b)
-function ribbon(a, b, y, keep){
-  const P = ROAD.pts, pos = [], uv = [], nor = [], idx = [];
-  for (let i = 0; i < P.length; i++){
-    const p = P[i], s = i * ROAD.step, base = pos.length / 3;
-    pos.push(p.x + p.rx * a, y, p.z + p.rz * a, p.x + p.rx * b, y, p.z + p.rz * b);
-    nor.push(0, 1, 0, 0, 1, 0);
-    uv.push(a / 8, s / 8, b / 8, s / 8);
-    if (i > 0 && (!keep || keep(s))) idx.push(base - 2, base - 1, base, base - 1, base + 1, base);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(idx); g.computeBoundingSphere();
-  return g;
-}
-
-const ctraffic = [];
-let ctryFleets = null, ctryHead = null, ctryTail = null, ctryStop = null, ctryPools = null;
-// ### Builds the countryside: a spline road, terrain, forests, farms, a village and the finish.
-function buildCountry(){
-  const grp = CTRY.group, rng = mulberry32(314);
-  // Road centreline through seeded bends
-  const ctrl = [new THREE.Vector3(0, 0, -80), new THREE.Vector3(0, 0, 0)];
-  let cx = 0;
-  for (let i = 1; i <= 13; i++){ cx = clamp(cx + (rng() - 0.5) * 320, -400, 400); ctrl.push(new THREE.Vector3(cx, 0, i * 260 + (rng() - 0.5) * 60)); }
-  const curve = new THREE.CatmullRomCurve3(ctrl, false, 'centripetal');
-  const L = curve.getLength(), n = Math.floor(L / 2), sp = curve.getSpacedPoints(n);
-  ROAD.step = L / n; ROAD.len = L;
-  ROAD.pts = sp.map((p, i) => {
-    const a = sp[Math.max(0, i - 2)], b = sp[Math.min(n, i + 2)];
-    let tx = b.x - a.x, tz = b.z - a.z; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-    return { x: p.x, z: p.z, tx, tz, rx: -tz, rz: tx };
-  });
-
-  // Height field: rolling hills, flat along the road
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const p of ROAD.pts){ minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
-  const CL = TERR.cell;
-  TERR.x0 = Math.floor((minX - 520) / CL) * CL; TERR.z0 = Math.floor((minZ - 420) / CL) * CL;
-  TERR.nx = Math.ceil((maxX + 520 - TERR.x0) / CL) + 1; TERR.nz = Math.ceil((maxZ + 420 - TERR.z0) / CL) + 1;
-  const B = new Map();
-  ROAD.pts.forEach((p, i) => { if (i % 2) return; const k = Math.floor(p.x / 30) + ',' + Math.floor(p.z / 30); let a = B.get(k); if (!a) B.set(k, a = []); a.push(p); });
-  const roadDist = (x, z) => {
-    let best = 1e9; const ix = Math.floor(x / 30), iz = Math.floor(z / 30);
-    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++){
-      const a = B.get((ix + i) + ',' + (iz + j));
-      if (a) for (const p of a){ const d = (x - p.x) * (x - p.x) + (z - p.z) * (z - p.z); if (d < best) best = d; }
-    }
-    return Math.min(Math.sqrt(best), 120);
-  };
-  const NX = TERR.nx, NZ = TERR.nz, total = NX * NZ;
-  TERR.h = new Float32Array(total);
-  const D = new Float32Array(total);
-  const hillH = (x, z) => (fbm(x * 0.0032, z * 0.0032, 3) * 0.5 + 0.5) * 42 + fbm(x * 0.013, z * 0.013, 5) * 6;
-  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++){
-    const x = TERR.x0 + i * CL, z = TERR.z0 + j * CL, k = j * NX + i, d = roadDist(x, z);
-    D[k] = d;
-    TERR.h[k] = hillH(x, z) * sstep(9, 75, d) - (d > 5.5 && d < 9 ? 0.3 : 0);
-  }
-  const isForest = (x, z, y) => fbm(x * 0.006 + 40, z * 0.006, 7) > 0.18 || y > 34;
-  const FIELD = [0xb59f55, 0x5f7c3a, 0x7b8f45, 0x6a533b, 0x8a9a4a, 0x4e6b34, 0xa08c4a].map(h => C(h));
-  const forestC = C(0x2c4529), vergeC = C(0x55733a), cc = new THREE.Color();
-  const pos = new Float32Array(total * 3), col = new Float32Array(total * 3), uv = new Float32Array(total * 2), idx = [];
-  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++){
-    const k = j * NX + i, x = TERR.x0 + i * CL, z = TERR.z0 + j * CL, y = TERR.h[k], d = D[k];
-    pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z;
-    uv[k * 2] = x / 8; uv[k * 2 + 1] = z / 8;
-    cc.copy(FIELD[Math.floor(hash2(Math.floor((x + z * 0.35) / 90), Math.floor((z - x * 0.25) / 70), 9) * FIELD.length)]);
-    if (isForest(x, z, y)) cc.copy(forestC);
-    if (d < 14) cc.lerp(vergeC, 1 - sstep(8, 14, d));
-    cc.multiplyScalar(0.9 + hash2(i, j, 4) * 0.18);
-    col[k * 3] = cc.r; col[k * 3 + 1] = cc.g; col[k * 3 + 2] = cc.b;
-    if (i < NX - 1 && j < NZ - 1) idx.push(k, k + NX, k + 1, k + 1, k + NX, k + NX + 1);
-  }
-  const tg = new THREE.BufferGeometry();
-  tg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  tg.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  tg.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  tg.setIndex(idx); tg.computeVertexNormals(); tg.computeBoundingSphere();
-  const terrain = new THREE.Mesh(tg, surfaceMat(DETAIL, [1, 1], { vertexColors: true }));
-  terrain.receiveShadow = true;
-  grp.add(terrain);
-
-  // Road surface, gravel shoulders and markings
-  const asphalt = new THREE.Mesh(ribbon(-ROAD.half, ROAD.half, 0.03), surfaceMat(ASPHALT, [1, 1], { color: 0xb8bcc8, side: THREE.DoubleSide }));
-  asphalt.receiveShadow = true; grp.add(asphalt);
-  const gravel = new THREE.Mesh(mergeGeos([ribbon(-5.4, -ROAD.half, 0.025), ribbon(ROAD.half, 5.4, 0.025)]), surfaceMat(DETAIL, [1, 1], { color: 0x857c6c, side: THREE.DoubleSide }));
-  gravel.receiveShadow = true; grp.add(gravel);
-  const paint = new THREE.MeshStandardMaterial({ color: 0xe6e8ee, roughness: 0.6, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  grp.add(new THREE.Mesh(mergeGeos([ribbon(-3.8, -3.62, 0.04), ribbon(3.62, 3.8, 0.04), ribbon(-0.07, 0.07, 0.04, s => (s % 12) < 4.5)]), paint));
-
-  // Telegraph poles with wires along the left verge
-  const wood = new Batch(), wires = [];
-  let prev = null;
-  for (let s = 20; s < L - 20; s += 42){
-    const pt = roadPoint(s, -7.6), y0 = terrainH(pt.x, pt.z);
-    wood.box(pt.x - 0.13, pt.x + 0.13, y0, y0 + 7.6, pt.z - 0.13, pt.z + 0.13, C(0x4a3a2c));
-    wood.box(pt.x - 0.75, pt.x + 0.75, y0 + 7.05, y0 + 7.2, pt.z - 0.07, pt.z + 0.07, C(0x4a3a2c));
-    gridAdd({ t: 'c', x: pt.x, z: pt.z, r: 0.3 });
-    const top = [pt.x, y0 + 7.15, pt.z];
-    if (prev) wires.push(prev[0] - 0.6, prev[1], prev[2], top[0] - 0.6, top[1], top[2], prev[0] + 0.6, prev[1], prev[2], top[0] + 0.6, top[1], top[2]);
-    prev = top;
-  }
-  const wm = wood.mesh(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })); wm.castShadow = true; grp.add(wm);
-  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wires, 3));
-  grp.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x15161a })));
-
-  // Forests, hedgerow trees and single trees in the fields
-  const pines = [], rounds = [];
-  const want = COARSE ? 1500 : 3200;
-  for (let k = 0; k < 14000 && pines.length + rounds.length < want; k++){
-    const x = TERR.x0 + rng() * (NX - 1) * CL, z = TERR.z0 + rng() * (NZ - 1) * CL, d = roadDist(x, z);
-    if (d < 9.5) continue;
-    const y = terrainH(x, z), forest = isForest(x, z, y);
-    if (!forest && rng() > 0.05) continue;
-    const t = { x, z, y, s: 0.85 + rng() * 0.95, rot: rng() * 6.28, v: rng() };
-    (rng() < (forest ? 0.7 : 0.3) ? pines : rounds).push(t);
-    gridAdd({ t: 'c', x, z, r: 0.5 * t.s });
-  }
-  const placeT = (o, dm) => { dm.position.set(o.x, o.y - 0.15, o.z); dm.rotation.set(0, o.rot, 0); dm.scale.setScalar(o.s); };
-  const leafTint = base => (o, t) => t.set(base).offsetHSL((o.v - 0.5) * 0.06, (o.v - 0.5) * 0.08, (o.v - 0.5) * 0.12);
-  instanced(grp, treeTrunk(2.4, 0.28, 0, 31), barkMat(), pines, placeT);
-  instanced(grp, treeTrunk(2.6, 0.3, 3, 32), barkMat(), rounds, placeT);
-  instanced(grp, treePine(4, 2.2, 1.6, 8.4, 33), leafMat(), pines, placeT, leafTint(0x34654a));
-  instanced(grp, treeCrown(5, 0, 1.85, 4.2, 34), leafMat(), rounds, placeT, leafTint(0x4b7c4a));
-
-  // Farmhouses, barns, a village with a church near the finish
-  const FBh = new Batch(), plain = new Batch(), roofsB = new Batch();
-  function roof(x0, x1, z0, z1, h, col){
-    const o = 0.45, zc = (z0 + z1) / 2, ph = h + (z1 - z0) * 0.42;
-    roofsB.quad([x1 + o, h - 0.2, z0 - o], [x0 - o, h - 0.2, z0 - o], [x0 - o, ph, zc], [x1 + o, ph, zc], [0, 0.7, -0.7], [0, 0, 1, 1], col);
-    roofsB.quad([x0 - o, h - 0.2, z1 + o], [x1 + o, h - 0.2, z1 + o], [x1 + o, ph, zc], [x0 - o, ph, zc], [0, 0.7, 0.7], [0, 0, 1, 1], col);
-    return ph;
-  }
-  function gable(batch, x0, x1, z0, z1, y, h, col){
-    const zc = (z0 + z1) / 2, ph = y + h + (z1 - z0) * 0.42;
-    batch.quad([x0, y + h, z0], [x0, y + h, z1], [x0, ph, zc], [x0, ph, zc], [-1, 0, 0], [0, 0, 0, 0], col);
-    batch.quad([x1, y + h, z1], [x1, y + h, z0], [x1, ph, zc], [x1, ph, zc], [1, 0, 0], [0, 0, 0, 0], col);
-  }
-  function house(x, z, w, d, floors, barn){
-    if (roadDist(x, z) < Math.max(w, d) / 2 + 7) return;
-    const y = terrainH(x, z) - 0.3, x0 = x - w / 2, x1 = x + w / 2, z0 = z - d / 2, z1 = z + d / 2, h = floors * FLOOR + 0.4;
-    if (barn){
-      // ### A barn, as they stand on real farms: red boards on a footing of field stone, white corner boards, a wide double
-      // ### door with white braces in each long side, a hay door under each gable, and a small ventilator on the ridge.
-      const red = C(0x7a2b22), white = C(0xe9e4d8), wood = C(0x2e1c14), stoneB = C(0x77726a), zc = (z0 + z1) / 2;
-      plain.sides(x0, x1, y, y + h, z0, z1, red); gable(plain, x0, x1, z0, z1, y, h, red);
-      plain.sides(x0 - 0.1, x1 + 0.1, y, y + 0.75, z0 - 0.1, z1 + 0.1, stoneB); plain.top(x0 - 0.1, x1 + 0.1, y + 0.75, z0 - 0.1, z1 + 0.1, stoneB);
-      for (const qx of [x0, x1]) for (const qz of [z0, z1]) plain.box(qx - 0.14, qx + 0.14, y + 0.75, y + h, qz - 0.14, qz + 0.14, white);
-      for (const [za, zb, zf] of [[z1, z1 + 0.06, z1 + 0.1], [z0 - 0.06, z0, z0 - 0.1]]){
-        const lo = Math.min(za, zb), hi = Math.max(za, zb), flo = Math.min(lo, zf), fhi = Math.max(hi, zf);
-        plain.box(x - 1.8, x + 1.8, y + 0.4, y + 3.9, lo, hi, wood);
-        plain.box(x - 2.0, x + 2.0, y + 3.9, y + 4.12, flo, fhi, white); plain.box(x - 2.0, x - 1.8, y + 0.4, y + 3.9, flo, fhi, white); plain.box(x + 1.8, x + 2.0, y + 0.4, y + 3.9, flo, fhi, white);
-        plain.box(x - 0.05, x + 0.05, y + 0.4, y + 3.9, flo, fhi, white); plain.box(x - 1.8, x + 1.8, y + 2.1, y + 2.24, flo, fhi, white);
-      }
-      for (const [xa, xb, xf] of [[x0 - 0.06, x0, x0 - 0.1], [x1, x1 + 0.06, x1 + 0.1]]){
-        const flo = Math.min(xa, xf), fhi = Math.max(xb, xf), top = y + h + 0.2;
-        plain.box(xa, xb, top, top + 1.5, zc - 0.7, zc + 0.7, wood);
-        plain.box(flo, fhi, top + 1.5, top + 1.66, zc - 0.85, zc + 0.85, white); plain.box(flo, fhi, top - 0.14, top, zc - 0.85, zc + 0.85, white);
-        plain.box(flo, fhi, top, top + 1.5, zc - 0.85, zc - 0.7, white); plain.box(flo, fhi, top, top + 1.5, zc + 0.7, zc + 0.85, white);
-      }
-      const ridge = y + h + (z1 - z0) * 0.42;
-      plain.box(x - 0.7, x + 0.7, ridge - 0.5, ridge + 0.6, zc - 0.7, zc + 0.7, red); plain.box(x - 0.95, x + 0.95, ridge + 0.6, ridge + 0.78, zc - 0.95, zc + 0.95, C(0x3b3d42));
-    }
-    else {
-      const wall = C([0xeee6d6, 0xe3d3b8, 0xd8c8b0, 0xf0ece4][Math.floor(rng() * 4)]);
-      FBh.sides(x0, x1, y, y + h, z0, z1, wall, TU, TV, Math.floor(rng() * 8) / 8, 0);
-      gable(plain, x0, x1, z0, z1, y, h, wall);
-    }
-    roof(x0, x1, z0, z1, y + h, C(barn ? 0x3b3d42 : [0x8a3a2a, 0x6b2f26, 0x4a4d55][Math.floor(rng() * 3)]));
-    gridAdd({ t: 'b', x0, x1, z0, z1 });
-  }
-  for (let k = 0; k < 14; k++){
-    const s = 220 + rng() * (L - 800), side = rng() < 0.5 ? -1 : 1, pt = roadPoint(s, side * (28 + rng() * 40));
-    house(pt.x, pt.z, 12, 9, 2, false);
-    if (rng() < 0.7) house(pt.x + 18, pt.z + (rng() - 0.5) * 10, 15, 12, 2, true);
-  }
-  for (let k = 0; k < 16; k++){
-    const s = L - 470 + k * 26, side = k % 2 ? 1 : -1, pt = roadPoint(s, side * (15 + rng() * 5));
-    house(pt.x, pt.z, rng() < 0.5 ? 9 : 12, 9, 2 + (rng() < 0.3 ? 1 : 0), false);
-  }
-  {
-    const pt = roadPoint(L - 250, -26), y = terrainH(pt.x, pt.z) - 0.3;
-    plain.box(pt.x - 2.6, pt.x + 2.6, y, y + 20, pt.z - 2.6, pt.z + 2.6, C(0xe6dccb));
-    const spire = new THREE.Mesh(new THREE.ConeGeometry(3.4, 11, 4).rotateY(Math.PI / 4), new THREE.MeshStandardMaterial({ color: 0x3b4a44, roughness: 0.6, metalness: 0.3 }));
-    spire.position.set(pt.x, y + 25.5, pt.z); spire.castShadow = true; grp.add(spire);
-    house(pt.x + 10, pt.z, 15, 9, 2, false);
-    gridAdd({ t: 'b', x0: pt.x - 2.6, x1: pt.x + 2.6, z0: pt.z - 2.6, z1: pt.z + 2.6 });
-  }
-  const addM = (mesh, cast) => { mesh.castShadow = cast; mesh.receiveShadow = true; grp.add(mesh); };
-  const roofMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, side: THREE.DoubleSide });
-  addM(FBh.mesh(MAT.brick), true); addM(plain.mesh(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide })), true); addM(roofsB.mesh(roofMat), true);
-
-  // Distant mountain ridges
-  const mtnMat = new THREE.MeshStandardMaterial({ color: 0x2c3448, roughness: 1, flatShading: true });
-  for (let k = 0; k < 34; k++){
-    const side = k % 2 ? 1 : -1, z = TERR.z0 + rng() * (NZ * CL), r = 160 + rng() * 200;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(r, 90 + rng() * 150, 7, 1), mtnMat);
-    m.position.set((side > 0 ? maxX + 640 : minX - 640) + side * rng() * 300, 20, z); m.rotation.y = rng() * 6;
-    grp.add(m);
-  }
-
-  // Country traffic: cars, SUVs and lorries in both directions
-  const rnd = mulberry32(17);
-  const CTRY_FLEET = { sedan: 10, suv: 5, truck: 3, coach: 1, moto: 3 }, nTraffic = Object.values(CTRY_FLEET).reduce((a, b) => a + b, 0);
-  ctryFleets = {};
-  for (const type of Object.keys(CTRY_FLEET)) ctryFleets[type] = new Fleet(grp, PARTS[type], CTRY_FLEET[type], rnd, FLEET_COL[type]);
-  ctryHead = new GlowPts(grp, nTraffic * 2, 0xfff1cc, 1.8); ctryTail = new GlowPts(grp, nTraffic * 2, 0xff3344, 1.3);
-  ctryStop = new GlowPts(grp, nTraffic * 2, 0xff1e2a, 2.4); ctryPools = new RoadLights(grp, nTraffic);
-  for (const type of Object.keys(CTRY_FLEET)) for (let i = 0; i < CTRY_FLEET[type]; i++)
-    ctraffic.push({ type, mi: i, s: 0, dir: 1, lat: ROAD.lane, speed: 0, cruise: 22, on: false, stun: 0, x: 0, z: 0, h: 0 });
-  tuneEnv(grp);
-  CTRY.built = true;
-}
-// ### Places one country vehicle on the road, ahead of or behind the player.
-function spawnCountryVehicle(t, sMin, sMax){
-  resetShove(t);
-  for (let k = 0; k < 20; k++){
-    const s = sMin + Math.random() * (sMax - sMin);
-    if (s < 30 || s > ROAD.len - 40) continue;
-    const dir = Math.random() < 0.5 ? 1 : -1, lat = dir * ROAD.lane;
-    if (ctraffic.some(o => o !== t && o.on && o.dir === dir && Math.abs(o.s - s) < 45)) continue;
-    if (Math.abs(s - roadPos.s) < 60 && Math.abs(lat - roadPos.lat) < 3) continue;
-    Object.assign(t, { s, dir, lat, on: true, stun: 0, cruise: HEAVY[t.type] ? 19 + Math.random() * 3 : t.type === 'moto' ? 24 + Math.random() * 6 : 22 + Math.random() * 6 });
-    t.speed = t.cruise;
-    const pt = roadPoint(s, lat); t.x = pt.x; t.z = pt.z;
-    return;
-  }
-  t.on = false;
-}
-function resetCountryTraffic(){
-  ctraffic.forEach(t => { t.on = false; });
-  ctraffic.forEach(t => spawnCountryVehicle(t, roadPos.s - 150, roadPos.s + 800));
-}
-// ### Moves the country traffic along the road in both directions.
-function updateCountryTraffic(dt){
-  for (const t of ctraffic){
-    if (!t.on){ if (Math.random() < dt * 1.5) spawnCountryVehicle(t, roadPos.s + 350, roadPos.s + 800); continue; }
-    if (t.stun > 0) t.stun -= dt;
-    let gap = Infinity, aheadV = 0;
-    const len = VDIM[t.type].len;
-    const test = (s, lat, v) => {
-      if (Math.abs(lat - t.lat) > 2.4) return;
-      const d = (s - t.s) * t.dir;
-      if (d <= 0) return;
-      const g = d - len / 2 - 2.5;
-      if (g < gap){ gap = g; aheadV = Math.max(0, v * t.dir); }
-    };
-    for (const o of ctraffic) if (o !== t && o.on) test(o.s, o.lat, o.speed * o.dir);
-    test(roadPos.s, roadPos.lat, car.speed * Math.cos(car.heading - roadHeadingAt(roadPos.s)));
-    for (const p of police) if (p.active && p.road) test(p.road.s, p.road.lat, p.speed * Math.cos(p.heading - roadHeadingAt(p.road.s)));
-    let desired = t.stun > 0 ? 0 : t.cruise;
-    if (gap < 40) desired = Math.min(desired, aheadV + (gap - 8) * 0.5);
-    t.speed = Math.max(0, t.speed + clamp((desired - t.speed) * Math.min(1, dt * 3), -14 * dt, 3 * dt));
-    t.s += t.speed * t.dir * dt;
-    const rel = t.s - roadPos.s;
-    if (rel > 900 && t.dir > 0) spawnCountryVehicle(t, roadPos.s - 200, roadPos.s - 120);
-    else if (rel < -220 || rel > 900 || t.s < 20 || t.s > ROAD.len - 20) spawnCountryVehicle(t, roadPos.s + 350, roadPos.s + 800);
-  }
-  ctraffic.forEach((t, i) => {
-    const pt = roadPoint(t.s, t.lat), h = pt.h + (t.dir < 0 ? Math.PI : 0), d = VDIM[t.type];
-    t.x = pt.x; t.z = pt.z; t.h = h;
-    if (t.on) stepShove(t, dt);
-    const X = pt.x + (t.px || 0), Z = pt.z + (t.pz || 0), Hd = h + (t.ph || 0);
-    ctryFleets[t.type].set(t.mi, X, 0.03, Z, Hd, t.on);
-    vehicleGlow(ctryHead, ctryTail, i, X, Z, Hd, d.front, d.back, d.y + 0.03, d.off, t.on);
-    stopGlow(ctryStop, i, X, Z, Hd, d.back + 0.05, d.y + 0.03, d.off, t.on && braking(t, t.speed, t.cruise));
-    ctryPools.set(i, X, Z, Hd, d.front, t.type === 'moto' ? 10 : 16, t.type === 'moto' ? 3 : 5.2, t.on);
-  });
-  Object.values(ctryFleets).forEach(f => f.commit()); ctryStop.commit(); ctryPools.commit();
-  ctryHead.commit(); ctryTail.commit();
-}
-
-// ### How far along the route the player is on the linear maps: [done, total] in metres.
-function routeProgress(){ return mode === 'highway' ? [car.z, HW.LEN] : [roadPos.s, ROAD.len - 60]; }
+// ### The walls a moving thing can hit near a point: the city keeps them in one list.
+function collidersNear(){ return W.colliders; }
 
 // ---------- Player vehicles ----------
 // ### Builds the three getaway vehicles the player can choose: muscle coupe, inline-four superbike with a rider in leathers,
@@ -4129,7 +3564,7 @@ const car = { x: 0, z: 0, y: 0, heading: 0, speed: 0, steer: 0, pitch: 0, roll: 
 // ---------- Police ----------
 // ### Up to four police cars with flashing light bars, a real point light and a siren. Wanted stars (Core.wantedStars) rise
 // ### with time and progress and set how many chase you, how fast, and how quickly wrecked cars come back. In the city police follow the street grid until they see you (line of sight),
-// ### on the highway they weave around traffic, in the countryside they follow the road. They reverse when stuck, can be
+// ### They reverse when stuck, can be
 // ### rammed until wrecked, and fill the bust meter when they are right next to you while you are nearly stopped.
 const police = [];
 const policeTex = (() => {
@@ -4172,9 +3607,7 @@ let endReason = '', bumpQuiet = 0;
 let spawnTimer = 0, bust = 0, bustGrace = 0, copsWrecked = 0, copsWarned = false, nearestCop = Infinity, stars = 1;
 // ### Works out the wanted stars from the time on the run, the progress and the wrecked police cars.
 function updateWanted(){
-  let progress;
-  if (M.linear){ const [done, total] = routeProgress(); progress = done / total; }
-  else progress = gate && gate.active ? 1 : collected / Math.max(1, M.shards);
+  const progress = gate && gate.active ? 1 : collected / Math.max(1, M.shards);
   const next = Core.wantedStars(stars, heli.runTime, M.time, progress, copsWrecked);
   if (next === stars) return;
   const more = Core.pursuit(next).cops > Core.pursuit(stars).cops;
@@ -4202,22 +3635,12 @@ function segmentBlocked(x0, z0, x1, z1){
 }
 // ### Brings a police car into the chase, behind or near the player but out of sight.
 function spawnPolice(p){
-  let x, z;
-  if (mode === 'city'){
-    const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
-    const cands = intersections.filter(q => { const d = Math.hypot(q.x - car.x, q.z - car.z); return d > 70 && d < 150; })
-      .sort((a, b) => ((a.x - car.x) * fx + (a.z - car.z) * fz) - ((b.x - car.x) * fx + (b.z - car.z) * fz));
-    if (!cands.length) return false;
-    const q = cands[Math.floor(Math.random() * Math.min(4, cands.length))];
-    x = q.x; z = q.z;
-  } else if (mode === 'country'){
-    if (roadPos.s < 170) return false;
-    const pt = roadPoint(roadPos.s - 120 - Math.random() * 40, ROAD.lane); x = pt.x; z = pt.z;
-  } else {
-    if (car.z < HW.Z0 + 150) return false;
-    x = HW.our[Math.floor(Math.random() * 3)]; z = car.z - 120 - Math.random() * 40;
-  }
-  Object.assign(p, { x, z, heading: Math.atan2(car.x - x, car.z - z), speed: mode !== 'city' ? Math.max(20, car.speed) : 6, ri: undefined, road: null, steer: 0, hp: Core.pursuit(stars).hp, stun: 0, stuck: 0, rev: 0, wp: null, active: true, hitCool: 0 });
+  const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
+  const cands = intersections.filter(q => { const d = Math.hypot(q.x - car.x, q.z - car.z); return d > 70 && d < 150; })
+    .sort((a, b) => ((a.x - car.x) * fx + (a.z - car.z) * fz) - ((b.x - car.x) * fx + (b.z - car.z) * fz));
+  if (!cands.length) return false;
+  const q = cands[Math.floor(Math.random() * Math.min(4, cands.length))], x = q.x, z = q.z;
+  Object.assign(p, { x, z, heading: Math.atan2(car.x - x, car.z - z), speed: 6, ri: undefined, road: null, steer: 0, hp: Core.pursuit(stars).hp, stun: 0, stuck: 0, rev: 0, wp: null, active: true, hitCool: 0 });
   fixPolice(p);
   p.g.visible = true;
   return true;
@@ -4282,32 +3705,20 @@ function updatePolice(dt){
     if (!p.active) continue;
     const dist = Math.hypot(car.x - p.x, car.z - p.z);
     nearestCop = Math.min(nearestCop, dist);
-    if (live && dist > (mode === 'city' ? 230 : 320)){ spawnPolice(p); continue; }
-    if (mode === 'country') p.road = roadQuery(p.x, p.z, p);
+    if (live && dist > 230){ spawnPolice(p); continue; }
     let tx = car.x + pvx * 0.35, tz = car.z + pvz * 0.35;
-    if (mode === 'city'){
-      const los = dist < (heli.spotted ? 170 : 110) && !segmentBlocked(p.x, p.z, car.x, car.z);
-      if (!los){
-        if (!p.wp || Math.hypot(p.wp.x - p.x, p.wp.z - p.z) < 6){
-          const ix = snapI(p.x), iz = snapI(p.z);
-          if (Math.hypot(ix - p.x, iz - p.z) > 8) p.wp = { x: ix, z: iz };
-          else {
-            const dx = car.x - ix, dz = car.z - iz;
-            p.wp = Math.abs(dx) > Math.abs(dz) ? { x: snapI(ix + Math.sign(dx) * PITCH), z: iz } : { x: ix, z: snapI(iz + Math.sign(dz) * PITCH) };
-          }
+    const los = dist < (heli.spotted ? 170 : 110) && !segmentBlocked(p.x, p.z, car.x, car.z);
+    if (!los){
+      if (!p.wp || Math.hypot(p.wp.x - p.x, p.wp.z - p.z) < 6){
+        const ix = snapI(p.x), iz = snapI(p.z);
+        if (Math.hypot(ix - p.x, iz - p.z) > 8) p.wp = { x: ix, z: iz };
+        else {
+          const dx = car.x - ix, dz = car.z - iz;
+          p.wp = Math.abs(dx) > Math.abs(dz) ? { x: snapI(ix + Math.sign(dx) * PITCH), z: iz } : { x: ix, z: snapI(iz + Math.sign(dz) * PITCH) };
         }
-        tx = p.wp.x; tz = p.wp.z;
-      } else p.wp = null;
-    } else if (mode === 'country'){
-      if (dist > 40){ const dirS = Math.sign(roadPos.s - p.road.s) || 1, pt = roadPoint(p.road.s + dirS * 24, dirS * ROAD.lane); tx = pt.x; tz = pt.z; }
-    } else {
-      tx = clamp(tx, -12.6, -2.2);
-      for (const t of traffic){
-        if (!t.on || t.dir < 0) continue;
-        const ahead = t.z - p.z;
-        if (ahead > 0 && ahead < 28 && Math.abs(t.x - p.x) < 2.6){ tx = clamp(t.x + (car.x < t.x ? -3.75 : 3.75), -12.6, -2.2); if (Math.abs(tx - t.x) < 2) tx = t.x + (t.x < -7 ? 3.75 : -3.75); break; }
       }
-    }
+      tx = p.wp.x; tz = p.wp.z;
+    } else p.wp = null;
     const desired = Math.atan2(tx - p.x, tz - p.z);
     const diff = wrapAngle(desired - p.heading);
     const maxP = Core.copTopSpeed(M.police, stars, dist, heli.spotted, Core.gradeAt(mode, p.x, p.z, p.heading));
@@ -4317,7 +3728,6 @@ function updatePolice(dt){
       p.steer += (clamp(diff * 2.2, -1, 1) - p.steer) * Math.min(1, 10 * dt);
       let target = maxP * (1 - Math.min(0.65, Math.abs(diff) / Math.PI * 1.5));
       if (dist < 14) target = Math.min(target, Math.abs(car.speed) + 7);
-      if (mode === 'country' && p.road && Math.abs(p.road.lat) > 5.5) target *= 0.6;
       if (p.stun > 0){ p.stun -= dt; target = 0; }
       p.speed += clamp(target - p.speed, -32 * dt, 17 * dt);
       if (p.speed < 2 && target > 8){ p.stuck += dt; if (p.stuck > 1.2){ p.rev = 0.9; p.stuck = 0; } } else p.stuck = Math.max(0, p.stuck - dt);
@@ -4335,11 +3745,6 @@ function updatePolice(dt){
     for (const o of vehicleObstacles()){
       const d = Math.hypot(p.x - o.x, p.z - o.z), rr = 1.9 + o.r;
       if (d < rr && d > 0.001){ const nx = (p.x - o.x) / d, nz = (p.z - o.z) / d; p.x += nx * (rr - d); p.z += nz * (rr - d); p.speed *= 0.9; if (o.npc){ if (o.npc.stun < 0.5 && Math.abs(p.speed) > 6) shove(o.npc, -nx, -nz, Math.abs(p.speed) * 0.5, o.x, o.z, 1); o.npc.stun = Math.max(o.npc.stun, 1.5); } }
-    }
-    if (mode === 'highway') for (const t of traffic){
-      if (!t.on || Math.abs(t.z - p.z) > t.len / 2 + 4) continue;
-      const hit = collidePoint(p.x, p.z, 1.9, { x0: t.x - t.hw, x1: t.x + t.hw, z0: t.z - t.len / 2, z1: t.z + t.len / 2 });
-      if (hit){ p.x += hit[0] * hit[2]; p.z += hit[1] * hit[2]; p.speed *= 0.9; }
     }
     for (const q of police){
       if (q === p || !q.active) continue;
@@ -4529,16 +3934,6 @@ function buildObstacles(){
 }
 function buildTraffic(){
   const out = [];
-  if (mode === 'country'){
-    for (const t of ctraffic){
-      if (!t.on) continue;
-      const h = t.h + (t.ph || 0), cx = t.x + (t.px || 0), cz = t.z + (t.pz || 0), fx = Math.sin(h), fz = Math.cos(h), v = t.speed;
-      const [offs, r] = OBST[t.type] || OBST.car;
-      for (const o of offs) out.push({ x: cx + fx * o, z: cz + fz * o, r, npc: t, vx: fx * v, vz: fz * v });
-    }
-    return out;
-  }
-  if (mode !== 'city') return out;
   for (const n of npcs){
     if (!n.on) continue;
     const h = n.h + (n.ph || 0), cx = n.x + (n.px || 0), cz = n.z + (n.pz || 0), fx = Math.sin(h), fz = Math.cos(h);
@@ -4557,7 +3952,7 @@ function buildTraffic(){
 // ### out over the tyres' friction, stops at walls, lamp posts and parked cars, and once the stunned driver has come round, the
 // ### vehicle steers back into its lane.
 const { MASS, PLAYER_MASS, SHOVE } = Core;
-const massOf = o => o === courier ? MASS.courier : MASS[o.fleet || o.type] || 1;
+const massOf = o => MASS[o.fleet || o.type] || 1;
 // pushes o along (dx, dz) after a hit with this closing speed at the point (hx, hz); mp is the hitter's weight. Returns the share
 // of the momentum that went into o (0 for a tram, near 1 for a motorcycle hit by a lorry), so the hitter can keep the rest.
 function shove(o, dx, dz, impact, hx, hz, mp){
@@ -4570,10 +3965,9 @@ function shove(o, dx, dz, impact, hx, hz, mp){
 }
 function stepShove(o, dt){
   if (!o.pvx && !o.pvz && !o.px && !o.pz && !o.ph && !o.pw) return;
-  if (mode === 'highway' && o.stun > 0) o.stun -= dt;
   o.px = (o.px || 0) + (o.pvx || 0) * dt; o.pz = (o.pz || 0) + (o.pvz || 0) * dt; o.ph = (o.ph || 0) + (o.pw || 0) * dt;
   const grip = Math.exp(-dt * SHOVE.grip); o.pvx = (o.pvx || 0) * grip; o.pvz = (o.pvz || 0) * grip; o.pw = (o.pw || 0) * Math.exp(-dt * SHOVE.turnGrip);
-  if (mode === 'city') for (const c of collidersNear(o.x + o.px, o.z + o.pz)){
+  for (const c of collidersNear(o.x + o.px, o.z + o.pz)){
     const hit = collidePoint(o.x + o.px, o.z + o.pz, 1.0, c);
     if (hit){ o.px += hit[0] * hit[2]; o.pz += hit[1] * hit[2]; o.pvx *= 0.2; o.pvz *= 0.2; }
   }
@@ -4642,11 +4036,8 @@ function resetParked(){
 }
 
 // ---------- Pickups (placed fresh every run) ----------
-// ### placeRun places the star shards, the green repair kits and the finish gate for the current map.
-// ### City: shards in parks, on the squares and on roads, gate at the south-west corner of the Baixa, on the way to the bridge. Highway/countryside: shards along the route,
-// ### each worth +4 s, gate at the end.
-const gemGeo = new THREE.OctahedronGeometry(0.9, 0); gemGeo.scale(1, 1.45, 1);
-const gemMat = new THREE.MeshStandardMaterial({ color: 0x9ff6ff, emissive: SPARK, emissiveIntensity: 1.4, flatShading: true, roughness: 0.2, metalness: 0.3 });
+// ### placeRun places the pieces of evidence, the green repair kits and the finish gate: the evidence in parks, on the squares
+// ### and on roads, the gate at the south-west corner of the Baixa, on the way to the bridge.
 const ringGeo = new THREE.RingGeometry(1.8, 2.3, 32); ringGeo.rotateX(-Math.PI / 2);
 const kitMat = new THREE.MeshStandardMaterial({ color: 0xd8ffe9, emissive: GREEN, emissiveIntensity: 1.2, flatShading: true, roughness: 0.3 });
 const kitBar1 = new THREE.BoxGeometry(1.6, 0.5, 0.5), kitBar2 = new THREE.BoxGeometry(0.5, 1.6, 0.5);
@@ -4725,12 +4116,12 @@ function glowSprite(color, size, opacity){
 
 // ### Sets up one run: places the shards, repair kits and finish gate for the current map.
 function placeRun(){
-  dropHaleCollider(); hale = null; resetParked();
+  resetParked();
   if (runGroup){
     scene.remove(runGroup);
     runGroup.traverse(o => {
-      if (o.material && o.material !== gemMat && o.material !== kitMat) o.material.dispose();
-      if (o.geometry && o.geometry !== gemGeo && o.geometry !== ringGeo && o.geometry !== kitBar1 && o.geometry !== kitBar2 && !o.isSprite) o.geometry.dispose();
+      if (o.material && o.material !== kitMat) o.material.dispose();
+      if (o.geometry && o.geometry !== ringGeo && o.geometry !== kitBar1 && o.geometry !== kitBar2 && !o.isSprite) o.geometry.dispose();
     });
   }
   runGroup = new THREE.Group(); scene.add(runGroup);
@@ -4738,32 +4129,22 @@ function placeRun(){
   const rnd = Math.random;
   const chosen = [], kitSpots = [];
   let gp, gateR, gateY, gateRot = 0;
-  if (mode === 'city'){
-    const lane = s => { const side = rnd() < 0.5 ? -3.5 : 3.5; return s.axis === 'x' ? { x: s.x, z: s.z + side } : { x: s.x + side, z: s.z }; };
-    const far = (p, list, d) => list.every(q => Math.hypot(q.x - p.x, q.z - p.z) >= d);
-    chosen.push({ x: -3.5, z: 24 });
-    shuffle(shardSpots.slice(), rnd).forEach(p => { if (chosen.length < 4 && far(p, chosen, 36)) chosen.push(p); });
-    const roads = shuffle(roadSpots.slice(), rnd);
-    for (const s of roads){ if (chosen.length >= M.shards) break; const p = lane(s); if (Math.hypot(p.x, p.z) > 30 && far(p, chosen, 36)) chosen.push(p); }
-    for (const s of roads){ if (kitSpots.length >= M.kits) break; const p = lane(s); if (far(p, chosen, 25) && far(p, kitSpots, 60) && Math.hypot(p.x, p.z) > 40) kitSpots.push(p); }
-    // the south-west corner of the Baixa, where Rua do Crucifixo meets the river avenue: the way out to the 25 de Abril bridge.
-    // The gate faces west, up the approach road that climbs to the bridge.
-    gp = { x: -144, z: 144 }; gateRot = -Math.PI / 2;
-    gateR = 5.4; gateY = 5.8;
-  } else if (mode === 'country'){
-    for (let i = 0; i < M.shards; i++){ const s = 220 + i * (ROAD.len - 480) / (M.shards - 1), pt = roadPoint(s, (rnd() < 0.5 ? -1 : 1) * ROAD.lane); chosen.push({ x: pt.x, z: pt.z, s }); }
-    [0.3, 0.55, 0.8].forEach(f => { const pt = roadPoint(ROAD.len * f, (rnd() < 0.5 ? -1 : 1) * 4.7); kitSpots.push({ x: pt.x, z: pt.z }); });
-    const gpt = roadPoint(ROAD.len - 60, 0); gp = { x: gpt.x, z: gpt.z }; gateRot = gpt.h; gateR = 6; gateY = 6.4;
-  } else {
-    for (let i = 0; i < M.shards; i++){ const z = 220 + i * 310 + (rnd() - 0.5) * 120; chosen.push({ x: HW.our[Math.floor(rnd() * 3)], z, s: z }); }
-    kitSpots.push({ x: -14, z: 1300 + rnd() * 300 }, { x: -14, z: 2700 + rnd() * 300 });
-    gp = { x: -7.15, z: HW.LEN }; gateR = 7.4; gateY = 8;
-  }
+  const lane = s => { const side = rnd() < 0.5 ? -3.5 : 3.5; return s.axis === 'x' ? { x: s.x, z: s.z + side } : { x: s.x + side, z: s.z }; };
+  const far = (p, list, d) => list.every(q => Math.hypot(q.x - p.x, q.z - p.z) >= d);
+  chosen.push({ x: -3.5, z: 24 });
+  shuffle(shardSpots.slice(), rnd).forEach(p => { if (chosen.length < 4 && far(p, chosen, 36)) chosen.push(p); });
+  const roads = shuffle(roadSpots.slice(), rnd);
+  for (const s of roads){ if (chosen.length >= M.shards) break; const p = lane(s); if (Math.hypot(p.x, p.z) > 30 && far(p, chosen, 36)) chosen.push(p); }
+  for (const s of roads){ if (kitSpots.length >= M.kits) break; const p = lane(s); if (far(p, chosen, 25) && far(p, kitSpots, 60) && Math.hypot(p.x, p.z) > 40) kitSpots.push(p); }
+  // the south-west corner of the Baixa, where Rua do Crucifixo meets the river avenue: the way out to the 25 de Abril bridge.
+  // The gate faces west, up the approach road that climbs to the bridge.
+  gp = { x: -144, z: 144 }; gateRot = -Math.PI / 2;
+  gateR = 5.4; gateY = 5.8;
 
   chosen.forEach((s, i) => {
     const g = new THREE.Group(); g.position.set(s.x, groundH(s.x, s.z) + (s.park ? 0.12 : 0), s.z);
-    const ev = mode === 'city' ? Core.EVIDENCE[i % Core.EVIDENCE.length] : null;
-    const gem = ev ? evidenceModel(ev.key) : new THREE.Mesh(gemGeo, gemMat); gem.position.y = 1.9; gem.castShadow = true;
+    const ev = Core.EVIDENCE[i % Core.EVIDENCE.length];
+    const gem = evidenceModel(ev.key); gem.position.y = 1.9; gem.castShadow = true;
     const glow = glowSprite(SPARK, 7, 0.95); glow.position.y = 1.9;
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: SPARK, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
     ring.position.y = 0.06;
@@ -4789,9 +4170,8 @@ function placeRun(){
   const pglow = glowSprite(GOLD, gateR * 3.3); pglow.position.y = gateY;
   pg.add(ringMesh, disc, beam, pglow);
   runGroup.add(pg);
-  const active = !!M.linear;
-  pg.visible = active;
-  gate = { x: gp.x, z: gp.z, group: pg, ring: ringMesh, disc, beam, active, grow: active ? 1 : 0 };
+  pg.visible = false;
+  gate = { x: gp.x, z: gp.z, group: pg, ring: ringMesh, disc, beam, active: false, grow: 0 };
 }
 
 // ---------- Particles & smoke ----------
@@ -4922,9 +4302,7 @@ function addSkidQuad(a, b, shade){
 }
 function updateSkids(){
   const md = MODELS[V.key], S = md.skid, amount = Core.skidAmount(car.speed, keys.down, keys.brake, car.steer);
-  // rubber only marks a road: not the fields in the countryside or the verges of the highway
-  const onRoad = mode === 'country' ? Math.abs(roadPos.lat) <= 5.4 : mode !== 'highway' || Math.abs(car.x) <= 13;
-  if (!amount || !onRoad){ skids.last = []; return; }
+  if (!amount){ skids.last = []; return; }
   const fx = Math.sin(car.heading), fz = Math.cos(car.heading), rx = -fz, rz = fx;
   let wrote = false;
   S.x.forEach((off, i) => {
@@ -5073,7 +4451,7 @@ function resetScratches(){ const S = scratches; S.head = S.used = 0; S.last = nu
 const SCRAPE_AT = { car: [0.38, 0.5], bike: [0.32, 0.42], truck: [0.5, 0.75] };
 const scrapeNow = { level: 0, along: 0, x: 0, y: 0, z: 0, floor: 0, nx: 0, nz: 0, tx: 0, tz: 0, vx: 0, vz: 0, c: null };
 // ### Called after each frame's contacts: throws the sparks and lays the scratch. Only walls of houses, parked cars and the
-// ### concrete wall in the middle of the highway get scratches, as only those stand where the side of a car touches them.
+// ### walls get scratches, as only those stand where the side of a car touches them.
 function scrapeEffects(dt){
   const sc = scrapeNow;
   if (!sc.level){ scratches.last = null; sparks.acc = 0; return; }
@@ -5087,7 +4465,7 @@ function scrapeEffects(dt){
   if (!last || last.c !== c || last.nx * sc.nx + last.nz * sc.nz < 0.95){ scratches.last = now; return; }
   const d = Math.hypot(sc.x - last.x, sc.z - last.z);
   if (d < Core.SCRAPE.step) return;
-  // the box of a parked car is a little wider than its body, and the wall in the middle of the highway than its concrete
+  // the box of a parked car is a little wider than its body
   if (d < 3) addScratch(last.x, last.z, sc.x, sc.z, sc.nx, sc.nz, y, 0.05 + 0.08 * sc.level, c.t === 'p' ? 0.08 : c.t === 'w' ? 0.05 : 0);
   scratches.last = now;
 }
@@ -5434,8 +4812,7 @@ function updateEngine(dt){
   a.whine.frequency.setTargetAtTime(Math.max(60, sp * E.whine[0] * (car.speed < 0 ? 1.8 : 1)), t, 0.05);
   // the gearbox whine is a faint tone under the engine; louder, it is the drone-like hum that real cars do not have
   a.whineG.gain.setTargetAtTime(on ? E.whine[1] * 0.3 * Math.min(1, sp / 12) * (car.speed < -0.3 ? 3 : 0.4 + 0.6 * eng.load) : 0, t, 0.08);
-  const rough = mode === 'country' && Math.abs(roadPos.lat) > 5.4 ? 2.2 : 1;
-  a.road.gain.setTargetAtTime(on ? Math.pow(sp / 55, 1.4) * 0.1 * E.road * rough * under : 0, t, 0.15);
+  a.road.gain.setTargetAtTime(on ? Math.pow(sp / 55, 1.4) * 0.1 * E.road * under : 0, t, 0.15);
   const rotorDist = heli.on ? Math.hypot(heli.x - car.x, heli.z - car.z) : 300, rotorNear = clamp(1 - rotorDist / 240, 0.2, 1);
   a.rotor.gain.setTargetAtTime(on && heli.on ? 0.42 * rotorNear : 0, t, 0.3);
   a.rotorF.frequency.setTargetAtTime(500 + 3500 * rotorNear * rotorNear, t, 0.3);
@@ -5477,27 +4854,19 @@ const boundMat = new THREE.ShaderMaterial({
   ].join('\n'),
   transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending
 });
-function boundaryRect(){
-  if (mode === 'city') return [-LIMIT - 1.6, LIMIT + 1.6, -LIMIT - 1.6, LIMIT + 1.6];
-  if (mode === 'highway') return [-17.5, 17.5, HW.Z0 + 1.5, HW.Z1 - 1.5];
-  const x1 = TERR.x0 + (TERR.nx - 1) * TERR.cell, z1 = TERR.z0 + (TERR.nz - 1) * TERR.cell;
-  return [TERR.x0 + 30, x1 - 30, TERR.z0 + 30, z1 - 30];
-}
+const boundaryRect = () => [-LIMIT - 1.6, LIMIT + 1.6, -LIMIT - 1.6, LIMIT + 1.6];
 // ### Builds the glowing force-field walls at the edge of the current map.
 function buildBoundary(){
   if (BOUND.mesh){ scene.remove(BOUND.mesh); BOUND.mesh.geometry.dispose(); }
-  const [x0, x1, z0, z1] = boundaryRect(), y0 = mode === 'country' ? -30 : -24, H = mode === 'country' ? 120 : 56;
+  const [x0, x1, z0, z1] = boundaryRect(), y0 = -24, H = 56;
   const side = (len, rot, x, z) => { const g = new THREE.PlaneGeometry(len, H, Math.max(1, Math.round(len / 20)), 1); g.rotateY(rot); g.translate(x, y0 + H / 2, z); return g; };
-  const parts = mode === 'highway'
-    ? [side(x1 - x0, 0, (x0 + x1) / 2, z0), side(x1 - x0, 0, (x0 + x1) / 2, z1)]
-    : [side(x1 - x0, 0, (x0 + x1) / 2, z0), side(x1 - x0, 0, (x0 + x1) / 2, z1), side(z1 - z0, Math.PI / 2, x0, (z0 + z1) / 2), side(z1 - z0, Math.PI / 2, x1, (z0 + z1) / 2)];
+  const parts = [side(x1 - x0, 0, (x0 + x1) / 2, z0), side(x1 - x0, 0, (x0 + x1) / 2, z1), side(z1 - z0, Math.PI / 2, x0, (z0 + z1) / 2), side(z1 - z0, Math.PI / 2, x1, (z0 + z1) / 2)];
   BOUND.mesh = new THREE.Mesh(mergeGeos(parts), boundMat);
   BOUND.mesh.frustumCulled = false; BOUND.mesh.renderOrder = 2;
   scene.add(BOUND.mesh);
 }
 function boundaryDistance(){
-  const [x0, x1, z0, z1] = boundaryRect(), pad = mode === 'city' ? 1.6 : mode === 'highway' ? 2.3 : 0;
-  return Core.edgeDistance([x0, x1, z0, z1], car.x, car.z, pad, mode === 'highway');
+  return Core.edgeDistance(boundaryRect(), car.x, car.z, 1.6);
 }
 // ### Animates the force field, and pushes the player back with a spark when they touch it.
 function updateBoundary(dt){
@@ -5511,22 +4880,20 @@ function updateBoundary(dt){
     const [x0, x1, z0, z1] = boundaryRect();
     const px = clamp(car.x, x0, x1), pz = clamp(car.z, z0, z1);
     const ex = Math.abs(car.x - x0) < Math.abs(car.x - x1) ? x0 : x1, ez = Math.abs(car.z - z0) < Math.abs(car.z - z1) ? z0 : z1;
-    const onX = mode !== 'highway' && Math.min(Math.abs(car.x - ex)) < Math.min(Math.abs(car.z - ez));
+    const onX = Math.abs(car.x - ex) < Math.abs(car.z - ez);
     burst(onX ? ex : px, car.y + 1, onX ? pz : ez, C(0xff4d5a), 14, 0.6);
     car.shake = Math.max(car.shake, 0.3);
     sfx.zap();
   }
   // the outer streets of the city are part of the map, so there the warning only comes when heading for the edge
   const fx = Math.sin(car.heading), fz = Math.cos(car.heading), out = Math.abs(car.x) > Math.abs(car.z) ? Math.sign(car.x) * fx : Math.sign(car.z) * fz;
-  const warn = mode !== 'city' || out * Math.sign(car.speed || 1) > 0.35;
-  const prox = warn ? clamp(1 - d / (mode === 'city' ? 20 : 38), 0, 1) : 0, show = warn && d < (mode === 'city' ? 12 : 22);
+  const warn = out * Math.sign(car.speed || 1) > 0.35;
+  const prox = warn ? clamp(1 - d / 20, 0, 1) : 0, show = warn && d < 12;
   ui.edge.style.opacity = prox.toFixed(2);
   if (show !== BOUND.shown){ ui.edgeBanner.classList.toggle('show', show); BOUND.shown = show; }
   if (show){
     const [x0, x1, z0, z1] = boundaryRect();
-    let tx = (x0 + x1) / 2, tz = (z0 + z1) / 2;
-    if (mode === 'highway') tx = car.x;
-    if (mode === 'country'){ const pt = roadPoint(roadPos.s, 0); tx = pt.x; tz = pt.z; }
+    const tx = (x0 + x1) / 2, tz = (z0 + z1) / 2;
     const rel = wrapAngle(Math.atan2(tx - car.x, tz - car.z) - car.heading);
     ui.edgeArrow.style.transform = `rotate(${(-rel * 180 / Math.PI).toFixed(1)}deg)`;
   }
@@ -5642,7 +5009,7 @@ const overlay = $('overlay'), card = $('card'), hud = $('hud');
 const ui = {
   lookTag: $('lookTag'), nos: $('nos'), nosPips: [...document.querySelectorAll('#nosPips i')], nfill: $('nfill'), tNitro: $('tNitro'),
   time: $('time'), speed: $('speed'), rpm: $('rpm'), chips: $('chips'), bars: $('bars'), sig: $('sigText'), toast: $('toast'),
-  eye: $('missionEye'), mission: $('missionName'), prog: $('prog'), progKm: $('progKm'), pfill: $('pfill'),
+  eye: $('missionEye'), mission: $('missionName'),
   gVal: $('gVal'), gGlow: $('gGlow'), gTip: $('gTip'), gears: [...document.querySelectorAll('.gearbox [data-g]')], gearD: $('gearD'),
   pBrake: $('pBrake'), pGas: $('pGas'), pBrakeV: $('pBrakeV'), pGasV: $('pGasV'), tBrake: $('tBrake'), tGas: $('tGas'),
   dash: $('dash'), dmg: $('dmg'), dmgPct: $('dmgPct'), dmgState: $('dmgState'), dfill: $('dfill'),
@@ -5705,7 +5072,7 @@ function renderChips(){
     ? `<svg class="chip ev${it.taken ? ' on' : ''}" viewBox="0 0 16 16" role="img" aria-label="${it.ev.name}${it.taken ? ', found' : ''}"><title>${it.ev.name}</title><path d="${EV_ICON[it.ev.key]}"/></svg>`
     : DIAMOND.replace('class="chip"', 'class="chip' + (it.taken ? ' on' : '') + '"')).join('') +
     // the witness, the last thing to bring along in Lisbon: shown once she is waiting, lit once she is in the car
-    (mode === 'city' && (witness.active || witness.inCar) ? `<svg class="chip wit${witness.inCar ? ' on' : ''}" viewBox="0 0 16 16" role="img" aria-label="Witness${witness.inCar ? ', in the car' : ''}"><title>Witness: ${WITNESS.name}</title><path d="M6 4.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M3.5 14c0-3 2-5 4.5-5s4.5 2 4.5 5"/></svg>` : '') +
+    ((witness.active || witness.inCar) ? `<svg class="chip wit${witness.inCar ? ' on' : ''}" viewBox="0 0 16 16" role="img" aria-label="Witness${witness.inCar ? ', in the car' : ''}"><title>Witness: ${WITNESS.name}</title><path d="M6 4.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M3.5 14c0-3 2-5 4.5-5s4.5 2 4.5 5"/></svg>` : '') +
     `<span class="count">${collected}/${items.length}</span>`;
 }
 const pedal = { thr: 0, brk: 0 };
@@ -5713,7 +5080,7 @@ const last = { guide: '', guideDeg: 999, kit: '', kitDeg: 999, kitLow: null, str
 // ### Updates the HUD. A value is only written when it has changed, because touching the page every frame is slow.
 function updateHud(dt){
   // in story mode this line names the act instead
-  if (mode === 'city' && !story){
+  if (!story){
     const street = Core.streetAt(car.x, car.z, car.heading);
     if (street && street !== last.street){ ui.eye.textContent = street; last.street = street; }
   }
@@ -5794,23 +5161,17 @@ function updateHud(dt){
   if (bp !== last.bust){ ui.bustPct.textContent = bp + '%'; ui.bfill.style.width = bp + '%'; last.bust = bp; }
 
   let bars, txt, gold = false;
-  if (M.linear){
-    const [done, total] = routeProgress();
-    const km = (Math.max(0, total - done) / 1000).toFixed(1);
-    if (km !== last.km){ ui.progKm.textContent = km + ' km'; ui.pfill.style.width = clamp(done / total, 0, 1) * 100 + '%'; last.km = km; }
-  }
-  if (gate && gate.active && mode === 'city'){ bars = 4; txt = 'Gate open'; gold = true; }
+  if (gate && gate.active){ bars = 4; txt = 'Gate open'; gold = true; }
   else if (witness.active){
     const R = M.radar, dist = Math.hypot(witness.x - car.x, witness.z - car.z);
     bars = dist < R ? 4 : dist < R * 1.5 ? 3 : dist < R * 2.2 ? 2 : 1; gold = true;
     txt = bars === 4 ? 'Witness in range' : bars === 3 ? 'Medium signal' : 'Weak signal';
   } else {
     let dist = Infinity;
-    items.forEach(it => { if (!it.taken && (mode === 'city' || it.s > routeProgress()[0] - 5)) dist = Math.min(dist, Math.hypot(it.x - car.x, it.z - car.z)); });
+    items.forEach(it => { if (!it.taken) dist = Math.min(dist, Math.hypot(it.x - car.x, it.z - car.z)); });
     const R = M.radar;
     bars = dist < R ? 4 : dist < R * 1.5 ? 3 : dist < R * 2.2 ? 2 : 1;
-    txt = bars === 4 ? (mode === 'city' ? 'Evidence in range' : 'Shard in range') : bars === 3 ? 'Medium signal' : 'Weak signal';
-    if (M.linear && dist === Infinity){ bars = 4; txt = 'Finish ahead'; gold = true; }
+    txt = bars === 4 ? 'Evidence in range' : bars === 3 ? 'Medium signal' : 'Weak signal';
   }
   const key = bars + txt + gold;
   if (key !== last.sig){
@@ -5846,26 +5207,10 @@ function drawRadar(){
     if (r.x1 < car.x - reach || r.x0 > car.x + reach || r.z1 < car.z - reach || r.z0 > car.z + reach) continue;
     rx.fillStyle = r.c; rx.fillRect(r.x0, r.z0, r.x1 - r.x0, r.z1 - r.z0);
   }
-  if (mode === 'country'){
-    const P = ROAD.pts, ri = roadPos.ri || 0, i0 = Math.max(0, ri - 130), i1 = Math.min(P.length - 1, ri + 130);
-    rx.strokeStyle = 'rgba(255,255,255,.22)'; rx.lineWidth = 8.2; rx.lineJoin = 'round'; rx.lineCap = 'round';
-    rx.beginPath(); rx.moveTo(P[i0].x, P[i0].z);
-    for (let i = i0 + 2; i <= i1; i += 2) rx.lineTo(P[i].x, P[i].z);
-    rx.stroke();
-    rx.fillStyle = 'rgba(255,255,255,.7)';
-    for (const t of ctraffic){ if (t.on && Math.abs(t.x - car.x) < reach && Math.abs(t.z - car.z) < reach){ rx.beginPath(); rx.arc(t.x, t.z, 1.8, 0, Math.PI * 2); rx.fill(); } }
-  } else if (mode === 'highway'){
-    for (const t of traffic){
-      if (!t.on || Math.abs(t.z - car.z) > reach) continue;
-      rx.fillStyle = t.dir > 0 ? 'rgba(255,255,255,.7)' : 'rgba(255,170,120,.55)';
-      rx.fillRect(t.x - t.hw, t.z - t.len / 2, t.hw * 2, t.len);
-    }
-  } else {
-    rx.fillStyle = 'rgba(255,255,255,.6)';
-    for (const n of npcs){ if (n.on && Math.abs(n.x - car.x) < reach && Math.abs(n.z - car.z) < reach){ rx.beginPath(); rx.arc(n.x, n.z, 1.6, 0, Math.PI * 2); rx.fill(); } }
-    rx.strokeStyle = 'rgba(255,93,108,0.6)'; rx.lineWidth = 2 / kk; rx.setLineDash([6 / kk, 6 / kk]);
-    rx.strokeRect(-LIMIT, -LIMIT, LIMIT * 2, LIMIT * 2); rx.setLineDash([]);
-  }
+  rx.fillStyle = 'rgba(255,255,255,.6)';
+  for (const n of npcs){ if (n.on && Math.abs(n.x - car.x) < reach && Math.abs(n.z - car.z) < reach){ rx.beginPath(); rx.arc(n.x, n.z, 1.6, 0, Math.PI * 2); rx.fill(); } }
+  rx.strokeStyle = 'rgba(255,93,108,0.6)'; rx.lineWidth = 2 / kk; rx.setLineDash([6 / kk, 6 / kk]);
+  rx.strokeRect(-LIMIT, -LIMIT, LIMIT * 2, LIMIT * 2); rx.setLineDash([]);
   rx.setTransform(1, 0, 0, 1, 0, 0);
   if (!REDUCED){
     const sw = (clock * 1.8) % (Math.PI * 2);
@@ -5932,7 +5277,6 @@ function drawRadar(){
     rx.strokeStyle = heli.spotted ? '#ffd9a0' : 'rgba(255,255,255,.75)'; rx.lineWidth = 3;
     rx.beginPath(); rx.arc(sx, sy, 12, 0, Math.PI * 2); rx.stroke();
   }
-  drawStoryRadar(toScreen, R, range, pulse);
   rx.fillStyle = '#ff7a3d'; rx.strokeStyle = 'rgba(255,255,255,.9)'; rx.lineWidth = 2;
   rx.beginPath(); rx.moveTo(R, R - 13); rx.lineTo(R + 9, R + 10); rx.lineTo(R, R + 5); rx.lineTo(R - 9, R + 10); rx.closePath(); rx.fill(); rx.stroke();
   rx.restore();
@@ -5983,15 +5327,26 @@ function heistArrival(){
 }
 // ### Straight from the tunnel into the garage: no menu and no card. The page was opened by room 1, not by a click here, so the
 // ### sound and (on a phone) the motion sensor may not be started yet: they start with the first key or tap in the garage.
-function heistBegin(h){
-  story = null; heist.run = { escape: h.escape }; heist.cold = true;
+// ### It comes in two parts. heistPrepare sets the run up and goes down into the garage: everything that takes time. heistArrive
+// ### is the moment the player comes through the tunnel door with their escape time. On its own page room 2 does both at
+// ### once (heistBegin). On the heist page it is loaded ahead under room 1 (HEIST_WAIT): it prepares when it has loaded and
+// ### then stands still, without drawing, until that page says the player has left room 1; then it only has to arrive.
+const HEIST_WAIT = window.parent !== window && /[?&]heist=wait(&|$)/.test(location.search);
+function heistPrepare(){
+  story = null; heist.cold = true;
   startRun('city', sel.veh, true);
   enterGarage();
   heist.cold = false;
+}
+function heistArrive(h, again){
+  heist.run = { escape: h.escape };
+  // prepared a while ago: the walk out of the tunnel begins now, with the door shut in front of you
+  if (again) garagePick(false);
   toast(`Out of the tunnel. Escape time ${fmtTimeExact(h.escape)}, the drive is added.`, '', 7000);
   const wake = () => { removeEventListener('pointerdown', wake, true); removeEventListener('keydown', wake, true); initAudio(); tiltAsk(); };
   addEventListener('pointerdown', wake, true); addEventListener('keydown', wake, true);
 }
+function heistBegin(h){ heistPrepare(); heistArrive(h, false); }
 // ### Loads everybody's heists. Fails quietly: this device's list stays.
 async function loadHeists(){
   if (!net) return;
@@ -6057,7 +5412,7 @@ async function loadBoards(m){
 function boardFor(m){
   const ob = signedIn() && online.boards[m];
   if (!ob) return { src: board, me: driver, online: false };
-  const empty = { city: [], highway: [], country: [] };
+  const empty = { city: [] };
   return { src: { runs: Object.assign({}, empty, { [m]: ob.all }), month: { key: Core.monthKey(Date.now()), runs: Object.assign({}, empty, { [m]: ob.month }) } }, me: online.name, online: true };
 }
 // ### After sign-in (or when the page opens signed in): fetch the account's driver name and use it as the driver here too.
@@ -6188,7 +5543,7 @@ function driverSection(){
   const local = net ? '' : `<div class="drivers">${board.drivers.slice().reverse().map(d => `<button class="drv" data-driver="${esc(d)}" aria-pressed="${Core.sameName(d, driver)}">${esc(d)}</button>`).join('')}</div>
       ${nameField(board.drivers.length ? 'New driver name' : 'Your name', 'Add driver')}
       <p class="drv-hint">${driver ? `Driving as <b>${esc(driver)}</b> on this device. Each finished run goes on the leaderboard of its map.` : 'Add a name to put your times on the leaderboard. It stays on this device.'}</p>`;
-  return `<div class="m-label"><span>03</span>Driver · your name on the leaderboard</div>
+  return `<div class="m-label"><span>02</span>Driver · your name on the leaderboard</div>
       <div data-account>${accountBox()}</div>
       ${local}
       <div class="lb" data-lb-menu><div class="eyebrow">Leaderboard · ${MODES[sel.mode].title}</div>${boardPanels(sel.mode)}</div>`;
@@ -6247,18 +5602,12 @@ function redrawBoards(){
   if (hs) hs.innerHTML = heistSection();
 }
 
-// ### Switches map. A map is built the first time it is chosen, then bent over its hills once.
+// ### Sets the map up for a run: Lisbon is the only one.
 function setMode(m){
   mode = m; M = MODES[m];
-  if (m === 'highway' && !HWY.built){ buildHighway(); laySlopes(HWY.group, 'highway'); }
-  if (m === 'country' && !CTRY.built){ buildCountry(); laySlopes(CTRY.group, 'country'); }
-  W = m === 'city' ? CITY : m === 'highway' ? HWY : CTRY;
-  CITY.group.visible = m === 'city';
-  CTRY.group.visible = m === 'country';
-  HWY.group.visible = m === 'highway';
+  CITY.group.visible = true;
   ui.eye.textContent = M.eyebrow;
   ui.mission.textContent = M.mission;
-  ui.prog.hidden = !M.linear;
   last.km = ''; last.street = '';
   initGauge();
   buildBoundary();
@@ -6269,8 +5618,7 @@ function resetCar(){
   clearEffects();
   Object.assign(crashGuard, Core.newCrashGuard());
   car.railPrev = null; car.rattle = 0;
-  let x = mode === 'city' ? -3.5 : HW.our[1], z = mode === 'city' ? -6 : 5, heading = 0;
-  if (mode === 'country'){ const pt = roadPoint(40, ROAD.lane); x = pt.x; z = pt.z; heading = pt.h; roadPos.ri = undefined; roadPos.s = 40; roadPos.lat = ROAD.lane; }
+  const x = -3.5, z = -6, heading = 0;
   Object.assign(car, { x, z, y: groundH(x, z), heading, camHeading: heading, speed: 0, steer: 0, yaw: 0, pitch: 0, roll: 0, bodyPitch: 0, shake: 0, prevSpeed: 0, lean: 0, lift: 0 });
   resetScratches(); scrapeNow.level = 0;
   // stand on the road as it really lies here, at once: level on a sloping street, the wheels of one side would sink into it
@@ -6291,8 +5639,7 @@ function startRun(m, v, viaGarage){
   setMode(m || mode);
   placeRun();
   resetCar();
-  if (mode === 'highway') resetTraffic(); else if (mode === 'country') resetCountryTraffic(); else resetNpcs();
-  if (courier){ courier.on = false; courier.g.visible = false; }
+  resetNpcs();
   warmUp();
   resetPolice();
   collected = 0; timeLeft = M.time; damage = 0; Object.assign(nitro, Core.newNitro());
@@ -6302,9 +5649,7 @@ function startRun(m, v, viaGarage){
   hud.classList.remove('off');
   hideOverlay();
   state = 'play';
-  if (mode === 'city'){ if (!viaGarage) showOverview(); }
-  else if (mode === 'country') toast('Follow the country road to the village. Shards add +4 s. Watch the oncoming traffic.', '', 4500);
-  else toast(`Reach the finish 4 km ahead. Shards add +${M.bonus} s. Police incoming.`, '', 4500);
+  if (!viaGarage) showOverview();
 }
 // ### Lisbon starts with a map of the Baixa: where the six pieces of evidence lie, the repair kits, your start and the gate.
 // ### The run is paused while it is open; "Start driving" begins the clock. The sealed letter of the story is not on it.
@@ -6312,7 +5657,6 @@ let overviewOpen = false, mapOpen = false;
 // ### The big map during a run in Lisbon (key M, or a tap on the radar): the run pauses and the map of the Baixa fills the
 // ### card, with what is still to collect, the witness, the gate, and the yellow way to it once it is open. M or Enter closes it.
 function showMap(){
-  if (mode !== 'city'){ toast('The map is only there in Lisbon.', '', 2000); return; }
   state = 'pause'; overviewOpen = false; mapOpen = true;
   held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
   const left = items.filter(it => !it.taken).length;
@@ -6477,7 +5821,7 @@ const EV_ARTS = {
 // ### The guide arrow: points at the nearest piece of evidence still out there, then at the witness, and at the gate once she is in the car.
 function updateGuide(){
   let t = null, name = '';
-  if (mode === 'city' && state === 'play'){
+  if (state === 'play'){
     let best = Infinity;
     for (const it of items) if (!it.taken){ const d = Math.hypot(it.x - car.x, it.z - car.z); if (d < best){ best = d; t = it; name = it.ev ? it.ev.name : 'Evidence'; } }
     if (!t && witness.active){ t = witness; name = 'Witness · ' + WITNESS.name; }
@@ -6509,7 +5853,7 @@ function updateKitGuide(){
   if (Math.abs(deg - last.kitDeg) > 0.5){ last.kitDeg = deg; ui.kitArrow.style.transform = `rotate(${deg.toFixed(1)}deg)`; }
 }
 // what is collected on this map
-const what = () => mode === 'city' ? 'pieces of evidence' : 'shards';
+const what = () => 'pieces of evidence';
 // ### Pauses the run and shows the pause card.
 function pause(){
   state = 'pause'; overviewOpen = false; mapOpen = false;
@@ -6531,7 +5875,7 @@ function resume(){
   if (overviewOpen){ overviewOpen = false; toast('Follow the arrow to the evidence. Every police car is looking for inmate 4471.', '', 3600); }
 }
 
-// ### Picks up a shard or a piece of evidence, adds any bonus time. After the sixth piece in Lisbon the witness appears.
+// ### Picks up a piece of evidence. After the sixth piece the witness appears.
 function collect(it){
   it.taken = true; collected++;
   const nos = Core.nitroPickup(nitro), ready = nos ? (COARSE ? ' · Nitro ready: tap the flame' : ' · Nitro ready: press E') : '';
@@ -6539,9 +5883,8 @@ function collect(it){
   burst(it.x, it.group.position.y + 1.9, it.z, SPARK, 28);
   runGroup.remove(it.group);
   sfx.collect();
-  if (collected >= items.length && !M.linear) spawnWitness();
+  if (collected >= items.length) spawnWitness();
   renderChips();
-  if (M.linear){ timeLeft += M.bonus; toast(`+${M.bonus} s · Shard ${collected} / ${items.length}${ready}`, 'gold', nos ? 2600 : 1600); return; }
   if (collected >= items.length){
     sfx.gate();
     toast(`${it.ev.name}: ${it.ev.found} One thing is still missing: a witness. ${WITNESS.name}, ${WITNESS.job}, saw the real thief. She is waiting for you, look for the golden light and stop next to her.${ready}`, 'gold', 7000);
@@ -6580,7 +5923,7 @@ const route = (() => {
   return { mesh, marks: [], pts: [], at: null, dummy: new THREE.Object3D() };
 })();
 function updateRoute(){
-  const on = mode === 'city' && gate && gate.active && !finale.on && (state === 'play' || state === 'pause');
+  const on = gate && gate.active && !finale.on && (state === 'play' || state === 'pause');
   route.mesh.visible = on;
   if (!on){ route.at = null; route.pts = []; return; }
   if (!route.at || Math.hypot(car.x - route.at.x, car.z - route.at.z) > 3){
@@ -6840,7 +6183,7 @@ function witnessCard(){
 // ### The finale: through the gate the game takes the wheel. The vehicle drives itself up the approach road to the 25 de Abril
 // ### bridge (updateRamp) and, without a cut, on over the deck: you cross the bridge with Marta beside you, driving south over the Tejo as the first
 // ### light comes up behind the towers: no police, no helicopter, heroic music. Then the result card. A black plane in front of the
-// ### camera does the fades. In the story, this ends act 1 (the bridge leads out of the city towards the highway); in a free ride
+// ### camera does the fades. In the story, this ends act 1 (the bridge leads out of the city); in a free ride
 // ### it is the end of the run.
 // ### music: the anthem starts this many metres before the deck, so it is already playing as you come up onto the bridge; from
 // ### then on the engine fades out bit by bit over duck seconds until it is silent (quiet: 0), and the music is all you hear.
@@ -6905,7 +6248,7 @@ function updateRamp(dt){
   const tgt = A.at(f.s + RAMP.look, (f.s > 90 ? f.lane : 1) * RAMP.autoLane), err = wrapAngle(Math.atan2(tgt.x - car.x, tgt.z - car.z) - car.heading);
   const pedals = { up: car.speed < RAMP.autoSpeed, down: false, brake: false }, steerIn = clamp(err * 3, -1, 1);
   const grade = q.slope * Math.cos(rel);
-  car.speed = Core.stepSpeed(car.speed, pedals, dt, Core.slopeTop(Core.topSpeed(M, V, damage, false), grade, V), V, grade);
+  car.speed = Core.stepSpeed(car.speed, pedals, dt, Core.slopeTop(Core.topSpeed(M, V, damage), grade, V), V, grade);
   car.steer = Core.stepSteer(car.steer, steerIn, dt);
   car.yaw = Core.stepYaw(car.yaw || 0, Core.turnRate(car.steer, car.speed, V, pedals.brake), dt, V);
   car.heading += car.yaw * dt * (car.speed >= 0 ? 1 : -1);
@@ -7099,7 +6442,7 @@ function crash(impact, add = Core.crashDamage(impact, V)){
 // ### Ends a run at the gate and shows the score and stars.
 function finish(){
   // Lisbon ends with the drive over the bridge; updateFinale calls finish again when it is over
-  if (mode === 'city' && !finale.done) return startFinale();
+  if (!finale.done) return startFinale();
   if (story) return storyFinish();
   state = 'done';
   const used = Core.driveTime(mode, M, timeLeft, collected);
@@ -7110,14 +6453,13 @@ function finish(){
   if (Core.isNewBest(best[mode], used)){ best[mode] = used; isBest = true; writeStore(M.store, String(used)); }
   pendingRun = { mode, time: used, veh: V.key, stars }; lastRank = null;
   // a heist ends here: the escape from room 1 and this drive are one time, and the handover is used up
-  const total = heist.run && mode === 'city' ? Core.heistTotal(heist.run.escape, used) : null;
+  const total = heist.run ? Core.heistTotal(heist.run.escape, used) : null;
   // the fastest heist on this device before this one, whoever drove it
   const heistBest = heist.list.length ? heist.list[0].time : null;
   heist.last = total === null ? null : { escape: heist.run.escape, drive: used, veh: V.key, total, best: heistBest, isBest: Core.isNewBest(heistBest, total) };
   heist.pending = heist.last; heist.rank = null; heist.net = null; heist.run = null;
   if (heist.last){ writeStore(Core.HEIST.key, ''); loadHeists(); }
   recordPending();
-  const city = mode === 'city';
   // ### The result card: the title with the stars beside it, the drive time as the one large number with the best time under it,
   // ### three smaller figures next to it, then the two leaderboards. Everything is set large, to be read at a glance.
   const dmg = Math.round(damage);
@@ -7126,11 +6468,11 @@ function finish(){
       <div><div class="eyebrow">${M.title} · ${V.name}</div><h1>Clean <em>getaway</em></h1></div>
       <div class="stars" role="img" aria-label="${stars} of 3 stars">${[0, 1, 2].map(i => `<span class="${i < stars ? 'on' : ''}">${STAR}</span>`).join('')}</div>
     </div>
-    ${city ? `<p>With the six pieces of evidence in the glovebox and ${WITNESS.name} beside you, you cross the 25 de Abril bridge as the sky over the Tejo turns pale. Lisbon is behind you.</p>` : ''}
+    <p>With the six pieces of evidence in the glovebox and ${WITNESS.name} beside you, you cross the 25 de Abril bridge as the sky over the Tejo turns pale. Lisbon is behind you.</p>
     <div class="res-hero">
       <div class="res-time"><span class="eyebrow">Drive time</span><b>${fmtTimeExact(used)}</b><i class="${isBest ? 'best' : ''}">${isBest ? 'New best time on this device' : 'Best on this device · ' + fmtTimeExact(best[mode])}</i></div>
       <div class="res-stats">
-        <div class="stat"><span class="eyebrow">${city ? 'Time left' : 'Shards'}</span><b>${city ? fmtTime(timeLeft) : collected + '/' + items.length}</b></div>
+        <div class="stat"><span class="eyebrow">Time left</span><b>${fmtTime(timeLeft)}</b></div>
         <div class="stat ${dmg > 50 ? 'bad' : dmg > 20 ? 'warn' : 'good'}"><span class="eyebrow">Damage</span><b>${dmg}%</b></div>
         <div class="stat"><span class="eyebrow">Cops wrecked</span><b>${copsWrecked}</b></div>
       </div>
@@ -7157,7 +6499,7 @@ function gameOver(reason){
     ? `The police boxed you in with ${collected} of ${items.length} ${what()}. Keep moving: the bust meter only fills while you are slow and a cop is right next to you.`
     : reason === 'wrecked'
       ? `Damage hit 100% with ${collected} of ${items.length} ${what()} collected. Grab the green repair kits and avoid head-on hits.`
-      : `You found ${collected} of ${items.length} ${what()}. ${mode === 'city' ? 'The signal bars under the radar tell you whether you are getting closer.' : (mode === 'country' ? 'Overtake on the straights and keep an eye on oncoming traffic.' : 'Stay in the fast left lane where you can.')}`;
+      : `You found ${collected} of ${items.length} ${what()}. The signal bars under the radar tell you whether you are getting closer.`;
   showCard(`
     <div class="eyebrow">${M.title} · ${V.name}</div>
     <h2>${title}</h2>
@@ -7208,11 +6550,6 @@ function renderPreviews(){
   renderer.setRenderTarget(null); renderer.shadowMap.enabled = shadows; renderer.setClearAlpha(clear);
   rt.dispose();
 }
-const MAP_THUMB = {
-  country: '<svg viewBox="0 0 160 80" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><linearGradient id="tco" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070a1f"/><stop offset=".62" stop-color="#2a2348"/><stop offset="1" stop-color="#6a3f5c"/></linearGradient></defs><rect width="160" height="80" fill="url(#tco)"/><circle cx="34" cy="17" r="6" fill="#f4eed8"/><path d="M0 40c24-16 48-18 76-8s58 6 84-8v56H0z" fill="#27412f"/><path d="M0 54c30-14 60-12 88-2s50 8 72-4v32H0z" fill="#46683a"/><path d="M0 68c34-8 66-6 98 0s44 4 62-2v14H0z" fill="#648643"/><path d="M92 80c-8-10 18-14 6-24s-22-8-14-20" stroke="#2b2f3b" stroke-width="7" fill="none"/><path d="M92 80c-8-10 18-14 6-24s-22-8-14-20" stroke="#ecedf2" stroke-width=".8" stroke-dasharray="2.5 2.5" fill="none"/><path d="M116 37h9v-5l5-4 5 4v5h9v8h-28z" fill="#d9c9a8"/><path d="M125 32l5-4 5 4zM116 37l5-3 4 3zM135 37l4-3 5 3z" fill="#a4553a"/><path d="M120 40h2v3h-2zM128 34h4v3h-4zM138 40h2v3h-2z" fill="#ffe2a4"/><path d="M26 50l4-13 4 13zM42 46l3-10 3 10zM14 56l4-13 4 13z" fill="#172a1f"/><circle cx="62" cy="56" r="5" fill="#23402b"/><rect x="61" y="58" width="2" height="6" fill="#2d2118"/></svg>',
-  city: '<svg viewBox="0 0 160 80" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><linearGradient id="tc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070a1f"/><stop offset=".62" stop-color="#2a2348"/><stop offset="1" stop-color="#6a3f5c"/></linearGradient></defs><rect width="160" height="80" fill="url(#tc)"/><path d="M0 42c20-12 44-14 64-6h32c22-10 44-6 64 6v38H0z" fill="#1c1d38"/><path d="M0 34h34v46H0zM126 34h34v46h-34z" fill="#d9ad3c"/><path d="M0 34l34-5v5zM160 34l-34-5v5z" fill="#a4553a"/><path d="M6 80V60a5 5 0 0 1 10 0v20zM20 80V60a5 5 0 0 1 10 0v20zM130 80V60a5 5 0 0 1 10 0v20zM144 80V60a5 5 0 0 1 10 0v20z" fill="#3a2c1e"/><path d="M8 40h6v8H8zM20 40h6v8h-6zM134 40h6v8h-6zM146 40h6v8h-6z" fill="#ffe2a4"/><path d="M50 80V25h60v55H96V54a16 16 0 0 0-32 0v26z" fill="#d8ceb6"/><path d="M58 25V15h44v10zM74 15V6h12v9z" fill="#e3dac4"/><rect x="72" y="18" width="16" height="6" rx="1" fill="#f6efdc"/><circle cx="80" cy="31" r="4" fill="#fff6dc" stroke="#6b6250" stroke-width=".6"/><path d="M64 80h32l-6-26a10 10 0 0 0-20 0z" fill="#4a3454"/><path d="M58 80l16-26M102 80L86 54" stroke="#c9ced8" stroke-width=".8"/><rect x="72" y="52" width="16" height="10" rx="2" fill="#f2c335"/><rect x="74" y="54" width="12" height="4" fill="#27304a"/></svg>',
-  highway: '<svg viewBox="0 0 160 80" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><linearGradient id="th" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070a1f"/><stop offset=".62" stop-color="#2a2348"/><stop offset="1" stop-color="#6a3f5c"/></linearGradient></defs><rect width="160" height="80" fill="url(#th)"/><circle cx="128" cy="16" r="5" fill="#f4eed8"/><path d="M0 46c26-14 52-16 80-8s54 4 80-8v50H0z" fill="#1d2d2c"/><path d="M0 56c30-12 56-12 80-4s54 8 80-4v32H0z" fill="#16231f"/><path d="M78 36h4l40 44H38z" fill="#2c303d"/><path d="M58 80l21-44M102 80L81 36" stroke="#d8dbe4" stroke-width=".9"/><path d="M80 40v5M80 49v7M80 61v9M80 74v6" stroke="#f1d874" stroke-width="1.1"/><path d="M46 52V30M46 30h9" stroke="#8b92a4" stroke-width=".9"/><circle cx="55" cy="31" r="2.2" fill="#ffe7ad"/><path d="M116 52V30M116 30h-9" stroke="#8b92a4" stroke-width=".9"/><circle cx="107" cy="31" r="2.2" fill="#ffe7ad"/><rect x="66" y="58" width="13" height="9" rx="2" fill="#1a1e2c"/><circle cx="68.5" cy="63" r="1.5" fill="#ff3344"/><circle cx="76.5" cy="63" r="1.5" fill="#ff3344"/><circle cx="85" cy="44" r="1" fill="#fff1cc"/><circle cx="88" cy="44" r="1" fill="#fff1cc"/></svg>'
-};
 const STAT_NAMES = ['Top speed', 'Acceleration', 'Handling', 'Durability', 'Ramming'];
 const STAT_WORDS = ['', 'Low', 'Fair', 'Good', 'High', 'Max'];
 const { vehStats, zeroTo80 } = Core;
@@ -7237,19 +6574,11 @@ function showMenu(){
     <div class="m-top">
       <div class="m-brand"><span class="m-dot"></span>Escaped · Inmate 4471 · 02:30</div>
       <h1 class="m-logo">Shard<br><em>Heist</em></h1>
-      <p class="m-lede">You are out of Cell Block D, and every police car in town knows it. Find the evidence that proves you innocent, grab the bonus shards on the open road, ram the police, outrun them or lose them in traffic, then escape through the gate.</p>
+      <p class="m-lede">You are out of Cell Block D, and every police car in town knows it. Find the evidence that proves you innocent, ram the police, outrun them or lose them in traffic, then escape through the gate.</p>
     </div>
-    <button class="story-card" data-action="story"><span class="sc-eyebrow">Story mode · after the tunnel · 3 acts · 3 endings</span><b>The Necklace Job</b><span>You escaped. Now prove who framed you: the evidence in the city, the necklace’s clasp on the highway, the truth in the countryside, with Officer Hale on the radio.</span><em>Play the story →</em></button>
+    <button class="story-card" data-action="story"><span class="sc-eyebrow">Story mode · after the tunnel · one night in Lisbon · 3 endings</span><b>The Necklace Job</b><span>You escaped. Now prove who framed you: find the evidence in the Baixa, and a sealed letter that is on no map, with Officer Hale on the radio.</span><em>Play the story →</em></button>
     <section class="m-sec">
-      <div class="m-label"><span>01</span>Free ride · Map</div>
-      <div class="maps">
-        <button class="map" data-pick="mode" data-val="city" aria-pressed="${sel.mode === 'city'}">${MAP_THUMB.city}<span><b>Lisbon · Baixa</b><small>6 pieces of evidence · 3:00 · trams</small></span></button>
-        <button class="map" data-pick="mode" data-val="highway" aria-pressed="${sel.mode === 'highway'}">${MAP_THUMB.highway}<span><b>Highway</b><small>4 km · traffic both ways</small></span></button>
-        <button class="map" data-pick="mode" data-val="country" aria-pressed="${sel.mode === 'country'}">${MAP_THUMB.country}<span><b>Countryside</b><small>Hills · farms · village</small></span></button>
-      </div>
-    </section>
-    <section class="m-sec">
-      <div class="m-label"><span>02</span>Choose your getaway vehicle</div>
+      <div class="m-label"><span>01</span>Free ride · Choose your getaway vehicle</div>
       <div class="vtabs">${['car', 'bike', 'truck'].map(k => `<button class="vtab" data-pick="veh" data-val="${k}" aria-pressed="${sel.veh === k}">${PREVIEWS[k] ? `<img src="${PREVIEWS[k]}" alt="">` : ICONS[k]}<span>${VEH[k].name}<small>${VEH[k].cls}</small></span></button>`).join('')}</div>
       <div class="vdetail" id="vehDetail"></div>
     </section>
@@ -7258,7 +6587,7 @@ function showMenu(){
     <div class="m-foot">
       <span class="desk-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · <kbd>Space</kbd> handbrake · <kbd>C</kbd> look back · <kbd>E</kbd> nitro · <kbd>P</kbd> pause · <kbd>M</kbd> map · <kbd>N</kbd> sound · <kbd>R</kbd> radio</span>
       <span class="touch-only">Steer on the left, brake and gas on the right. Hold the round button to look back; tap the flame for nitro.</span>
-      <span>Best · Lisbon ${bestNote('city')} · Highway ${bestNote('highway')} · Country ${bestNote('country')}</span>
+      <span>Best · Lisbon ${bestNote('city')}</span>
       <span class="gfx">Radio ${Core.RADIO_ORDER.map(k => `<button data-radio="${k}" aria-pressed="${radio.key === k}">${k === 'off' ? 'Off' : Core.RADIO[k].name}</button>`).join('')}</span>
       <span class="gfx">Graphics <button data-gfx="ultra" aria-pressed="${gfx === 'ultra'}">Ultra</button><button data-gfx="balanced" aria-pressed="${gfx === 'balanced'}">Balanced</button></span>
       ${steerRow()}
@@ -7339,7 +6668,6 @@ card.addEventListener('click', e => {
     card.querySelectorAll(`[data-pick="${pick.dataset.pick}"]`).forEach(b => b.setAttribute('aria-pressed', String(b === pick)));
     if (pick.dataset.pick === 'veh'){ setVehicle(sel.veh); if (garage.on) garageChosen(true); }
     renderVehDetail();
-    if (pick.dataset.pick === 'mode'){ redrawBoards(); if (signedIn()) loadBoards(sel.mode); }
     writeStore('shard-heist-pick', JSON.stringify(sel));
     return;
   }
@@ -7348,7 +6676,7 @@ card.addEventListener('click', e => {
   const a = b.dataset.action;
   if (!Core.actionAllowed(a, { state, story })) return;
   initAudio();
-  if (a === 'go'){ story = null; startRun(sel.mode, sel.veh, true); if (mode === 'city') enterGarage(); }
+  if (a === 'go'){ story = null; startRun(sel.mode, sel.veh, true); enterGarage(); }
   else if (a === 'board') garageBoard();
   else if (a === 'street') garageToStreet(false);
   else if (a === 'again') startRun(mode, V.key);
@@ -7356,7 +6684,6 @@ card.addEventListener('click', e => {
   else if (a === 'menu'){ story = null; backToMenu(); }
   else if (a === 'story') showStoryIntro();
   else if (a === 'act') startStoryAct(story.act, true);
-  else if (a === 'next-act') startStoryAct(story.act + 1);
   else if (a === 'retry-act') startStoryAct(Core.retryAct(story));
 });
 $('btnPause').addEventListener('click', e => { e.currentTarget.blur(); if (state === 'play') pause(); else if (state === 'pause') resume(); });
@@ -7381,7 +6708,7 @@ const collidePoint = Core.collidePoint;
 const RAIL_WHEELS = { car: [[0.87, 1.45], [-0.87, 1.45], [0.88, -1.35], [-0.88, -1.35]], bike: [[0, 0.76], [0, -0.74]], truck: [[1.1, 2.0], [-1.1, 2.0], [0.91, -1.7], [-0.91, -1.7]] };
 let railBuzz = 0;
 function updateRails(dt){
-  if (mode !== 'city' || finale.on){ car.railPrev = null; return; }
+  if (finale.on){ car.railPrev = null; return; }
   const ch = Math.cos(car.heading), sh = Math.sin(car.heading), now = RAIL_WHEELS[V.key].map(([lx, lz]) => Core.trackOffset(car.x + lx * ch + lz * sh, car.z - lx * sh + lz * ch));
   let crossings = 0, onBed = false;
   now.forEach((o, i) => { if (car.railPrev) crossings += Core.railCrossings(car.railPrev[i], o); if (Math.abs(o) <= Core.RAIL.bed) onBed = true; });
@@ -7396,17 +6723,12 @@ function updateRails(dt){
 }
 // ### Player physics each frame: speed with slopes, steering, movement, collisions, and how the vehicle sits on the ground.
 function updateCar(dt){
-  if (mode === 'country') Object.assign(roadPos, roadQuery(car.x, car.z, roadPos));
-  const offRoad = mode === 'country' && Math.abs(roadPos.lat) > 5.4;
-  // the country terrain beside the road counts as well; a slope steeper than 30 % pulls no harder
-  const gfx = Math.sin(car.heading) * 2, gfz = Math.cos(car.heading) * 2;
-  const grade = mode === 'country' ? clamp((groundH(car.x + gfx, car.z + gfz) - groundH(car.x - gfx, car.z - gfz)) / 4, -0.3, 0.3) : Core.gradeAt(mode, car.x, car.z, car.heading);
+  const grade = Core.gradeAt(mode, car.x, car.z, car.heading);
   // ### Nitro (Core.nitroFire, nitroTop, nitroPush): a press of E or the flame button fires a charge, which raises the top speed
   // ### and pushes the vehicle on for 2.5 s. Only the press counts, so holding the key does not fire the next one.
   if (keys.nitro && !nitroHeld && Core.nitroFire(nitro, state, car.speed)) sfx.nitro();
   nitroHeld = keys.nitro;
-  const maxNow = Core.nitroTop(Core.slopeTop(Core.topSpeed(M, V, damage, offRoad), grade, V), nitro);
-  if (offRoad && Math.abs(car.speed) > 8) car.shake = Math.max(car.shake, 0.06);
+  const maxNow = Core.nitroTop(Core.slopeTop(Core.topSpeed(M, V, damage), grade, V), nitro);
   car.speed = Core.nitroPush(Core.stepSpeed(car.speed, keys, dt, maxNow, V, grade), nitro, dt, maxNow);
   if (Core.nitroOn(nitro)) car.shake = Math.max(car.shake, 0.05);
   Core.nitroStep(nitro, dt);
@@ -7458,39 +6780,17 @@ function updateCar(dt){
       if (impact > 2){ worst = Math.max(worst, impact); car.speed *= 0.3; } else car.speed *= 0.985;
     }
   }
-  if (mode === 'highway'){
-    for (const t of (courier && courier.on ? traffic.concat(courier) : traffic)){
-      const tx = t.x + (t.px || 0), tz = t.z + (t.pz || 0);
-      if (!t.on || Math.abs(tz - car.z) > t.len / 2 + 6) continue;
-      for (const s of V.samples){
-        const hit = collidePoint(car.x + fx * s, car.z + fz * s, V.r, { x0: tx - t.hw, x1: tx + t.hw, z0: tz - t.len / 2, z1: tz + t.len / 2 });
-        if (!hit) continue;
-        const vtz = t.dir * t.speed, impact = hitWith(hit, 0, vtz);
-        scrapeAt(hit, s, 0, vtz);
-        if (impact > 2){
-          worst = Math.max(worst, impact);
-          car.speed = vtz * fz * 0.85 + (V.key === 'truck' ? car.speed * 0.4 : 0);
-          t.speed = Math.max(0, t.speed + (-hit[1] * t.dir) * impact * 0.3 * V.ram);
-          // and sideways, by weight (forwards it is the change of speed above)
-          sfx.hit(impact, massOf(t));
-          if (hit[0] && t !== courier) shove(t, -Math.sign(hit[0]), 0, impact * Math.abs(hit[0]), car.x, car.z, PLAYER_MASS[V.key] || 1);
-        }
-        break;
-      }
-    }
-  } else {
-    for (const o of vehicleObstacles()){
-      for (const s of V.samples){
-        const hit = collidePoint(car.x + fx * s, car.z + fz * s, V.r, { t: 'c', x: o.x, z: o.z, r: o.r });
-        if (!hit) continue;
-        const impact = hitWith(hit, o.vx, o.vz);
-        scrapeAt(hit, s, o.vx, o.vz);
-        // the hit vehicle is pushed away from you; you keep more speed the lighter it is
-        const share = o.npc && impact > 1 ? shove(o.npc, -hit[0], -hit[1], impact, o.x, o.z, PLAYER_MASS[V.key] || 1) : 0;
-        if (o.npc) o.npc.stun = Math.max(o.npc.stun, 2.5);
-        if (impact > 2){ worst = Math.max(worst, impact); car.speed *= o.npc ? Core.keepSpeed(share) : 0.4; if (o.npc) sfx.hit(impact, massOf(o.npc)); }
-        break;
-      }
+  for (const o of vehicleObstacles()){
+    for (const s of V.samples){
+      const hit = collidePoint(car.x + fx * s, car.z + fz * s, V.r, { t: 'c', x: o.x, z: o.z, r: o.r });
+      if (!hit) continue;
+      const impact = hitWith(hit, o.vx, o.vz);
+      scrapeAt(hit, s, o.vx, o.vz);
+      // the hit vehicle is pushed away from you; you keep more speed the lighter it is
+      const share = o.npc && impact > 1 ? shove(o.npc, -hit[0], -hit[1], impact, o.x, o.z, PLAYER_MASS[V.key] || 1) : 0;
+      if (o.npc) o.npc.stun = Math.max(o.npc.stun, 2.5);
+      if (impact > 2){ worst = Math.max(worst, impact); car.speed *= o.npc ? Core.keepSpeed(share) : 0.4; if (o.npc) sfx.hit(impact, massOf(o.npc)); }
+      break;
     }
   }
   scrapeEffects(dt);
@@ -7503,16 +6803,12 @@ function updateCar(dt){
 function settleCar(dt){
   const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
 
-  if (mode === 'city' && (Math.abs(car.x) > LIMIT || Math.abs(car.z) > LIMIT)){
+  if (Math.abs(car.x) > LIMIT || Math.abs(car.z) > LIMIT){
     const into = (Math.abs(car.x) > LIMIT ? Math.sign(car.x) * fx : 0) + (Math.abs(car.z) > LIMIT ? Math.sign(car.z) * fz : 0);
     car.x = clamp(car.x, -LIMIT, LIMIT); car.z = clamp(car.z, -LIMIT, LIMIT);
     if (into * car.speed > 0) car.speed *= Math.exp(-6 * dt);
   }
 
-  if (mode === 'country'){
-    const mx = TERR.x0 + (TERR.nx - 1) * TERR.cell, mz = TERR.z0 + (TERR.nz - 1) * TERR.cell;
-    car.x = clamp(car.x, TERR.x0 + 30, mx - 30); car.z = clamp(car.z, TERR.z0 + 30, mz - 30);
-  }
   const rxv = -fz, rzv = fx, half = V.key === 'truck' ? 3 : 1.5;
   const hF = groundH(car.x + fx * half, car.z + fz * half), hB = groundH(car.x - fx * half, car.z - fz * half);
   const hR = groundH(car.x + rxv * 1.1, car.z + rzv * 1.1), hL = groundH(car.x - rxv * 1.1, car.z - rzv * 1.1);
@@ -7520,7 +6816,7 @@ function settleCar(dt){
   car.roll += (Math.atan2(hL - hR, 2.2) - car.roll) * Math.min(1, 10 * dt);
   const ty = Math.max((hF + hB + hL + hR) / 4, groundH(car.x, car.z));
   // the land is followed exactly, otherwise the vehicle would sink into every climb; only a kerb's step is smoothed
-  const land = garage.on ? garageGround(car.x, car.z) : hill(car.x, car.z) + (mode === 'country' ? terrainH(car.x, car.z) : 0);
+  const land = garage.on ? garageGround(car.x, car.z) : hill(car.x, car.z);
   car.lift += (ty - land - car.lift) * Math.min(1, 18 * dt);
   car.y = land + car.lift;
   const accel = (car.speed - car.prevSpeed) / Math.max(dt, 1e-4);
@@ -7537,7 +6833,6 @@ function coast(dt){
   const blocked = V.samples.some(s => {
     const px = x + fx * s, pz = z + fz * s;
     if (collidersNear(x, z).some(c => collidePoint(px, pz, V.r, c))) return true;
-    if (mode === 'highway') return traffic.some(t => t.on && Math.abs(t.x - px) < t.hw + V.r && Math.abs(t.z - pz) < t.len / 2 + V.r);
     return vehicleObstacles().some(o => Math.hypot(o.x - px, o.z - pz) < o.r + V.r);
   });
   if (blocked){ car.speed = 0; return; }
@@ -7597,7 +6892,6 @@ function applyCarMesh(dt){
 
 // Keeps the chase camera out of buildings
 function camClip(tx, tz){
-  if (mode !== 'city') return 1;
   const ox = car.x, oz = car.z, dx = tx - ox, dz = tz - oz;
   let tmin = 1;
   for (const c of W.colliders){
@@ -8840,7 +8134,7 @@ function garageToStreet(rolling){
 function garageLeave(){
   if (!garage.on) return;
   Object.assign(garage, { on: false, live: false, phase: '', shift: null, run: false });
-  GAR.group.visible = false; CITY.group.visible = mode === 'city';
+  GAR.group.visible = false; CITY.group.visible = true;
   garageTop(true); garageShutter(0); garageSwing(0);
   Object.values(MODELS).forEach(md => carTilt.add(md.g));
   MODELS.bike.rider.visible = true;
@@ -8853,7 +8147,7 @@ function garageLeave(){
 // ### walking-to-town speed. Walls, pillars and the parked vehicles push the vehicle back; a bump costs speed but no damage.
 function garageDrive(dt){
   const G = Core.GARAGE;
-  car.speed = Core.stepSpeed(car.speed, keys, dt, Math.min(G.speed, Core.topSpeed(M, V, 0, false)), V, Core.garageGrade(car.z, car.heading));
+  car.speed = Core.stepSpeed(car.speed, keys, dt, Math.min(G.speed, Core.topSpeed(M, V, 0)), V, Core.garageGrade(car.z, car.heading));
   car.steer = Core.stepSteer(car.steer, (keys.left ? 1 : 0) - (keys.right ? 1 : 0) || TILT.value, dt);
   car.yaw = Core.stepYaw(car.yaw || 0, Core.turnRate(car.steer, car.speed, V, keys.brake), dt, V);
   car.heading += car.yaw * dt * (car.speed >= 0 ? 1 : -1);
@@ -9021,15 +8315,7 @@ function updatePickups(dt, live){
     gate.disc.material.opacity = 0.22 + 0.15 * Math.sin(clock * 4);
     gate.beam.material.opacity = 0.18 + 0.08 * Math.sin(clock * 2.5);
     if (live && gate.grow > 0.6){
-      if (mode === 'city' && Math.hypot(gate.x - car.x, gate.z - car.z) < 5.5) finish();
-      else if (mode === 'highway' && car.z >= HW.LEN){
-        if (Core.finishOpen(story)) finish();
-        else {
-          car.z = HW.LEN - 0.1; if (car.speed > 0) car.speed = 0;
-          if (clock >= (story.tollHint || 0)){ story.tollHint = clock + 5; toast('The toll will not let you through without the clasp. Find the courier lorry.', 'red', 3200); }
-        }
-      }
-      else if (mode === 'country' && roadPos.s >= ROAD.len - 60 && Math.abs(roadPos.lat) < 9) finish();
+      if (Math.hypot(gate.x - car.x, gate.z - car.z) < 5.5) finish();
     }
   }
 }
@@ -9075,17 +8361,16 @@ function applyGfx(){
 }
 
 // ---------- Story mode: The Necklace Job ----------
-// ### A three-act campaign that follows room 1 (the escape room). The detective, framed for stealing the Starfall
-// ### necklace and jailed as inmate 4471, has escaped through the tunnel. Officer Hale, who opened the way, helps over
-// ### the radio. The police hunt the escaped inmate across the city, the highway and the countryside. An optional sealed
-// ### letter hidden in the Baixa (not shown on the radar) decides the ending: with it the truth comes out (Ending A),
-// ### without it the detective goes back to cell 4471 (Ending B). Busted, wrecked or out of time is Ending C.
-let story = null, courier = null;
+// ### The story that follows room 1 (the escape room), told in one night in Lisbon. The detective, framed for stealing the
+// ### Starfall necklace and jailed as inmate 4471, has escaped through the tunnel. Officer Hale, who opened the way, helps
+// ### over the radio while the police hunt the escaped inmate through the Baixa. It is the Lisbon run (the evidence, the
+// ### witness, the gate, the bridge) with the radio and one thing more: an optional sealed letter hidden in a park (not
+// ### shown on the radar) decides the ending. With it the truth comes out (Ending A), without it the detective goes back to
+// ### cell 4471 (Ending B). Busted, wrecked or out of time is Ending C.
+let story = null;
 const STORY = {
   acts: [
-    { mode: 'city', title: 'The Evidence', goal: 'Recover the six pieces of evidence hidden in Lisbon’s Baixa.' },
-    { mode: 'highway', title: 'The Courier', goal: 'Catch the gold-marked courier lorry and take the clasp.' },
-    { mode: 'country', title: 'Homecoming', goal: 'Drive back to the Ashford mansion.' }
+    { mode: 'city', title: 'The Evidence', goal: 'Recover the six pieces of evidence hidden in Lisbon’s Baixa, and get out over the bridge.' }
   ],
   // [seconds into the act, text, tone]: Hale's lines are orange (tone 'hale'), police dispatch is red
   radio: [
@@ -9093,15 +8378,7 @@ const STORY = {
      [9, 'DISPATCH: All units, inmate 4471 has escaped from Cell Block D. %V. Approach with caution.', 'red'],
      [32, 'HALE: Ashford’s people used the parks as dead drops. Look there. Not everything shows up on your radar.', 'hale'],
      [58, 'DISPATCH: Escaped inmate still in the Baixa. Roadblocks on the waterfront.', 'red'],
-     [95, 'DISPATCH: Lady Ashford has been told about the escape. Bring 4471 in.', 'red']],
-    [[5, 'HALE: The clasp is on a gold-marked courier lorry heading north. Catch it before the toll.', 'hale'],
-     [12, 'DISPATCH: Inmate 4471 on the motorway, northbound. %V. All units intercept.', 'red'],
-     [38, 'HALE: Pull up right behind the lorry to grab the clasp.', 'hale'],
-     [70, 'DISPATCH: Toll station on alert. Do not let 4471 through.', 'red']],
-    [[5, 'HALE: Drive to the Ashford mansion. I will be there. Bring everything you found.', 'hale'],
-     [15, 'DISPATCH: 4471 on the country road to Ashford village. Units, block the lane.', 'red'],
-     [45, 'HALE: The insurance claim was filed the morning after the theft, before anyone knew the necklace was gone.', 'hale'],
-     [85, 'DISPATCH: Lady Ashford asks that the escaped inmate be brought to the mansion.', 'red']]
+     [95, 'DISPATCH: Lady Ashford has been told about the escape. Bring 4471 in.', 'red']]
   ]
 };
 const VEH_DESC = { car: 'Bright-blue coupe', bike: 'Black superbike', truck: 'Green tractor unit' };
@@ -9114,28 +8391,26 @@ function showStoryIntro(){
     <h1>The Necklace <em>Job</em></h1>
     <p>The tunnel under Cell Block D ends in a lock-up garage. Officer Hale’s note was true: a vehicle is waiting, the keys in the ignition, a radio on the seat.</p>
     <p>Three weeks ago you were framed for stealing the Starfall necklace. Your oldest friend on the force found out who really broke into the museum and hid the proof across Lisbon’s Baixa: photos, fingerprints and DNA, and the thief’s torch, lockpick, clothes and balaclava. Hale believes you but cannot prove it. You can, if you recover the evidence before the police recover you.</p>
-    <div class="acts">${STORY.acts.map((a, i) => `<div><span>Act ${i + 1}</span><b>${a.title}</b><small>${a.goal}</small></div>`).join('')}</div>
+    <div class="acts">${STORY.acts.map(a => `<div><span>Tonight</span><b>${a.title}</b><small>${a.goal}</small></div>`).join('')}</div>
     <p class="note">Hale helps over the radio. Look carefully: not everything you need shows up on the radar.</p>
     <div class="actions">
-      <button class="btn" data-action="act">Start Act 1 <small class="desk-only">Enter</small></button>
+      <button class="btn" data-action="act">Start the story <small class="desk-only">Enter</small></button>
       <button class="btn ghost" data-action="menu">Back</button>
     </div>`);
 }
 
-// ### Starts an act of the story on its map.
-// ### fresh: begun from the prologue or the card of the act before, not a retry. Then act 1 starts down in the garage.
+// ### Starts the story's run in Lisbon.
+// ### fresh: begun from the prologue, not a retry. Then it starts down in the garage.
 function startStoryAct(i, fresh){
   if (!Core.beginAct(story, i)) return;
   story.env = null;
-  const A = STORY.acts[i], viaGarage = !!fresh && A.mode === 'city';
+  const A = STORY.acts[i], viaGarage = !!fresh;
   startRun(A.mode, sel.veh, viaGarage);
-  ui.eye.textContent = `Act ${i + 1} · ${A.title}`;
-  if (i === 0 && !story.letter) placeEnvelope();
-  if (i === 1) setupCourier();
-  if (i === 2) placeHale();
+  ui.eye.textContent = `Story · ${A.title}`;
+  if (!story.letter) placeEnvelope();
   if (viaGarage) enterGarage();
   warmUp();
-  toast(`Act ${i + 1} · ${A.title}: ${A.goal}`, 'gold', 4200);
+  toast(`${A.title}: ${A.goal}`, 'gold', 4200);
 }
 
 // The optional sealed letter: hidden in a park, never drawn on the radar
@@ -9152,129 +8427,7 @@ function placeEnvelope(){
   story.env = { x: p.x, z: p.z, g, env, glow, taken: false };
 }
 
-// The courier lorry carrying the clasp in act 2
-function setupCourier(){
-  if (!courier){
-    const g = new THREE.Group(), P = PARTS.truck;
-    const paint = new THREE.MeshPhysicalMaterial({ color: 0xd8a63a, roughness: 0.3, metalness: 0.6, clearcoat: 1, clearcoatRoughness: 0.06 });
-    paint.userData.env = 1.1;
-    for (const [k, mat] of [['body', paint], ['glass', SHARED.glass], ['cargo', SHARED.cargo], ['trim', SHARED.trim], ['chrome', SHARED.chrome], ['tire', SHARED.tire], ['head', SHARED.head], ['tail', SHARED.tail], ['lens', SHARED.lens]]){
-      if (!P[k]) continue;
-      const m = new THREE.Mesh(P[k], mat); m.castShadow = true; g.add(m);
-    }
-    const mark = glowSprite(GOLD, 7); mark.position.y = 6.2; g.add(mark);
-    HWY.group.add(g);
-    tuneEnv(g);
-    courier = { g, mark, type: 'truck', x: HW.our[2], z: 0, speed: 0, on: false, dir: 1, hw: 1.3, len: 9.7 };
-  }
-  Object.assign(courier, { x: HW.our[2], z: car.z + 600, speed: 26, on: true });
-  courier.g.visible = true; courier.mark.visible = true;
-  courier.g.position.set(courier.x, hill(courier.x, courier.z), courier.z);
-}
-
-// ### Officer Hale waits at the end of act 3, as he promised on the radio: a low-poly prison guard in a dark slate uniform with
-// ### a peaked cap, a moustache, a cross belt and a ring of keys on his belt, hands behind his back. He stands on the right
-// ### verge just before the finish, faces the road you come in on and turns his head to follow you. He has a small collider,
-// ### so you cannot drive through him, and it is taken out of the grid again when the next run starts.
-let hale = null;
-// A tapered limb from point a to point b
-function limbG(a, b, r0, r1){
-  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A), len = d.length();
-  const g = new THREE.CylinderGeometry(r1, r0, len, 7);
-  g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())));
-  g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
-  return g;
-}
-// ### Builds Hale from boxes and cylinders, one merged mesh per material. Local +z is his front; he is about 1.85 m tall.
-function buildHale(){
-  const cyl = (rt, rb, h, x, y, z, n, sz) => { const g = new THREE.CylinderGeometry(rt, rb, h, n || 6); if (sz) g.scale(1, 1, sz); g.translate(x, y, z); return g; };
-  const uniform = [], shirt = [], leather = [], metal = [], skin = [];
-  for (const s of [-1, 1]){
-    leather.push(boxG(0.15, 0.14, 0.3, s * 0.11, 0.07, 0.04));                                    // boots
-    leather.push(boxG(0.16, 0.12, 0.17, s * 0.11, 0.2, -0.01));                                   // boot shafts
-    uniform.push(limbG([s * 0.11, 0.24, 0], [s * 0.12, 0.92, 0], 0.095, 0.12));                    // trouser legs
-    uniform.push(limbG([s * 0.27, 1.5, 0], [s * 0.29, 1.17, -0.12], 0.075, 0.065));               // upper arms
-    uniform.push(limbG([s * 0.29, 1.17, -0.12], [s * 0.08, 1.02, -0.21], 0.065, 0.055));          // forearms to the back
-    skin.push(boxG(0.08, 0.08, 0.07, s * 0.05, 1.01, -0.22));                                     // hands behind the back
-    uniform.push(boxG(0.12, 0.03, 0.11, s * 0.24, 1.545, 0));                                     // epaulettes
-    metal.push(boxG(0.025, 0.025, 0.02, s * 0.25, 1.565, 0.03));
-    uniform.push(boxG(0.12, 0.11, 0.025, s * 0.1, 1.36, 0.145));                                  // chest pockets
-    metal.push(boxG(0.022, 0.022, 0.015, s * 0.1, 1.395, 0.16));
-  }
-  uniform.push(cyl(0.235, 0.215, 0.6, 0, 1.25, 0, 8, 0.66));                                       // jacket
-  uniform.push(cyl(0.215, 0.24, 0.24, 0, 0.85, 0, 8, 0.7));                                      // jacket skirt
-  leather.push(cyl(0.222, 0.222, 0.07, 0, 0.98, 0, 8, 0.72));                                     // belt
-  metal.push(boxG(0.09, 0.065, 0.02, 0, 0.98, 0.165));                                            // buckle
-  const cross = new THREE.BoxGeometry(0.05, 0.62, 0.02); cross.rotateZ(-0.62); cross.translate(0.03, 1.27, 0.155); leather.push(cross);
-  for (const y of [1.18, 1.3]) metal.push(boxG(0.025, 0.025, 0.015, 0, y, 0.16));                // buttons
-  shirt.push(cyl(0.075, 0.09, 0.08, 0, 1.585, 0.01, 8));                                          // collar
-  leather.push(boxG(0.045, 0.2, 0.015, 0, 1.47, 0.155));                                          // tie
-  // The key ring on the right hip
-  const ring = new THREE.TorusGeometry(0.045, 0.008, 5, 12); ring.translate(0.13, 0.91, 0.16); metal.push(ring);
-  for (let k = 0; k < 4; k++) metal.push(boxG(0.014, 0.1, 0.01, 0.105 + k * 0.016, 0.83, 0.165), boxG(0.03, 0.014, 0.01, 0.112 + k * 0.016, 0.785, 0.165));
-
-  // The head is its own group, so it can turn
-  const hs = [], hh = [], hc = [], hm = [], hb = [];
-  hs.push(cyl(0.05, 0.055, 0.1, 0, 0.03, 0, 6));                                                 // neck
-  const skull = new THREE.IcosahedronGeometry(0.115, 0); skull.scale(0.95, 1.15, 1.05); skull.translate(0, 0.15, 0.01); hs.push(skull);
-  hs.push(boxG(0.035, 0.05, 0.04, 0, 0.14, 0.12));                                               // nose
-  for (const s of [-1, 1]) hs.push(boxG(0.025, 0.05, 0.035, s * 0.11, 0.15, 0));                 // ears
-  hh.push(boxG(0.11, 0.028, 0.035, 0, 0.1, 0.115));                                                 // moustache
-  hh.push(boxG(0.22, 0.09, 0.12, 0, 0.19, -0.05));                                                // hair at the back
-  hc.push(cyl(0.15, 0.125, 0.08, 0, 0.29, -0.005, 10));                                           // cap crown
-  hm.push(cyl(0.122, 0.122, 0.04, 0, 0.24, 0, 10));                                               // cap band
-  const visor = new THREE.CylinderGeometry(0.12, 0.12, 0.015, 10, 1, false, -Math.PI / 2, Math.PI);
-  visor.rotateX(0.18); visor.translate(0, 0.225, 0.04); hm.push(visor);
-  hb.push(boxG(0.03, 0.03, 0.015, 0, 0.29, 0.14));                                                // cap badge
-
-  const mats = {
-    uniform: flatMat({ color: 0x2c343e, roughness: 0.8, emissive: 0x0a0d12 }), shirt: flatMat({ color: 0x8b9097 }), leather: flatMat({ color: 0x17181b, roughness: 0.5 }),
-    metal: flatMat({ color: 0xb9bdc2, roughness: 0.35, metalness: 0.8 }), skin: flatMat({ color: 0xc89878, roughness: 0.75 }),
-    hair: flatMat({ color: 0x5b3b26, roughness: 0.9 }), cap: flatMat({ color: 0x252c35, roughness: 0.6 })
-  };
-  const g = new THREE.Group(), headG = new THREE.Group();
-  const add = (grp, list, mat) => { if (!list.length) return; const m = new THREE.Mesh(mergeGeos(list), mat); m.castShadow = true; grp.add(m); };
-  add(g, uniform, mats.uniform); add(g, shirt, mats.shirt); add(g, leather, mats.leather); add(g, metal, mats.metal); add(g, skin, mats.skin);
-  add(headG, hs, mats.skin); add(headG, hh, mats.hair); add(headG, hc, mats.cap); add(headG, hm, mats.leather); add(headG, hb, mats.metal);
-  headG.position.y = 1.6; g.add(headG);
-  return { g, headG };
-}
-// Removes Hale's collider from the countryside grid
-function dropHaleCollider(){
-  if (!hale || !hale.col) return;
-  for (const a of CTRY.grid.values()){ const i = a.indexOf(hale.col); if (i >= 0) a.splice(i, 1); }
-  const i = CTRY.colliders.indexOf(hale.col); if (i >= 0) CTRY.colliders.splice(i, 1);
-  hale.col = null;
-}
-// ### Puts Hale on the right verge 70 m before the finish of act 3, facing the road you arrive on.
-function placeHale(){
-  dropHaleCollider();
-  const s = ROAD.len - 70, p = roadPoint(s, 7), from = roadPoint(s - 30, 0);
-  const { g, headG } = buildHale();
-  g.position.set(p.x, groundH(p.x, p.z), p.z);
-  g.rotation.y = Math.atan2(from.x - p.x, from.z - p.z);
-  const glow = glowSprite(0xff8a3d, 3.2, 0.35); glow.position.y = 0.1; g.add(glow);
-  tuneEnv(g);
-  runGroup.add(g);
-  const col = { t: 'c', x: p.x, z: p.z, r: 0.45 };
-  gridAdd(col);
-  hale = { x: p.x, z: p.z, g, headG, col, yaw: 0, greeted: false };
-}
-// ### Hale turns his head to follow you and calls out once when you are close.
-function updateHale(dt){
-  if (!hale || !hale.col) return;
-  let want = Math.atan2(car.x - hale.x, car.z - hale.z) - hale.g.rotation.y;
-  want = Math.atan2(Math.sin(want), Math.cos(want));
-  want = clamp(want, -1.1, 1.1);
-  hale.yaw += (want - hale.yaw) * Math.min(1, dt * 4);
-  hale.headG.rotation.y = hale.yaw;
-  if (!hale.greeted && Math.hypot(car.x - hale.x, car.z - hale.z) < 60){
-    hale.greeted = true;
-    toast('HALE: Over here. Through the gate, the mansion is just behind it.', 'hale', 3600, true);
-  }
-}
-
-// ### Runs the story during an act: radio messages, the courier, and the conditions for the next act.
+// ### Runs the story during the run: the radio messages and the sealed letter.
 function updateStory(dt){
   // Radio and narrator lines on a timeline
   story.clock += dt;
@@ -9282,7 +8435,6 @@ function updateStory(dt){
   const radio = Core.dueRadio(lines, story.radioIdx, story.clock);
   story.radioIdx = radio.idx;
   for (const [, text, tone] of radio.due) toast(text.replace('%V', VEH_DESC[V.key]), tone, 4200, true);
-  if (story.act === 2) updateHale(dt);
   const env = story.env;
   if (env && !env.taken){
     env.env.rotation.y += dt * 1.4;
@@ -9295,38 +8447,9 @@ function updateStory(dt){
       toast('You found a sealed letter from the mansion. It might prove who framed you.', 'gold', 4200);
     }
   }
-  if (courier && courier.on){
-    let gap = Infinity, aheadV = 0;
-    for (const t of traffic){
-      if (!t.on || t.dir < 0 || Math.abs(t.x - courier.x) > 1) continue;
-      const d = t.z - courier.z - (t.len + courier.len) / 2;
-      if (d > -courier.len && d < gap){ gap = Math.max(0, d); aheadV = t.speed; }
-    }
-    let desired = courier.z > HW.LEN - 70 ? 0 : 27;
-    if (gap < 40) desired = Math.min(desired, aheadV + (gap - 8) * 0.5);
-    courier.speed = Math.max(0, courier.speed + clamp((desired - courier.speed) * Math.min(1, dt * 3), -14 * dt, 3 * dt));
-    courier.z += courier.speed * dt;
-    courier.g.position.set(courier.x, hill(courier.x, courier.z), courier.z);
-    if (!story.clasp && Math.hypot(car.x - courier.x, car.z - courier.z) < 9){
-      story.clasp = true; courier.mark.visible = false;
-      burst(courier.x, courier.g.position.y + 3, courier.z, GOLD, 30);
-      sfx.gate();
-      toast('Clasp recovered! Now get through the toll at the finish.', 'gold', 3600);
-    }
-  }
 }
 
-// ### Adds the story markers to the radar.
-function drawStoryRadar(toScreen, R, range, pulse){
-  if (!story || !courier || !courier.on || story.clasp || mode !== 'highway') return;
-  let [sx, sy, dist] = toScreen(courier.x, courier.z);
-  if (dist > range * 0.92){ const ang = Math.atan2(sy - R, sx - R); sx = R + Math.cos(ang) * (R - 12); sy = R + Math.sin(ang) * (R - 12); }
-  rx.fillStyle = '#ffc857';
-  rx.fillRect(sx - 6 - pulse * 2, sy - 9 - pulse * 2, 12 + pulse * 4, 18 + pulse * 4);
-  rx.strokeStyle = '#1b1406'; rx.lineWidth = 2; rx.strokeRect(sx - 6, sy - 9, 12, 18);
-}
-
-// ### Ends an act and moves on to the next, or to an ending.
+// ### Ends the story's run after the bridge and shows the ending.
 function storyFinish(){
   state = 'done';
   const used = Core.driveTime(mode, M, timeLeft, collected);
@@ -9338,49 +8461,29 @@ function storyFinish(){
       <div class="stat"><span class="eyebrow">Damage</span><b>${Math.round(damage)}%</b></div>
       <div class="stat"><span class="eyebrow">Cops wrecked</span><b>${copsWrecked}</b></div>
     </div>`;
-  if (story.act === 0){
-    showCard(`
-      <div class="eyebrow">Act 1 complete · The Scatter</div>
-      <h2>Six pieces of evidence and a witness</h2>
-      <p>The photos, the fingerprints, the torch, the lockpick, the clothes and the balaclava are safe in your glovebox. Together they show that someone else broke in. Marta Silva, who saw the thief climb out of the museum window, sits beside you as the first light comes up over the 25 de Abril bridge. Hale on the radio: the necklace’s clasp is on a courier lorry heading out of the city to a fence.</p>
-      ${story.letter ? '<p>The sealed letter lies on the passenger seat. Its wax seal bears the Ashford crest.</p>' : ''}
-      ${stats}
-      <div class="actions"><button class="btn" data-action="next-act">Start Act 2: The Courier <small class="desk-only">Enter</small></button><button class="btn ghost" data-action="menu">Main menu</button></div>`);
-  } else if (story.act === 1){
-    showCard(`
-      <div class="eyebrow">Act 2 complete · The Courier</div>
-      <h2>The clasp and a signature</h2>
-      <p>Behind the lorry's seat you find an insurance claim for the Starfall necklace. It was filed the morning after the theft and signed by Lady Ashford, the owner of the necklace.</p>
-      ${stats}
-      <div class="actions"><button class="btn" data-action="next-act">Start Act 3: Homecoming <small class="desk-only">Enter</small></button><button class="btn ghost" data-action="menu">Main menu</button></div>`);
-  } else showEnding();
+  showEnding(stats);
 }
 
-// ### Shows one of the three story endings.
-function showEnding(){
-  const total = story.times.reduce((a, b) => a + (b || 0), 0);
+// ### Shows the story's ending after the bridge: A with the sealed letter, B without it. (Ending C is storyGameOver.)
+function showEnding(stats){
   const good = Core.storyEnding(story) === 'A';
-  const stats = `<div class="stats">
-      <div class="stat"><span class="eyebrow">Total time</span><b>${fmtTimeExact(total)}</b></div>
-      <div class="stat"><span class="eyebrow">Cops wrecked</span><b>${story.cops}</b></div>
-      <div class="stat"><span class="eyebrow">Letter</span><b>${good ? 'Found' : 'Missing'}</b></div>
-    </div>`;
+  const letter = `<p class="note">The sealed letter: <b>${good ? 'found' : 'still in a park in the Baixa'}</b></p>`;
   showCard(good ? `
-    <div class="eyebrow">Finale · Ending A of 3 · The truth</div>
+    <div class="eyebrow">The Necklace Job · Ending A of 3 · The truth</div>
     <h1>Case <em>closed</em></h1>
-    <p>The whole house is gathered in the hall, and Officer Hale stands at the door. You lay the evidence and the clasp on the table, then unfold the letter. It is in Lady Ashford’s hand: <i>“Take it. Hide the box in the detective’s car. Pin it on the detective.”</i></p>
-    <p>Next to the insurance claim, it leaves no doubt. The fingerprints and the hairs in the balaclava are the butler’s, and he confesses that he only followed orders. Lady Ashford is led out in handcuffs, and the rest of the Starfall necklace turns up in her safe. Hale hands you back your badge: “Took you long enough.”</p>
-    ${stats}
+    <p>On the far side of the bridge Officer Hale is waiting at the roadside with two investigators from the public prosecutor. You hand over the six pieces of evidence, and Marta Silva tells them what she saw at the museum window. Then you unfold the letter. It is in Lady Ashford’s hand: <i>“Take it. Hide the box in the detective’s car. Pin it on the detective.”</i></p>
+    <p>It leaves no doubt. The fingerprints and the hairs in the balaclava are her butler’s, and he confesses that he only followed orders. By noon Lady Ashford is led out of her house in handcuffs, and the Starfall necklace turns up in her safe. Hale hands you back your badge: “Took you long enough.”</p>
+    ${stats}${letter}
     <div class="actions"><button class="btn" data-action="story">Play the story again <small class="desk-only">Enter</small></button><button class="btn ghost" data-action="menu">Main menu</button></div>` : `
-    <div class="eyebrow">Finale · Ending B of 3 · Framed</div>
+    <div class="eyebrow">The Necklace Job · Ending B of 3 · Framed</div>
     <h1>Back in <em>4471</em></h1>
-    <p>You lay the evidence and the clasp on the table. “Evidence brought by an escaped convict proves nothing,” says Lady Ashford, and turns to the officers behind you. “There is your thief. Broke out of prison, too.”</p>
-    <p>Without proof, the insurance claim is just paper. By morning you are back in cell 4471, and Hale cannot help you twice. Somewhere in the Baixa, a sealed letter is still waiting in a park.</p>
-    ${stats}
+    <p>On the far side of the bridge Officer Hale is waiting at the roadside with two investigators from the public prosecutor. You hand over the six pieces of evidence, and Marta Silva tells them what she saw at the museum window. It shows that someone else broke in. It does not show who sent him.</p>
+    <p>“Evidence brought in by an escaped convict, and one witness in the dark,” says the prosecutor. “That is not enough to hold anyone.” The case will be heard again, but until then you are back in cell 4471, and Hale cannot help you twice. Somewhere in the Baixa, a sealed letter is still waiting in a park.</p>
+    ${stats}${letter}
     <div class="actions"><button class="btn" data-action="story">Try for the true ending <small class="desk-only">Enter</small></button><button class="btn ghost" data-action="menu">Main menu</button></div>`);
 }
 
-// ### Offers a retry when an act fails.
+// ### Offers a retry when the story's run fails.
 function storyGameOver(reason){
   state = 'over';
   sfx.fail();
@@ -9392,10 +8495,10 @@ function storyGameOver(reason){
       ? 'Your vehicle gives up. By the time the smoke clears, blue lights surround you. Your evidence goes into a police bag, and you go back to cell 4471.'
       : 'You ran out of time. The fence has the necklace, and Cell Block D has its inmate back.';
   showCard(`
-    <div class="eyebrow">Act ${story.act + 1} · ${A.title} · Ending C of 3</div>
+    <div class="eyebrow">The Necklace Job · ${A.title} · Ending C of 3</div>
     <h2>${reason === 'busted' ? 'Busted' : reason === 'wrecked' ? 'Wrecked' : 'Too late'}</h2>
     <p>${text}</p>
-    <div class="actions"><button class="btn" data-action="retry-act">Retry Act ${story.act + 1} <small class="desk-only">Enter</small></button><button class="btn ghost" data-action="menu">Main menu</button></div>`);
+    <div class="actions"><button class="btn" data-action="retry-act">Try again <small class="desk-only">Enter</small></button><button class="btn ghost" data-action="menu">Main menu</button></div>`);
 }
 
 // Compiles the shaders of everything in the scene, hidden objects included, before they are first seen
@@ -9463,9 +8566,7 @@ function frame(now){
     if (state === 'menu') orbitCam(dt); else chaseCam(dt);
   }
   if (!paused){
-    if (mode === 'highway' && state !== 'menu') updateTraffic(dt);
-    if (mode === 'country' && state !== 'menu') updateCountryTraffic(dt);
-    if (mode === 'city' && !garage.on){ updateSignals(); updateNpcs(dt); stepParked(dt); }
+    if (!garage.on){ updateSignals(); updateNpcs(dt); stepParked(dt); }
     if (state !== 'menu' && !garage.on) updateHeli(dt);
     updateSmoke(dt); updateSparks(dt);
     updateNitroFx();
@@ -9489,7 +8590,7 @@ function frame(now){
   updateGuide();
   updateKitGuide();
   updateRoute();
-  GAR.top.visible = garage.on || (mode === 'city' && CITY.group.visible);
+  GAR.top.visible = garage.on || CITY.group.visible;
   if (composer && GFX[gfx].post) composer.render(); else renderer.render(scene, camera);
   if (garage.on) walker.drawHands(scene.environment);
 }
@@ -9507,13 +8608,25 @@ resetNpcs();
 renderChips();
 showMenu();
 warmUp();
-// from room 1 with a valid escape time: straight into the garage; the glare of the headlights clears once it has been drawn
-{
-  const h = heistArrival(), glare = $('arrive');
-  if (h) heistBegin(h);
-  if (glare) requestAnimationFrame(() => requestAnimationFrame(() => glare.classList.add('gone')));
-}
+// the glare of the headlights (shown when the address ends in #arrive) clears once the garage has been drawn
+const clearGlare = () => { const glare = $('arrive'); if (glare) requestAnimationFrame(() => requestAnimationFrame(() => glare.classList.add('gone'))); };
+// from room 1 with a valid escape time: straight into the garage
+if (!HEIST_WAIT){ const h = heistArrival(); if (h) heistBegin(h); clearGlare(); }
 // a saved online login is checked only now: while the world is being built the page is too busy to answer in time
 if (net && net.user) setTimeout(afterSignIn, 0);
-requestAnimationFrame(frame);
+if (!HEIST_WAIT) requestAnimationFrame(frame);
+else {
+  // ### Loaded ahead by the heist page: prepared and standing still. When that page says go (only its message, from our own
+  // ### address, counts, and only once), the escape time is read, the player arrives and the picture starts to move.
+  heistPrepare();
+  addEventListener('message', e => {
+    if (e.origin !== location.origin || e.source !== parent || !e.data || e.data.shardHeist !== 'go' || heist.went) return;
+    heist.went = true;
+    const h = Core.parseHeist(readStore(Core.HEIST.key), Date.now());
+    if (h) heistArrive(h, true); else backToMenu();
+    clearGlare();
+    requestAnimationFrame(frame);
+  });
+  parent.postMessage({ shardHeist: 'ready' }, location.origin);
+}
 })();

@@ -42,15 +42,15 @@ Progress is saved in the browser after every accepted action, and a reload offer
 
 ## Room 2 · Shard Heist
 
-A 3D police-chase driving game that runs in any modern browser. Pick a map and a getaway vehicle, find the six pieces of evidence that prove you innocent in Lisbon (or grab the bonus shards on the open road), shake off up to four police cars and a helicopter and reach the finish before the clock runs out. Or play **The Necklace Job**, a three-act story with three endings.
+A 3D police-chase driving game that runs in any modern browser. Pick a getaway vehicle and find the six pieces of evidence that prove you innocent in Lisbon, shake off up to four police cars and a helicopter and reach the gate before the clock runs out. Or play **The Necklace Job**, the same night as a story with three endings.
 
 **Play:** https://alexanderleusch.github.io/shard-heist/room-2-chase/ (published automatically from `main` once all tests pass)
 
 | | |
 |---|---|
-| Maps | Lisbon's Baixa (real street names, Arco da Rua Augusta, traffic lights, 26 AI cars, 2 buses, 4 motorcycles, 3 trams), Highway (4 km, 200 km/h, traffic both ways), Countryside (hills, farms, village) |
+| Map | Lisbon's Baixa (real street names, Arco da Rua Augusta, traffic lights, 26 AI cars, 2 buses, 4 motorcycles, 3 trams) |
 | Vehicles | Muscle coupe (balanced), Superbike (fastest, most agile), Tractor unit (slowest, toughest, best at ramming) |
-| Story mode | *The Necklace Job*, after the escape: 3 acts on the 3 maps, Officer Hale on the radio, 2 story items (a hidden letter, a clasp), 3 endings. Which one you get depends on whether you found the letter in act 1 |
+| Story mode | *The Necklace Job*, after the escape: one night in Lisbon, Officer Hale on the radio, a hidden letter, 3 endings. Which one you get depends on whether you found the letter |
 | Systems | Seven synthesised radio stations, hills on every map, wanted stars and a police helicopter, visible damage, police AI with a bust meter, crash damage and repair kits, synthesised engine sounds, map-boundary force field, radar, Ultra/Balanced graphics |
 | Controls | `W A S D` or arrow keys to drive, `Space` handbrake, hold `C` to look back, `E` nitro (a charge for every third pickup), `P` / `Esc` pause, `M` map (Lisbon), `N` sound, `R` radio, volume sliders for game and music in the menu and the pause, `Enter` confirms. On phones: touch pads (brake and gas together are the handbrake, the round button looks back, the flame button fires nitro), and steering by tilting the phone sideways |
 
@@ -76,6 +76,10 @@ The repository has one folder per room, and one folder for each kind of supporti
 ```
 shard-heist/
 ├── index.html               START PAGE: the whole heist, then each room on its own (no script)
+├── heist/                   THE HEIST PAGE: the driver name for both rooms, then both rooms on one page
+│   ├── index.html           the name box and the place for the two frames
+│   ├── heist.js             the driver (room 2's online account), room 1 in a frame, room 2 loaded ahead under it
+│   └── heist.css            the few styles of its own (the rest is room 2's stylesheet)
 ├── README.md                this file
 ├── AGENTS.md / CLAUDE.md    working rules for the team and its coding agents
 │
@@ -120,7 +124,7 @@ shard-heist/
 
 | You look for | It is in | Its tests |
 |---|---|---|
-| The screens | `index.html` (start page), `room-1-escape/index.html` with `js/room.js`, `room-2-chase/index.html` with `js/game.js` | `tests/browser/`, `tests/project/page.test.js` |
+| The screens | `index.html` (start page), `heist/index.html` with `heist.js` (the heist page), `room-1-escape/index.html` with `js/room.js`, `room-2-chase/index.html` with `js/game.js` | `tests/browser/`, `tests/project/page.test.js` |
 | The rules | `room-1-escape/js/rules.js`, `room-1-escape/js/minigames.js`, `room-2-chase/js/core.js`; in plain English in `docs/rules/` | `tests/room-1/`, `tests/room-2/rules.test.js`, `story.test.js`, `input.test.js` |
 | The storage | In the browser (`localStorage`): room 1's saved game, written by `room.js` (`save`) and checked by `rules.js` (`restore`), room 2's settings and best times in `core.js` (the `parse…` functions). Online: the leaderboard and driver accounts in `room-2-chase/js/online.js` (Supabase) | `tests/room-1/rules.test.js`, `tests/room-2/input.test.js`, `tests/room-2/online.test.js` |
 | The tests | `tests/`, one folder per room, plus `project/` and `browser/`; run by `.github/workflows/ci.yml` | |
@@ -154,11 +158,11 @@ shard-heist/
 
 ## Testing
 
-`npm test` runs 208 tests in Node (47 of them for the escape room), and `npm run test:browser` runs 23 more in headless Chrome (8 of them in the escape room, 1 on the start page). CI runs all of them, plus the SRI check and the 36 pytest checks of `original-solo-project/`, on every push to `main` and on every pull request. They cover:
+`npm test` runs 207 tests in Node (47 of them for the escape room), and `npm run test:browser` runs 24 more in headless Chrome (8 of them in the escape room, 1 on the start page, 1 on the heist page). CI runs all of them, plus the SRI check and the 36 pytest checks of `original-solo-project/`, on every push to `main` and on every pull request. They cover:
 
 - **Escape room:** both endings and the jammed-door grace minute; refused actions (walking where there is no exit, taking an item twice, the car key before the tile is off, the door without the mop, lock wheels that do not exist, anything before the briefing or after an ending) return the unchanged state; wrong codes cost 30 s but never take the clock below zero; warnings sound once; tampered saved games are rejected; in the browser: briefing, refused action, save and continue after a reload, a wrong code and then Ending A (down the ladder, the door refused from the foot of it, the walk to it and the door opened).
 - **Accepted actions:** each menu action in the states whose cards show it; valid map and vehicle picks; restoring a valid saved selection; finishing every story act; both story endings.
-- **Rejected actions:** card buttons while driving; story buttons without a story; "next act" after the last act; unknown actions; picks such as `"tank"`, `"constructor"` or `"__proto__"`; acts outside 1–3; the act 2 toll without the clasp; tampered saved data; dev-server requests for `.git`, for paths outside the folder, and with methods other than GET or HEAD.
+- **Rejected actions:** card buttons while driving; story buttons without a story; the "next act" button of the removed acts; unknown actions; picks such as `"tank"`, `"constructor"` or `"__proto__"`, and the maps that were removed (highway, countryside); any act but the story's one; tampered saved data; dev-server requests for `.git`, for paths outside the folder, and with methods other than GET or HEAD.
 - **Edge cases:** gas and brake held together, zero-length and 3-second frames, negative frame times, NaN impacts, damage above 100 or below 0, coasting to exactly zero, a letter found in an attempt that then failed, radio lines that must not repeat, time displays that must never show negative or NaN.
 - **Consistency:** the 0–80 km/h figure and the top speed on the menu card match the physics; every element id the game looks up exists in the page; every button action is reachable.
 - **Real browser:** the menu loads without errors, picking a vehicle updates the card, a run starts and the throttle moves the car, pause and resume work, story act 1 starts, and the error screen appears when a library is blocked or WebGL is missing.

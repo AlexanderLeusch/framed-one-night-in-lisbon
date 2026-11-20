@@ -1,0 +1,16 @@
+/* The heist page: the driver name before the heist, then the two rooms in frames that fill the window. */
+.heist-who{display:grid;gap:14px;max-width:640px}
+.heist-who .acc p{font-size:14px}
+.heist-wait{margin:0;font-family:var(--f-mono);font-size:13px;color:var(--muted)}
+.heist-msg{margin:0;font-family:var(--f-mono);font-size:13px;line-height:1.5;color:var(--muted)}
+.heist-msg.bad{color:var(--stop)}
+.heist-go{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.heist-go .btn{font-size:20px;padding:14px 24px}
+.heist-noscript{max-width:640px;margin:0 auto;padding:0 20px 40px;font-family:var(--f-body);color:var(--muted)}
+.heist-noscript a{color:var(--ink)}
+/* the rooms: both frames fill the window; room 2 lies under room 1 and is not drawn until it is shown */
+#rooms{position:fixed;inset:0;background:#07090d}
+#rooms[hidden]{display:none}
+#rooms iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+#rooms iframe.under{visibility:hidden}
+body.heist-page.playing{overflow:hidden}

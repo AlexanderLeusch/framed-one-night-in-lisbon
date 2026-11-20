@@ -156,9 +156,10 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
   const chase = part('chase', 'chase-drive'), pages = part('chase', 'chase-pages'), escape = part('escape');
 
   try {
-    await chase('the menu loads with all three maps, three vehicles and the story mode', async () => {
+    await chase('the menu loads with Lisbon as the only map, three vehicles and the story mode', async () => {
       await load();
-      assert.equal(await evaluate("document.querySelectorAll('[data-pick=\"mode\"]').length"), 3);
+      assert.equal(await evaluate("document.querySelectorAll('[data-pick=\"mode\"]').length"), 0, 'there is no choice of map');
+      assert.match(await text('#missionEye'), /^(Rua|Praça|Baixa) /, 'the HUD names a street of Lisbon');
       assert.equal(await evaluate("document.querySelectorAll('[data-pick=\"veh\"]').length"), 3);
       assert.equal(await evaluate("[...document.querySelectorAll('.vtab img')].filter(i => i.src.startsWith('data:image/png') && i.complete && i.naturalWidth > 100).length"), 3, 'the previews are pictures of the real models');
       assert.ok(await evaluate("!!document.querySelector('[data-action=\"story\"]')"));
@@ -238,17 +239,17 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await waitFor(playing, 5000, 'resume');
     });
 
-    await chase('story mode: prologue, then act 1 starts on the city map', async () => {
+    await chase('story mode: prologue, then the story starts in Lisbon', async () => {
       await key('keydown', 'KeyP');
       await waitFor("!document.getElementById('overlay').hidden", 5000);
       await click('[data-action="menu"]');
       await waitFor(menuReady, 30000);
       await click('[data-action="story"]');
       assert.match(await text('#card h1'), /Necklace/);
-      assert.equal(await evaluate("document.querySelectorAll('.acts > div').length"), 3);
+      assert.equal(await evaluate("document.querySelectorAll('.acts > div').length"), 1, 'the story is one act, in Lisbon');
       await click('[data-action="act"]');
-      await startDriving('act 1 to start');
-      assert.match(await text('#missionEye'), /Act 1 · The Evidence/);
+      await startDriving('the story to start');
+      assert.match(await text('#missionEye'), /Story · The Evidence/);
       assert.equal(await evaluate("[...document.querySelectorAll('#chips .chip.ev')].map(c => c.getAttribute('aria-label')).join()"), 'Photos,Fingerprints,Torch,Lockpick,Clothes,Balaclava', 'six pieces of evidence to find in Lisbon');
       assert.deepEqual(errors, []);
     });
@@ -258,7 +259,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
     await pages('rejected: tampered saved data falls back to the defaults', async () => {
       await evaluate("localStorage.setItem('shard-heist-pick', '{\"mode\":\"constructor\",\"veh\":\"__proto__\"}'); localStorage.setItem('shard-heist-city-best', 'NaN'); localStorage.setItem('shard-heist-gfx', 'toString'); true");
       await load();
-      assert.equal(await evaluate("document.querySelector('[data-pick=\"mode\"][aria-pressed=\"true\"]').dataset.val"), 'city');
+      assert.match(await text('#missionEye'), /^(Rua|Praça|Baixa) /, 'an unknown map falls back to Lisbon: the HUD names one of its streets');
       assert.equal(await evaluate("document.querySelector('[data-pick=\"veh\"][aria-pressed=\"true\"]').dataset.val"), 'car');
       assert.match(await text('.m-foot'), /Lisbon no run yet/);
       assert.deepEqual(errors, []);
@@ -422,6 +423,47 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
     // ### Math.random is fixed for the escape room, so the mini games are dealt as battleship (the tile), spot the difference
     // ### (the mirror) and tic-tac-toe (the scratches), and the tic-tac-toe bot always takes the last free cell.
     let fixedRandom;
+    await escape('the heist page: a driver name for both rooms, room 2 is loaded under room 1, and it is there the moment room 1 is left', async () => {
+      // room 1 would tell the heist page itself at Ending A (see the last test here); to leave it at once, this stand-in does the
+      // same from inside its frame: the escape time into the storage, then the message
+      const { identifier: leaver } = await send('Page.addScriptToEvaluateOnNewDocument', { source: "if (/heist=frame/.test(location.search)) window.__leaveRoom1 = () => { localStorage.setItem('shard-heist-handover', JSON.stringify({ escape: 187.7, at: Date.now() })); parent.postMessage({ shardHeist: 'leave' }, location.origin); };" });
+      Object.assign(supa, { down: false, names: ['Sarah'], mine: null, calls: [] });
+      await evaluate("localStorage.removeItem('shard-heist-session'), localStorage.removeItem('shard-heist-driver'), localStorage.removeItem('shard-heist-board'), true").catch(() => {});
+      errors.length = 0;
+      await send('Page.navigate', { url: base + 'heist/' });
+      await waitFor("!!document.getElementById('whoName')", 30000, 'the field for the driver name');
+      // rejected: a name that is taken, and one that is nothing but markup
+      const give = name => evaluate("(() => { const i = document.getElementById('whoName'); i.value = " + JSON.stringify(name) + "; document.querySelector('[data-do=\"name\"]').click(); return true; })()");
+      await give('sarah');
+      await waitFor("/taken/.test((document.querySelector('.heist-msg') || {}).textContent || '')", 15000, 'a taken name is refused');
+      await give('<>');
+      await waitFor("/Enter a driver name/.test((document.querySelector('.heist-msg') || {}).textContent || '')", 5000, 'an empty name is refused');
+      assert.equal(await evaluate("document.querySelectorAll('#rooms iframe').length"), 0, 'no room is loaded before the heist is started');
+      // accepted: the name goes online, becomes the driver of this device, and room 1 opens in its frame
+      await give('Alex');
+      await waitFor("document.querySelectorAll('#rooms iframe').length >= 1", 15000, 'room 1 in its frame');
+      assert.equal(supa.mine, 'Alex', 'the name is on the online board');
+      assert.equal(await evaluate("localStorage.getItem('shard-heist-driver')"), 'Alex');
+      assert.equal(await evaluate("document.getElementById('who').hidden"), true);
+      // room 2 is loaded under room 1 while room 1 is played, and says when it is ready
+      await waitFor("document.getElementById('rooms').dataset.ready === '1'", 240000, 'room 2 ready under room 1');
+      assert.equal(await evaluate("document.querySelectorAll('#rooms iframe').length"), 2);
+      assert.equal(await evaluate("getComputedStyle(document.querySelector('#rooms iframe.under')).visibility"), 'hidden', 'room 2 is out of sight');
+      assert.match(await evaluate("document.querySelector('#rooms iframe.under').contentWindow.location.search"), /heist=wait/);
+      assert.equal(await evaluate("document.querySelector('#rooms iframe.under').contentDocument.querySelector('#card.garage') !== null"), true, 'it is already down in the garage');
+      // room 1 is left: room 2 is shown at once, with no page to load, and the player arrives with the escape time
+      await evaluate("document.querySelector('#rooms iframe:not(.under)').contentWindow.__leaveRoom1(), true");
+      await waitFor("document.getElementById('rooms').dataset.left === 'ahead' && !document.querySelector('#rooms iframe.under')", 5000, 'room 2 shown at once');
+      const two = "document.querySelector('#rooms iframe[title^=\"Room 2\"]').contentDocument";
+      assert.match(await evaluate(two + ".getElementById('toast').textContent"), /Escape time 3:07\.7, the drive is added/);
+      assert.match(await evaluate("document.querySelector('#rooms iframe[title^=\"Room 2\"]').contentWindow.location.search"), /heist=wait/, 'the page that was loaded ahead is the one being played: nothing was loaded again');
+      await waitFor(two + ".getElementById('arrive').classList.contains('gone')", 10000, 'the glare clears on the garage');
+      await waitFor("document.querySelectorAll('#rooms iframe').length === 1", 5000, 'room 1 is gone');
+      assert.deepEqual(errors, []);
+      await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: leaver });
+      await evaluate('localStorage.clear(), true');
+    });
+
     await escape('escape room: the briefing explains who, where and how, then the clock starts', async () => {
       fixedRandom = (await send('Page.addScriptToEvaluateOnNewDocument', { source: 'Math.random = () => .99;' })).identifier;
       await send('Page.navigate', { url: base + 'room-1-escape/' });

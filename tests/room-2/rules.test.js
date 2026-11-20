@@ -8,7 +8,7 @@ const { MODES, VEH } = Core;
 const idle = { up: false, down: false, left: false, right: false, brake: false };
 // Drives for `secs` with the given pedals and returns the final speed
 function drive(speed, keys, secs, m = MODES.city, v = VEH.car, damage = 0){
-  const max = Core.topSpeed(m, v, damage, false);
+  const max = Core.topSpeed(m, v, damage);
   for (let t = 0; t < secs; t += 1 / 60) speed = Core.stepSpeed(speed, keys, 1 / 60, max, v);
   return speed;
 }
@@ -18,7 +18,6 @@ test('tables: every map and vehicle has the fields the game reads', () => {
     for (const f of ['max', 'police', 'time', 'gaugeMax', 'redline', 'radar', 'shards', 'kits', 'store']) assert.ok(m[f] !== undefined, `${m.key}.${f}`);
     assert.ok(m.police < m.max, `${m.key}: police must be slower than the top speed so escape is possible`);
     assert.ok(m.redline < m.gaugeMax, `${m.key}: redline inside the gauge`);
-    if (m.linear) assert.ok(m.bonus > 0, `${m.key}: open-road maps give bonus seconds`);
   }
   for (const v of Object.values(VEH)){
     for (const f of ['speed', 'accel', 'handling', 'dmg', 'ram', 'r']) assert.ok(v[f] > 0, `${v.key}.${f}`);
@@ -39,7 +38,7 @@ test('menu stats match the brief: bike fastest and most agile, truck toughest an
 
 test('0-80 km/h on the menu card equals what the physics really does', () => {
   for (const k of Object.keys(VEH)){
-    const v = VEH[k], m = MODES.highway, max = Core.topSpeed(m, v, 0, false);
+    const v = VEH[k], m = MODES.city, max = Core.topSpeed(m, v, 0);
     let sp = 0, t = 0;
     while (sp < 22.2 && t < 20){ sp = Core.stepSpeed(sp, { ...idle, up: true }, 0.005, max, v); t += 0.005; }
     assert.ok(Math.abs(t - Core.zeroTo80(v, m)) < 0.25, `${k}: physics ${t.toFixed(2)} s vs card ${Core.zeroTo80(v, m).toFixed(2)} s`);
@@ -48,22 +47,20 @@ test('0-80 km/h on the menu card equals what the physics really does', () => {
 
 test('throttle reaches but never exceeds the top speed of the map', () => {
   for (const mk of Object.keys(MODES)) for (const vk of Object.keys(VEH)){
-    const top = Core.topSpeed(MODES[mk], VEH[vk], 0, false);
+    const top = Core.topSpeed(MODES[mk], VEH[vk], 0);
     const sp = drive(0, { ...idle, up: true }, 40, MODES[mk], VEH[vk]);
     assert.ok(sp <= top + 1e-9 && sp > top * 0.9, `${mk}/${vk}: ${sp} of ${top}`);
   }
-  // City top speed is about 122 km/h for the car, the highway allows 200 km/h
-  assert.equal(Math.round(Core.topSpeed(MODES.city, VEH.car, 0, false) * 3.6), 122);
-  assert.equal(Math.round(Core.topSpeed(MODES.highway, VEH.car, 0, false) * 3.6), 200);
+  // the top speed in Lisbon is about 122 km/h for the car
+  assert.equal(Math.round(Core.topSpeed(MODES.city, VEH.car, 0) * 3.6), 122);
 });
 
-test('damage and off-road driving lower the top speed', () => {
-  const full = Core.topSpeed(MODES.city, VEH.car, 0, false);
-  assert.equal(Core.topSpeed(MODES.city, VEH.car, 100, false), full * 0.6);
-  assert.equal(Core.topSpeed(MODES.city, VEH.car, 0, true), full * 0.55);
+test('damage lowers the top speed', () => {
+  const full = Core.topSpeed(MODES.city, VEH.car, 0);
+  assert.equal(Core.topSpeed(MODES.city, VEH.car, 100), full * 0.6);
   // out-of-range damage is clamped
-  assert.equal(Core.topSpeed(MODES.city, VEH.car, 250, false), full * 0.6);
-  assert.equal(Core.topSpeed(MODES.city, VEH.car, -40, false), full);
+  assert.equal(Core.topSpeed(MODES.city, VEH.car, 250), full * 0.6);
+  assert.equal(Core.topSpeed(MODES.city, VEH.car, -40), full);
 });
 
 test('brake stops the car, then reverses, but never faster than the reverse limit', () => {
@@ -269,24 +266,28 @@ test('the searchlight moves at its speed limit, never overshoots, and catches on
   assert.equal(Core.inSpotlight(0, 0, Core.SPOT_RADIUS + 0.1, 0), false);
 });
 
-test('boundary distance shrinks towards every edge; the highway only has two ends', () => {
+test('boundary distance shrinks towards every edge', () => {
   const rect = [-100, 100, -50, 50];
-  assert.equal(Core.edgeDistance(rect, 0, 0, 0, false), 50);
-  assert.equal(Core.edgeDistance(rect, 95, 0, 0, false), 5);
-  assert.equal(Core.edgeDistance(rect, 99, 0, 0, true), 50, 'sideways does not count on the highway');
-  assert.ok(Core.edgeDistance(rect, 120, 0, 0, false) < 0, 'outside gives a negative distance');
+  assert.equal(Core.edgeDistance(rect, 0, 0, 0), 50);
+  assert.equal(Core.edgeDistance(rect, 95, 0, 0), 5);
+  assert.equal(Core.edgeDistance(rect, 99, 0, 0), 1, 'every side counts');
+  assert.equal(Core.edgeDistance(rect, 0, -48, 1.5), 0.5, 'less the padding');
+  assert.ok(Core.edgeDistance(rect, 120, 0, 0) < 0, 'outside gives a negative distance');
 });
 
 test('scoring: drive time, stars and best time', () => {
   assert.equal(Core.driveTime('city', MODES.city, 100, 8), 80);
-  assert.equal(Core.driveTime('highway', MODES.highway, 20, 5), 110, 'bonus seconds are added back');
   assert.equal(Core.runStars('city', MODES.city, 100, 80, 0), 3);
   assert.equal(Core.runStars('city', MODES.city, 50, 130, 0), 2);
   assert.equal(Core.runStars('city', MODES.city, 10, 170, 0), 1);
   assert.equal(Core.runStars('city', MODES.city, 100, 80, 60), 2, 'heavy damage costs a star');
   assert.equal(Core.runStars('city', MODES.city, 10, 170, 99), 1, 'but never the last one');
-  assert.equal(Core.runStars('highway', MODES.highway, 0, 80, 0), 3);
-  assert.equal(Core.runStars('country', MODES.country, 0, 140, 0), 1);
+  // the limits are for the car; a slower vehicle gets more time and a faster one less, so each can earn three stars
+  assert.equal(Core.runStars('city', MODES.city, 80, 100, 0), 3, 'without a vehicle the limits are the car\'s');
+  assert.equal(Core.runStars('city', MODES.city, 80, 100, 0, VEH.car), 3);
+  assert.equal(Core.runStars('city', MODES.city, 80, 100, 0, VEH.bike), 2, 'the faster motorcycle has less time for three stars');
+  assert.equal(Core.runStars('city', MODES.city, 60, 120, 0, VEH.car), 2);
+  assert.equal(Core.runStars('city', MODES.city, 60, 120, 0, VEH.truck), 3, 'the slower truck has more');
   assert.ok(Core.isNewBest(undefined, 90));
   assert.ok(Core.isNewBest(95, 90));
   assert.ok(!Core.isNewBest(85, 90));
@@ -482,10 +483,10 @@ test('damage shows in four stages, and the smoke thickens and darkens up to flam
   assert.equal(Core.smokeFor(88).fire, true);
 });
 
-test('hills: smooth and bounded on every map, level at the Arco, the river and the ends of the highway', () => {
-  for (const key of ['city', 'highway', 'country']){
+test('hills: smooth and bounded, level at the Arco and the river', () => {
+  for (const key of Object.keys(MODES)){
     let steepest = 0, highest = 0;
-    const span = key === 'highway' ? [[0, 0], [0, 4000]] : [[-300, 300], [-300, 300]];
+    const span = [[-300, 300], [-300, 300]];
     for (let x = span[0][0]; x <= span[0][1]; x += 13) for (let z = span[1][0]; z <= span[1][1]; z += 11){
       for (const h of [0, Math.PI / 2, Math.PI / 4]) steepest = Math.max(steepest, Math.abs(Core.gradeAt(key, x, z, h)));
       highest = Math.max(highest, Math.abs(Core.hillHeight(key, x, z)));
@@ -496,8 +497,7 @@ test('hills: smooth and bounded on every map, level at the Arco, the river and t
   assert.equal(Core.hillHeight('city', 0, 83), 0, 'level at the Arco');
   assert.equal(Core.hillHeight('city', 0, 120), 0, 'level at the river');
   assert.equal(Core.hillHeight('city', 300, 0), 0, 'level outside the old town');
-  assert.equal(Core.hillHeight('highway', -7, 5), 0, 'level at the start');
-  assert.equal(Core.hillHeight('highway', -7, 4000), 0, 'level at the finish');
+  for (const gone of ['highway', 'country']) assert.equal(Core.hillHeight(gone, -7, 800), 0, 'no hills for a map that was removed: ' + gone);
   assert.equal(Core.hillHeight('nowhere', 3, 3), 0);
 });
 
@@ -518,7 +518,8 @@ test('Lisbon holds the six pieces of evidence that prove the detective innocent,
   assert.equal(new Set(Core.EVIDENCE.map(e => e.name)).size, 6, 'six different names');
   for (const e of Core.EVIDENCE) assert.ok(e.found.length > 20 && Object.isFrozen(e), e.key + ' explains what it proves, and cannot be changed');
   assert.ok(Object.isFrozen(Core.EVIDENCE));
-  assert.equal(Core.MODES.highway.mission, 'Bonus Shards', 'the open roads keep their bonus shards');
+  assert.equal(Core.MODES.city.mission, 'Evidence');
+  assert.deepEqual(Object.keys(Core.MODES), ['city'], 'Lisbon is the only map: there are no bonus shards any more');
 });
 
 test('slopes: uphill is slower, downhill faster, a heavy truck feels it most, and brakes still hold', () => {
@@ -601,28 +602,13 @@ test('audit: the top gear and the gauge fit the fastest speed a hill allows', ()
   for (const key of VEHICLES){
     const E = Core.ENGINES[key], v = VEH[key];
     for (const m of Object.values(MODES)){
-      const fastest = Core.slopeTop(Core.topSpeed(m, v, 0, false), -0.2, v);
+      const fastest = Core.slopeTop(Core.topSpeed(m, v, 0), -0.2, v);
       assert.ok(E.gears[E.gears.length - 1] >= fastest, key + ' on ' + m.key + ': top gear reaches ' + fastest);
       assert.ok(m.gaugeMax / 3.6 >= fastest, key + ' on ' + m.key + ': gauge reaches ' + fastest);
     }
   }
   const E = Core.ENGINES.car;
   assert.equal(Core.gearFor(E, 1, E.gears[0] * 1.05, 0), 2, 'overspeed down a hill shifts up without throttle');
-});
-
-test('audit: every vehicle can earn three stars and beat the clock on the highway, hills included', () => {
-  const M = MODES.highway, keys = { up: true, down: false, brake: false };
-  for (const key of VEHICLES){
-    const V = VEH[key]; let z = 5, s = 0, t = 0;
-    while (z < 4000 && t < 400){
-      const g = Core.gradeAt('highway', -7, z, 0);
-      s = Core.stepSpeed(s, keys, 1 / 60, Core.slopeTop(Core.topSpeed(M, V, 0, false), g, V), V, g);
-      z += s / 60; t += 1 / 60;
-    }
-    assert.ok(t < M.time - 5, key + ' finishes with time to spare: ' + t);
-    assert.equal(Core.runStars('highway', M, M.time - t, t, 0, V), 3, key + ' three stars for a clean run');
-  }
-  assert.equal(Core.runStars('highway', M, 0, 100, 0), 2, 'without a vehicle the limits are the car\'s');
 });
 
 test('audit: police slow down uphill, and times never read 0:60.0', () => {
@@ -639,8 +625,8 @@ test('audit: police slow down uphill, and times never read 0:60.0', () => {
 });
 
 test('the drawn ground matches the hills, is continuous, and is flat outside them', () => {
-  for (const key of ['city', 'highway', 'country']){
-    const L = Core.HILL_GRID[key], span = key === 'highway' ? [0, 0, 0, 4000] : [-170, 170, -170, 170];
+  for (const key of Object.keys(MODES)){
+    const L = Core.HILL_GRID[key], span = [-170, 170, -170, 170];
     let worst = 0;
     for (let x = span[0]; x <= span[1]; x += 3.7) for (let z = span[2]; z <= span[3]; z += 3.3){
       worst = Math.max(worst, Math.abs(Core.hillMesh(key, x, z) - Core.hillHeight(key, x, z)));
@@ -649,14 +635,15 @@ test('the drawn ground matches the hills, is continuous, and is flat outside the
       assert.ok(step < 0.001, key + ' jump at ' + x + ',' + z);
     }
     assert.ok(worst < 0.3, key + ' within 30 cm of the smooth hill: ' + worst);
-    assert.equal(Core.hillMesh(key, L * 2, L * 2), Core.hillHeight(key, key === 'highway' ? 0 : L * 2, L * 2), key + ' exact on a grid point');
+    assert.equal(Core.hillMesh(key, L * 2, L * 2), Core.hillHeight(key, L * 2, L * 2), key + ' exact on a grid point');
   }
   assert.equal(Core.hillMesh('city', 0, 83), 0, 'level at the Arco');
   assert.equal(Core.hillMesh('city', 400, 0), 0);
   assert.equal(Core.hillMesh('nowhere', 3, 3), 0);
   assert.equal(Core.hillMesh('constructor', 3, 3), 0);
+  for (const gone of ['highway', 'country']) assert.equal(Core.hillMesh(gone, 0, 800), 0, 'flat for a map that was removed: ' + gone);
   // the edge of the hills must be on the grid and at height zero, so the flat land joins without a step
-  for (const key of ['city', 'highway']){
+  for (const key of Object.keys(MODES)){
     const [x0, x1, z0, z1] = Core.HILL_BOX[key], L = Core.HILL_GRID[key];
     for (const v of [x0, x1, z0, z1]) if (Number.isFinite(v)) assert.equal(Math.abs(v % L), 0, key + ' box on the grid: ' + v);
     for (const z of [z0, z1]) assert.equal(Core.hillHeight(key, 0, z), 0, key + ' level at the edge');
@@ -1021,7 +1008,7 @@ test('the garage: a level hall, a ramp that climbs to the street, and walls all 
     const [x, z, h] = G.bays[k], V = Core.VEH[k];
     for (const s of V.samples) for (const c of walls) assert.equal(Core.collidePoint(x + Math.sin(h) * s, z + Math.cos(h) * s, V.r, c), null, k + ' is clear of the walls');
     let sp = 0, zz = G.z1, t = 0;
-    while (zz < top && t < 30){ sp = Core.stepSpeed(sp, { up: true }, 1 / 60, Math.min(G.speed, Core.topSpeed(Core.MODES.city, V, 0, false)), V, Core.garageGrade(zz, 0)); zz += sp / 60; t += 1 / 60; }
+    while (zz < top && t < 30){ sp = Core.stepSpeed(sp, { up: true }, 1 / 60, Math.min(G.speed, Core.topSpeed(Core.MODES.city, V, 0)), V, Core.garageGrade(zz, 0)); zz += sp / 60; t += 1 / 60; }
     assert.ok(t < 10, k + ' climbs the ramp in ' + t.toFixed(1) + ' s');
   }
   // the walls hold: a point pushed against each side of the hall is pushed back in, and the only way out is the opening to the ramp

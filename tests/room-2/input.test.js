@@ -14,22 +14,20 @@ test('accepted: each menu action works in the states whose cards show it', () =>
   assert.deepEqual(allowedIn('menu', null), ['menu', 'pause', 'done', 'over']);
   assert.deepEqual(allowedIn('story', null), ['menu']);
   const story = Core.newStory();
-  assert.deepEqual(allowedIn('story', story), ['menu'], 'not after an early act');
-  assert.deepEqual(allowedIn('story', { ...story, act: Core.STORY_ACTS - 1 }), ['menu', 'done'], 'after the final ending');
+  assert.deepEqual(allowedIn('story', story), ['menu', 'done'], 'the story can be played again from its ending');
   assert.deepEqual(allowedIn('act', story), ['menu', 'done']);
   assert.deepEqual(allowedIn('retry-act', story), ['pause', 'over']);
-  assert.deepEqual(allowedIn('next-act', story), ['done']);
 });
 
 test('rejected: nothing on a card can run while driving', () => {
-  for (const a of ['go', 'story', 'again', 'resume', 'menu', 'act', 'next-act', 'retry-act']) assert.equal(Core.actionAllowed(a, { state: 'play', story: Core.newStory() }), false, a);
+  for (const a of ['go', 'story', 'again', 'resume', 'menu', 'act', 'retry-act']) assert.equal(Core.actionAllowed(a, { state: 'play', story: Core.newStory() }), false, a);
 });
 
-test('rejected: story actions without a story, and no act after the last one', () => {
-  for (const a of ['act', 'next-act', 'retry-act']) assert.deepEqual(allowedIn(a, null), [], a);
-  const story = Core.newStory();
-  Core.beginAct(story, 2);
-  assert.equal(Core.actionAllowed('next-act', { state: 'done', story }), false);
+test('rejected: story actions without a story, and there is no next act any more', () => {
+  for (const a of ['act', 'retry-act']) assert.deepEqual(allowedIn(a, null), [], a);
+  // the story has one act: the button of the acts that were removed does nothing in any state
+  assert.deepEqual(allowedIn('next-act', Core.newStory()), []);
+  assert.deepEqual(allowedIn('next-act', null), []);
 });
 
 test('rejected: unknown, empty or malformed actions', () => {
@@ -38,21 +36,25 @@ test('rejected: unknown, empty or malformed actions', () => {
   assert.equal(Core.actionAllowed('go', { state: 'loading' }), false);
 });
 
-test('menu picks: known maps and vehicles are accepted, everything else is rejected', () => {
+test('menu picks: Lisbon and the three vehicles are accepted, everything else is rejected', () => {
   const sel = { mode: 'city', veh: 'car' };
-  assert.ok(Core.applyPick(sel, 'mode', 'highway'));
+  assert.ok(Core.applyPick(sel, 'mode', 'city'));
   assert.ok(Core.applyPick(sel, 'veh', 'truck'));
-  assert.deepEqual(sel, { mode: 'highway', veh: 'truck' });
-  for (const [field, val] of [['mode', 'moon'], ['veh', 'tank'], ['veh', 'constructor'], ['mode', '__proto__'], ['mode', 'toString'], ['color', 'red'], ['__proto__', 'city'], ['mode', null], ['veh', 1]]){
+  assert.deepEqual(sel, { mode: 'city', veh: 'truck' });
+  // the highway and the countryside are gone: they are refused like any map that does not exist
+  for (const [field, val] of [['mode', 'highway'], ['mode', 'country'], ['mode', 'moon'], ['veh', 'tank'], ['veh', 'constructor'], ['mode', '__proto__'], ['mode', 'toString'], ['color', 'red'], ['__proto__', 'city'], ['mode', null], ['veh', 1]]){
     assert.equal(Core.applyPick(sel, field, val), false, `${field}=${val}`);
   }
-  assert.deepEqual(sel, { mode: 'highway', veh: 'truck' }, 'rejected picks change nothing');
+  assert.deepEqual(sel, { mode: 'city', veh: 'truck' }, 'rejected picks change nothing');
   assert.equal(Object.getPrototypeOf(sel), Object.prototype);
 });
 
 test('stored selection: valid data is restored, tampered data falls back to defaults', () => {
-  assert.deepEqual(Core.parsePick('{"mode":"country","veh":"bike"}'), { mode: 'country', veh: 'bike' });
-  assert.deepEqual(Core.parsePick('{"mode":"country","veh":"jet"}'), { mode: 'country', veh: 'car' });
+  assert.deepEqual(Core.parsePick('{"mode":"city","veh":"bike"}'), { mode: 'city', veh: 'bike' });
+  assert.deepEqual(Core.parsePick('{"mode":"city","veh":"jet"}'), { mode: 'city', veh: 'car' });
+  // a selection saved when the highway and the countryside still existed falls back to Lisbon and keeps its vehicle
+  assert.deepEqual(Core.parsePick('{"mode":"country","veh":"bike"}'), { mode: 'city', veh: 'bike' });
+  assert.deepEqual(Core.parsePick('{"mode":"highway","veh":"truck"}'), { mode: 'city', veh: 'truck' });
   const fallback = { mode: 'city', veh: 'car' };
   for (const raw of [null, undefined, '', 'not json', '{', '[]', '"city"', '42', 'null', '{"mode":"constructor","veh":"__proto__"}', '{"mode":"hasOwnProperty"}', '{"__proto__":{"mode":"x"}}', 'x'.repeat(5000)]){
     assert.deepEqual(Core.parsePick(raw), fallback, String(raw).slice(0, 40));
@@ -117,29 +119,30 @@ test('leaderboard: one best entry per driver and map, fastest first, slower runs
   r = Core.recordRun(b, 'city', 'Alex', 80, 'truck', 3); b = r.board;
   assert.deepEqual([r.rank, r.personalBest, r.prev], [2, true, 95.2], 'a tie goes behind the time that was there first');
   assert.deepEqual(b.runs.city.map(x => x.name), ['Sarah', 'Alex']);
-  assert.equal(b.runs.highway.length, 0, 'each map has its own board');
-  // nothing impossible gets on the board
-  for (const [m, n, t] of [['moon', 'A', 90], ['city', '', 90], ['city', 'A', 5], ['city', 'A', 9999], ['city', 'A', NaN], ['__proto__', 'A', 90]]){
+  assert.deepEqual(Object.keys(b.runs), ['city'], 'Lisbon is the only board');
+  // nothing impossible gets on the board, and nothing on the boards of the maps that were removed
+  for (const [m, n, t] of [['highway', 'A', 90], ['country', 'A', 90], ['moon', 'A', 90], ['city', '', 90], ['city', 'A', 5], ['city', 'A', 9999], ['city', 'A', NaN], ['__proto__', 'A', 90]]){
     const x = Core.recordRun(b, m, n, t, 'car', 1); assert.equal(x.board, b, `${m} ${n} ${t}`); assert.equal(x.rank, 0);
   }
 });
 
 test('leaderboard rows: the top five, plus the driver further down after a gap', () => {
   let b = Core.newBoard();
-  for (let i = 0; i < 8; i++) b = Core.recordRun(b, 'highway', 'P' + i, 60 + i, 'car', 3).board;
-  let rows = Core.boardRows(b, 'highway', 'P7');
+  for (let i = 0; i < 8; i++) b = Core.recordRun(b, 'city', 'P' + i, 60 + i, 'car', 3).board;
+  let rows = Core.boardRows(b, 'city', 'P7');
   assert.deepEqual(rows.map(r => r.place), [1, 2, 3, 4, 5, 8]);
   assert.ok(rows[5].me && rows[5].gap);
-  rows = Core.boardRows(b, 'highway', 'P5');
+  rows = Core.boardRows(b, 'city', 'P5');
   assert.ok(rows[5].me && !rows[5].gap, 'sixth place follows straight on');
-  rows = Core.boardRows(b, 'highway', 'p2');
+  rows = Core.boardRows(b, 'city', 'p2');
   assert.equal(rows.length, 5); assert.ok(rows[2].me);
   assert.deepEqual(Core.boardRows(b, 'nope', 'P1'), []);
+  assert.deepEqual(Core.boardRows(b, 'highway', 'P1'), [], 'no board for a map that was removed');
 });
 
 test('a saved leaderboard is read back exactly, and broken or changed data is cleaned', () => {
   let b = Core.addDriver(Core.newBoard(), 'Alex').board;
-  b = Core.recordRun(b, 'country', 'Alex', 120.4, 'truck', 2).board;
+  b = Core.recordRun(b, 'city', 'Alex', 120.4, 'truck', 2).board;
   assert.deepEqual(Core.parseBoard(JSON.stringify(b)), b);
   for (const raw of [null, '', 'not json', '[]', '42', 'null', '{"runs":7}', 'x'.repeat(30000)]) assert.deepEqual(Core.parseBoard(raw), Core.newBoard(), String(raw).slice(0, 20));
   const bad = Core.parseBoard(JSON.stringify({
@@ -148,8 +151,9 @@ test('a saved leaderboard is read back exactly, and broken or changed data is cl
   }));
   assert.deepEqual(bad.drivers, ['Alex', 'b', 'Sarah']);
   assert.deepEqual(bad.runs.city, [{ name: 'ALEX', time: 90, veh: 'car', stars: 1 }]);
-  assert.deepEqual(Object.keys(bad.runs), ['city', 'highway', 'country']);
-  assert.deepEqual(bad.runs.highway, []);
+  assert.deepEqual(Object.keys(bad.runs), ['city'], 'saved runs of unknown maps, and of the highway and the countryside, are dropped');
+  const old = Core.parseBoard(JSON.stringify({ drivers: ['Alex'], runs: { city: [{ name: 'Alex', time: 99 }], highway: [{ name: 'Alex', time: 70 }], country: [{ name: 'Alex', time: 120 }] } }));
+  assert.deepEqual(old.runs, { city: [{ name: 'Alex', time: 99, veh: 'car', stars: 1 }] }, 'a board saved before the two maps were removed keeps its Lisbon times');
 });
 
 test('leaderboard of the month: its own board per calendar month, which starts empty when a new month begins', () => {
@@ -176,7 +180,7 @@ test('leaderboard of the month: its own board per calendar month, which starts e
   const bad = Core.parseBoard(JSON.stringify({ drivers: ['Alex'], runs: b.runs, month: { key: '<b>', runs: { city: [{ name: 'Eve', time: 20 }] } } }));
   assert.equal(bad.month.key, ''); assert.deepEqual(bad.month.runs.city, []); assert.equal(bad.runs.city.length, 2);
   // without a valid clock the run still counts all time
-  r = Core.recordRun(Core.newBoard(), 'highway', 'Alex', 70, 'car', 3);
+  r = Core.recordRun(Core.newBoard(), 'city', 'Alex', 70, 'car', 3);
   assert.deepEqual([r.rank, r.monthRank, r.board.month.key], [1, 0, '']);
 });
 
@@ -186,5 +190,5 @@ test('the garage card: get in and skip only work in the garage, and the menu can
   assert.equal(Core.actionAllowed('menu', { state: 'garage', story: null }), true);
   assert.equal(Core.actionAllowed('menu', { state: 'garage', story: Core.newStory() }), true);
   // rejected: nothing else on a stale card can run down there
-  for (const a of ['go', 'again', 'resume', 'story', 'act', 'next-act', 'retry-act']) assert.equal(Core.actionAllowed(a, { state: 'garage', story: Core.newStory() }), false, a);
+  for (const a of ['go', 'again', 'resume', 'story', 'act', 'retry-act']) assert.equal(Core.actionAllowed(a, { state: 'garage', story: Core.newStory() }), false, a);
 });
