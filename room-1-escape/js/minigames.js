@@ -33,9 +33,9 @@
       goal: 'Bounce up through the ship and land on the boat deck.',
       steps: ['The sailor bounces by himself on every platform he lands on.', 'Steer him up from the engine room past the crew quarters, second class and the long first class.', 'Lifebuoys bounce you higher. Miss the platforms and fall, and you lose.'],
       keys: '← → (A D) to steer, or move the mouse.', touch: 'Slide your finger left and right.' },
-    lifeboat: { title: 'Jump for the <em>lifeboats</em>', name: 'Lifeboat jump', how: 'Jump from the stern of the sinking Titanic onto three boats, each smaller than the last. Stop the power meter with Space, ↑ or a click, steer in the air with ← →, and land as close to the lantern in the middle as you can. 180 points win.',
-      goal: 'Score 180 points in three jumps from the sinking Titanic onto the boats below.',
-      steps: ['You stand on the stern of the sinking ship. The power meter swings up and down: jump to stop it. More power flies further.', 'In the air, steer a little left or right. The lantern on its pole marks the middle of the boat.', 'Landing in the middle scores 100, on the edge 30, in the sea 0. A lifeboat, a collapsible boat and a cork raft, each smaller, and the stern rises higher every jump.'],
+    lifeboat: { title: 'Jump for the <em>lifeboats</em>', name: 'Lifeboat jump', how: 'Jump from the stern of the sinking Titanic onto three boats, each smaller than the last. Stop the power meter with Space, ↑ or a click, steer in the air with ← →, and land as close to the lantern in the middle as you can. 150 points win.',
+      goal: 'Score 150 points in three jumps from the sinking Titanic onto the boats below.',
+      steps: ['You stand on the stern of the sinking ship. The power meter swings up and down: jump to stop it. More power flies further.', 'In the air, steer a little left or right. The lantern on its pole marks the middle of the boat.', 'Landing in the middle scores 100, on the edge 40, in the sea 0. A lifeboat, a collapsible boat and a cork raft, each smaller, and the stern rises higher every jump.'],
       keys: 'Space, ↑ or W to jump, ← → (A D) to steer in the air.', touch: 'Tap to jump, then press the left or right half of the picture to steer.' },
     pinball: { title: 'Vintage <em>pinball</em>', name: 'Pinball', how: 'Score 1,500 points with three balls. Flippers: ← and → (A and D), Space for both, or press the left or right half of the table. The ball shoots by itself, or press Space.',
       goal: 'Score 1,500 points with three balls.',
@@ -1191,11 +1191,11 @@
   // ### land as close to the middle (the lantern) as possible. A power meter swings up and down; the jump stops it and
   // ### sets how far you fly. In the air ← → steer a little. jumpNew(), jumpAct() and jumpStep() hold all the rules and
   // ### are tested in Node; the build below only draws them.
-  const JUMP = { W: 640, H: 360, SEA: 292, DECK: 8, G: 430, VY: -190, VMIN: 120, VMAX: 420, STEER: 80, METER: 1.6,
-    JUMPS: 3, GOAL: 180, BEST: 100, EDGE: 30, PAUSE: 1.1, LEFT: 360, RIGHT: 620,
+  const JUMP = { W: 640, H: 360, SEA: 292, DECK: 8, G: 430, VY: -190, VMIN: 120, VMAX: 420, STEER: 120, METER: 2.2,
+    JUMPS: 3, GOAL: 150, BEST: 100, EDGE: 40, PAUSE: 1.1, LEFT: 372, RIGHT: 620,
     // the ship at each jump: its tilt (degrees, bow down) and how much of it is still above the sea (from the stern)
     SHIP: { s: 1.1, x: 250, tilt: [20, 30, 40, 48], afloat: [210, 200, 190, 182] },
-    BOATS: [{ kind: 'lifeboat', name: 'Lifeboat', w: 116 }, { kind: 'collapsible', name: 'Collapsible boat', w: 80 }, { kind: 'raft', name: 'Cork raft', w: 52 }] };
+    BOATS: [{ kind: 'lifeboat', name: 'Lifeboat', w: 150 }, { kind: 'collapsible', name: 'Collapsible boat', w: 120 }, { kind: 'raft', name: 'Cork raft', w: 96 }] };
   // ### Where the ship lies at jump k (k may be a fraction while she sinks between two jumps): the angle a, the point
   // ### (tx, ty) where her stern keel is drawn from, and the stern deck where the player stands (sx, sy). The point
   // ### `afloat` pixels along her keel from the stern lies exactly on the sea at x = SHIP.x.
@@ -1205,7 +1205,7 @@
     const c = Math.cos(a), n = Math.sin(a), tx = x - s * w * c, ty = JUMP.SEA - s * w * n;
     return { a, tx, ty, sx: tx + s * (8 * c + 41 * n), sy: ty + s * (8 * n - 41 * c) };
   }
-  // ### The points for a landing dx from the middle of a boat w wide: 100 in the middle down to 30 on the edge, 0 in the sea.
+  // ### The points for a landing dx from the middle of a boat w wide: 100 in the middle down to 40 on the edge, 0 in the sea.
   function jumpPoints(dx, w){
     const r = Math.abs(dx) / (w / 2);
     return r > 1 ? 0 : Math.round(JUMP.EDGE + (JUMP.BEST - JUMP.EDGE) * (1 - r));
@@ -1213,7 +1213,7 @@
   // ### The power meter swings from 0 to 1 and back in METER seconds.
   function jumpPower(t){ const p = (t % JUMP.METER) / JUMP.METER; return p < .5 ? p * 2 : 2 - p * 2; }
   function jumpNew(rand){
-    const boats = JUMP.BOATS.map((b, i) => ({ ...b, x: 380 + 20 * i + rand() * 170, vx: (rand() < .5 ? -1 : 1) * (5 + 6 * i + rand() * 6) }));
+    const boats = JUMP.BOATS.map((b, i) => ({ ...b, x: JUMP.LEFT + b.w / 2 + rand() * (JUMP.RIGHT - JUMP.LEFT - b.w), vx: (rand() < .5 ? -1 : 1) * (5 + 6 * i + rand() * 6) }));
     const st = jumpShip(0);
     return { n: 0, total: 0, scores: [], phase: 'aim', t: 0, power: 0, boats, p: { x: st.sx, y: st.sy, vx: 0, vy: 0, dx: 0 }, wait: 0, done: null, events: [] };
   }

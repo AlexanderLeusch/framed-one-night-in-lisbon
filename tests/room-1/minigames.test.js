@@ -114,26 +114,28 @@ test('the icebergs on the pictures are hit by their outline', () => {
 const J = M.JUMP;
 // where the flier lands (on the top of a boat) without more steering, and in how many seconds
 function landing(p){ const top = J.SEA - J.DECK, t = (-p.vy + Math.sqrt(p.vy * p.vy + 2 * J.G * (top - p.y))) / J.G; return { x: p.x + p.vx * t, t }; }
-function jumpPlay(seed, { noise, steer }){
+// ### A player who presses `err` seconds too early or too late (or at a random moment), and steers once the flight is
+// ### past `late` (speed downwards) toward where the boat is now, not where it will be, ignoring misses under `dead`.
+function jumpPlay(seed, { err, steer, late, dead, random }){
   const rand = seeded(seed), aim = seeded(seed * 7 + 1), s = M.jumpNew(rand);
-  let time = 0, want = null;
+  let time = 0, pressAt = null;
   while (!s.done && time < 60){
     const input = {};
     if (s.phase === 'aim'){
-      if (want === null){
-        // the power that lands where the boat will be, then a timing error of up to `noise`
+      if (pressAt === null){
+        // the best moment to press, in the first full swing of the meter
         const st = M.jumpShip(s.n), b = s.boats[s.n];
         let best = 0, miss = Infinity;
-        for (let pw = 0; pw <= 1; pw += .005){
-          const l = landing({ x: st.sx, y: st.sy, vx: J.VMIN + pw * (J.VMAX - J.VMIN), vy: J.VY }), d = Math.abs(l.x - (b.x + b.vx * l.t));
-          if (d < miss){ miss = d; best = pw; }
+        for (let t = J.METER * .3; t < J.METER * 1.3; t += .005){
+          const l = landing({ x: st.sx, y: st.sy, vx: J.VMIN + M.jumpPower(t) * (J.VMAX - J.VMIN), vy: J.VY }), d = Math.abs(l.x - (b.x + b.vx * (l.t + t - s.t)));
+          if (d < miss){ miss = d; best = t; }
         }
-        want = Math.max(0, Math.min(1, best + (aim() * 2 - 1) * noise));
+        pressAt = random ? .3 + aim() * J.METER * 1.2 : best + (aim() * 2 - 1) * err;
       }
-      if (s.t > .5 && Math.abs(s.power - want) < .02){ assert.ok(M.jumpAct(s, 'jump')); want = null; }
-    } else if (s.phase === 'fly' && steer){
-      const l = landing(s.p), b = s.boats[s.n], bx = b.x + b.vx * l.t;
-      if (l.x < bx - 3) input.right = true; else if (l.x > bx + 3) input.left = true;
+      if (s.t >= pressAt){ assert.ok(M.jumpAct(s, 'jump')); pressAt = null; }
+    } else if (s.phase === 'fly' && steer && s.p.vy > late){
+      const l = landing(s.p), b = s.boats[s.n];
+      if (l.x < b.x - dead) input.right = true; else if (l.x > b.x + dead) input.left = true;
     }
     M.jumpStep(s, 1 / 60, input); time += 1 / 60;
   }
@@ -159,12 +161,12 @@ test('lifeboat jump: three boats, each smaller, the stern rising higher above th
   }
 });
 
-test('lifeboat jump: 100 points in the middle, 30 on the edge, nothing in the sea; the meter swings from 0 to 1 and back', () => {
+test('lifeboat jump: 100 points in the middle, 40 on the edge, nothing in the sea; the meter swings from 0 to 1 and back', () => {
   assert.equal(M.jumpPoints(0, 80), 100);
-  assert.equal(M.jumpPoints(40, 80), 30);
-  assert.equal(M.jumpPoints(-40, 80), 30);
+  assert.equal(M.jumpPoints(40, 80), 40);
+  assert.equal(M.jumpPoints(-40, 80), 40);
   assert.equal(M.jumpPoints(40.5, 80), 0);
-  assert.equal(M.jumpPoints(20, 80), 65);
+  assert.equal(M.jumpPoints(20, 80), 70);
   assert.equal(M.jumpPower(0), 0);
   assert.ok(Math.abs(M.jumpPower(J.METER / 2) - 1) < 1e-9);
   assert.ok(M.jumpPower(J.METER * .99) < .05);
@@ -186,23 +188,27 @@ test('lifeboat jump: jumping is refused in the air, and landing in the middle of
   assert.equal(s.total, 100);
 });
 
-test('lifeboat jump: a fair player wins in time, one who never steers mostly does not, and doing nothing loses', () => {
-  let fair = 0, careless = 0, slowest = 0;
+test('lifeboat jump: easy to pass for a fair player and even a clumsy one, in time; pressing at random rarely wins; doing nothing loses', () => {
+  let fair = 0, clumsy = 0, careless = 0, lucky = 0, slowest = 0;
   for (let i = 1; i <= 200; i++){
-    const a = jumpPlay(i, { noise: .1, steer: true });
+    const a = jumpPlay(i, { err: .15, steer: true, late: -50, dead: 10 });
     if (a.s.done === 'win') fair++;
     slowest = Math.max(slowest, a.time);
-    if (jumpPlay(i, { noise: .1, steer: false }).s.done === 'win') careless++;
+    if (jumpPlay(i, { err: .25, steer: true, late: 50, dead: 15 }).s.done === 'win') clumsy++;
+    if (jumpPlay(i, { err: .15, steer: false }).s.done === 'win') careless++;
+    if (jumpPlay(i, { random: true, steer: false }).s.done === 'win') lucky++;
   }
-  assert.ok(fair >= 190, `a fair player wins (${fair} of 200)`);
+  assert.ok(fair >= 194, `a fair player (0.15 s early or late) wins (${fair} of 200)`);
+  assert.ok(clumsy >= 160, `a clumsy player (0.25 s off, steering late) wins most games (${clumsy} of 200)`);
   assert.ok(slowest < M.TIME - 10, `with time to spare (${slowest.toFixed(1)} s)`);
-  assert.ok(careless < 120, `steering matters (${careless} of 200 win without it)`);
-  // jumping with the meter at zero every time lands in the sea; the game ends as soon as 180 is out of reach
+  assert.ok(careless < fair - 20, `steering still helps (${careless} of 200 win without it)`);
+  assert.ok(lucky < 50, `jumping at a random moment rarely wins (${lucky} of 200)`);
+  // jumping with the meter at zero every time lands in the sea; the game ends as soon as 150 is out of reach
   const s = M.jumpNew(seeded(11));
   let steps = 0;
   while (!s.done && steps++ < 5000){ if (s.phase === 'aim') M.jumpAct(s, 'jump'); M.jumpStep(s, 1 / 60, {}); }
   assert.equal(s.done, 'lose');
-  assert.deepEqual(s.scores, [0, 0], 'over after two misses: one jump cannot make 180');
+  assert.deepEqual(s.scores, [0, 0], 'over after two misses: one jump cannot make 150');
 });
 
 test('deck run: every obstacle is a plain box, so what you see is exactly what knocks you down', () => {
