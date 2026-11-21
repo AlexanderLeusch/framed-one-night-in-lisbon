@@ -1958,6 +1958,19 @@ function buildCity(){
       g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
       return g;
     })();
+    // ### A second tree beside many of them, a few metres off, so gardens and streets of the slopes read as green, wooded
+    // ### patches instead of single trees. Own random numbers, so the houses stay where they are.
+    {
+      const tr = mulberry32(5150), more = [];
+      for (const o of gardenTrees){
+        if (tr() > 0.6) continue;
+        const a = tr() * 6.28, d = 4 + tr() * 3, x = o.x + Math.cos(a) * d, z = o.z + Math.sin(a) * d, s = 0.8 + tr() * 0.7, rot = tr() * 6.28, v = tr();
+        if (z > 122 || Math.max(Math.abs(x), Math.abs(z)) < 198 || !free(x - 1.5, x + 1.5, z - 1.5, z + 1.5)) continue;
+        const y = hillSurf(x, z), kind = hillKind(x, y, z);
+        if (y > 1 && kind !== 'built') more.push({ x, z, y, s, rot, v });
+      }
+      gardenTrees.push(...more);
+    }
     const broad = gardenTrees.filter(o => o.v >= 0.32), slim = gardenTrees.filter(o => o.v < 0.32);
     const placeG = (o, dm) => { dm.position.set(o.x, o.y - 0.3, o.z); dm.rotation.set(0, o.rot, 0); dm.scale.setScalar(o.s); };
     const placeC = (o, dm) => { dm.position.set(o.x, o.y - 0.4, o.z); dm.rotation.set(0, o.rot, 0); dm.scale.set(o.s * 0.95, o.s * (1.05 + o.v), o.s * 0.95); };
@@ -2273,26 +2286,54 @@ function buildCity(){
       spots[kind].push({ x, z, y: southBank(x, z) - 0.6, w: pick(K.w), d: pick(K.d), h: pick(K.h), rot: (rng() < 0.8 ? 0 : Math.PI / 2) + (rng() - 0.5) * 0.08 });
       n++;
     }
-    // ### Trees: umbrella pines and dark cypresses, as on the real hillside. They cover the cliff under the town, stand in the
-    // ### plots between the houses and along the quay, and thin out towards the back. Crowns and trunks are two instanced meshes.
+    // ### Trees: umbrella pines, round broadleaf trees and dark cypresses, as on the real hillside. They cover the cliff under the
+    // ### town, stand in the plots between the houses and along the quay, and thin out towards the back. The umbrella pine has
+    // ### its flat, wide crown of several lumps on a tall bare trunk; the broadleaf a rounder crown lower down; the cypress is a
+    // ### tall, narrow, slightly ragged spire. The crowns are shaded light on top and dark underneath (treeCrown), so they read as
+    // ### trees and not as green balls. Where each tree stands is drawn from the town's random numbers exactly as before, so the
+    // ### town itself stays as it was; a second set, with its own random numbers, makes the woods denser.
     {
+      const GREENS = [0x3f6b3a, 0x4d7a3e, 0x35582f, 0x5a8546, 0x2f4f33], spots = [];
+      const place = (r, n, max) => {
+        for (let tries = 0, t = 0; tries < n && t < max; tries++){
+          const slope = r() < 0.58, x = (r() - 0.5) * 2500, shore = 648 + 14 * Math.sin(x * 0.004 + 1);
+          const z = shore + (slope ? 34 + r() * 52 : r() < 0.06 ? 5 + r() * 6 : 88 + r() * 250);
+          if (!clear(x, z, 16) || (!slope && taken.has(plot(x, z)))) continue;
+          const y = southBank(x, z) - 0.3, cypress = r() < 0.22, th = cypress ? 1.5 : 3 + r() * 3.5, cw = cypress ? 1.1 + r() * 0.5 : 2.6 + r() * 2.2, chh = cypress ? 4.5 + r() * 3 : cw * (0.5 + r() * 0.2);
+          const rot = r() * 6.28, col = cypress ? 0x24402c : GREENS[Math.floor(r() * GREENS.length)], v = 0.85 + r() * 0.3;
+          spots.push({ x, y, z, th, cw, chh, rot, col, v, kind: cypress ? 'cypress' : hash3(x, 3.1, z) < 0.62 ? 'pine' : 'round' });
+          t++;
+        }
+      };
+      place(rng, 60000, 3600);
+      place(mulberry32(9021), 30000, 2000);
+      // simple lumps (detail 0): seen from the city or the bridge they look the same, and 6,000 trees stay light on a phone
+      const flat = treeCrown(6, 0, 1, 0, 61).scale(0.62, 0.58, 0.62), round = treeCrown(5, 0, 1, 0, 62).scale(0.58, 0.58, 0.58);
+      const spire = (() => {
+        const g = new THREE.ConeGeometry(0.5, 1, 7, 4).translate(0, 0.5, 0), q = g.attributes.position, col = new Float32Array(q.count * 3);
+        for (let i = 0; i < q.count; i++){
+          const y = q.getY(i), k = 1 + 0.22 * (hash3(q.getX(i) * 5, y * 7, q.getZ(i) * 5) - 0.5), belly = 1 + 0.35 * Math.sin(Math.PI * Math.min(1, y * 1.6));
+          q.setX(i, q.getX(i) * k * belly); q.setZ(i, q.getZ(i) * k * belly);
+          col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = 0.5 + 0.5 * y;
+        }
+        g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
+        return g;
+      })();
+      const leaves = farLit({ color: 0xffffff, vertexColors: true, emissive: 0x04070a }), bark = farLit({ color: 0x4a3a2c, emissive: 0x050403 });
       const tmp = new THREE.Object3D(), tc = new THREE.Color();
-      const NT = 3600, crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), farLit({ color: 0xffffff, emissive: 0x04070a, flatShading: true }), NT);
-      const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.5, 0.7, 1, 6).translate(0, 0.5, 0), farLit({ color: 0x4a3a2c, emissive: 0x050403 }), NT);
-      const GREENS = [0x3f6b3a, 0x4d7a3e, 0x35582f, 0x5a8546, 0x2f4f33];
-      let t = 0;
-      for (let tries = 0; tries < 60000 && t < NT; tries++){
-        const slope = rng() < 0.58, x = (rng() - 0.5) * 2500, shore = 648 + 14 * Math.sin(x * 0.004 + 1);
-        const z = shore + (slope ? 34 + rng() * 52 : rng() < 0.06 ? 5 + rng() * 6 : 88 + rng() * 250);
-        if (!clear(x, z, 16) || (!slope && taken.has(plot(x, z)))) continue;
-        const y = southBank(x, z) - 0.3, cypress = rng() < 0.22, th = cypress ? 1.5 : 3 + rng() * 3.5, cw = cypress ? 1.1 + rng() * 0.5 : 2.6 + rng() * 2.2, chh = cypress ? 4.5 + rng() * 3 : cw * (0.5 + rng() * 0.2);
-        tmp.position.set(x, y, z); tmp.rotation.set(0, rng() * 6.28, 0); tmp.scale.set(cypress ? 0.5 : 0.6, th, cypress ? 0.5 : 0.6); tmp.updateMatrix(); trunks.setMatrixAt(t, tmp.matrix);
-        tmp.position.y = y + th + chh * 0.7; tmp.scale.set(cw, chh, cw); tmp.updateMatrix(); crowns.setMatrixAt(t, tmp.matrix);
-        crowns.setColorAt(t, tc.setHex(cypress ? 0x24402c : GREENS[Math.floor(rng() * GREENS.length)]).multiplyScalar(0.85 + rng() * 0.3));
-        t++;
-      }
-      crowns.count = t; trunks.count = t; crowns.frustumCulled = false; trunks.frustumCulled = false;
-      grp.add(crowns, trunks);
+      const batch = (geo, mat, list, set, tint) => {
+        if (!list.length) return;
+        const m = new THREE.InstancedMesh(geo, mat, list.length);
+        list.forEach((o, i) => { set(o); tmp.rotation.set(0, o.rot, 0); tmp.updateMatrix(); m.setMatrixAt(i, tmp.matrix); if (tint) m.setColorAt(i, tc.setHex(o.col).multiplyScalar(o.v)); });
+        m.frustumCulled = false; grp.add(m);
+      };
+      const pines = spots.filter(o => o.kind === 'pine'), rounds = spots.filter(o => o.kind === 'round'), cypresses = spots.filter(o => o.kind === 'cypress');
+      // the umbrella pine stands a little taller, its crown spread wide and flat on top of the trunk
+      batch(treeTrunk(1, 0.5, 3, 63), bark, pines, o => { tmp.position.set(o.x, o.y, o.z); tmp.scale.set(0.55, o.th * 1.15, 0.55); });
+      batch(flat, leaves, pines, o => { tmp.position.set(o.x, o.y + o.th * 1.15 + o.chh * 0.4, o.z); tmp.scale.set(o.cw * 1.3, o.chh * 1.8, o.cw * 1.3); }, true);
+      batch(treeTrunk(1, 0.5, 2, 64), bark, rounds, o => { tmp.position.set(o.x, o.y, o.z); tmp.scale.set(0.6, o.th, 0.6); });
+      batch(round, leaves, rounds, o => { tmp.position.set(o.x, o.y + o.th + o.chh * 0.55, o.z); tmp.scale.set(o.cw * 1.15, o.chh * 1.7, o.cw * 1.15); }, true);
+      batch(spire, leaves, cypresses, o => { tmp.position.set(o.x, o.y + 0.4, o.z); tmp.scale.set(o.cw * 1.5, o.chh * 1.6, o.cw * 1.5); }, true);
     }
     const tmp = new THREE.Object3D(), tc = new THREE.Color();
     for (const kind of Object.keys(KINDS)){
