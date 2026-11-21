@@ -3559,6 +3559,14 @@ function loadRider(){
     hold.add(I.g); md.rider.add(hold);
     standIn.forEach(m => { m.visible = false; });
     md.inmate = I;
+    // the menu picture of the motorcycle is drawn again with him on it, once his skin has loaded
+    let tries = 0;
+    const redraw = () => {
+      if (!I.mats.every(m => !m.map || (m.map.image && m.map.image.width)) && ++tries < 40) return setTimeout(redraw, 250);
+      const old = PREVIEWS.bike; previewsOf(['bike']);
+      if (old) document.querySelectorAll('img').forEach(im => { if (im.getAttribute('src') === old) im.setAttribute('src', PREVIEWS.bike); });
+    };
+    redraw();
   }).catch(() => {});
 }
 (function buildPlayerModels(){
@@ -3648,7 +3656,7 @@ function loadRider(){
       w.add(new THREE.Mesh(mergeGeos(nuts), gun), new THREE.Mesh(mergeGeos(holes), SHARED.trim));
     } else {
       if (o.rotors) o.rotors.forEach(x => {
-        w.add(new THREE.Mesh(cyl(o.rotorR, o.rotorR, 0.008, 28).rotateZ(Math.PI / 2).translate(x, 0, 0), alu));
+        w.add(new THREE.Mesh(cyl(o.rotorR, o.rotorR, 0.008, 28).rotateZ(Math.PI / 2).translate(x, 0, 0), o.disc || alu));
         w.add(new THREE.Mesh(cyl(o.rotorR * 0.72, o.rotorR * 0.72, 0.012, 20).rotateZ(Math.PI / 2).translate(x, 0, 0), gun));
       });
       else w.add(new THREE.Mesh(cyl(mid * 0.95, mid * 0.95, 0.02, 24).rotateZ(Math.PI / 2), alu));
@@ -3695,45 +3703,134 @@ function loadRider(){
     MODELS.car = { skid: { x: [-0.88, 0.88], z: -1.35, w: 0.28 }, g, paint: pm, base: C(base), wheels, pivots, r: 0.38, damageParts, dent: 1, smoke: [1.5, 1.1], stage: 0, door, drive, eye, dash };
   }
 
-  // Motorcycle: superbike with an inline four, twin-spar frame, upside-down fork and a tucked rider in leathers.
-  // The fairing is separate panels with vents, so the engine and its header pipes show through as on a real bike.
+  // Motorcycle: superbike with an inline four, twin-spar frame, upside-down fork and a tucked rider in leathers. A sports
+  // machine in gloss black: a sharp nose with two slim headlights and an air intake under them, a tall smoked screen, a
+  // layered fairing with big vents (the engine and its header pipes show through), a long tank, a thin seat and a high,
+  // pointed tail with an LED strip. Graphite pinstripes, gold fork tubes; no badge or lettering of any make.
   {
     // everything above the axles is drawn slightly tall and scaled down to a real seat height of about 0.9 m
-    const root = new THREE.Group(), g = new THREE.Group(), base = 0x30343c, pm = paintMat(base, 0.28, 0.6);
+    const root = new THREE.Group(), g = new THREE.Group(), base = 0x0c0d0f, pm = paintMat(base, 0.2, 0.55);
     root.add(g); g.scale.y = 0.84; g.position.y = 0.31 * (1 - 0.84);
-    const acc = new THREE.MeshStandardMaterial({ color: 0xd4f21a, roughness: 0.35, metalness: 0.2, emissive: 0x1e2600 });
-    const matte = new THREE.MeshStandardMaterial({ color: 0x15171b, roughness: 0.75 });
+    const acc = new THREE.MeshStandardMaterial({ color: 0x7c828c, roughness: 0.28, metalness: 0.85 }); acc.userData.env = 1.2;
+    const matte = new THREE.MeshStandardMaterial({ color: 0x131417, roughness: 0.75 });
     const gold = new THREE.MeshStandardMaterial({ color: 0xc9a04a, roughness: 0.25, metalness: 0.9 }); gold.userData.env = 1.2;
     const leather = new THREE.MeshStandardMaterial({ color: 0x3a3e47, roughness: 0.48, metalness: 0.1 });
     const steel = new THREE.MeshStandardMaterial({ color: 0x8d9299, roughness: 0.35, metalness: 0.9 }); steel.userData.env = 1.1;
-    const carbon = new THREE.MeshStandardMaterial({ color: 0x2d3036, roughness: 0.28, metalness: 0.55 }); carbon.userData.env = 1.1;
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.35, metalness: 0.5, side: THREE.DoubleSide });
+    const carbon = new THREE.MeshStandardMaterial({ color: 0x24262b, roughness: 0.28, metalness: 0.55 }); carbon.userData.env = 1.1;
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x111215, roughness: 0.3, metalness: 0.55, side: THREE.DoubleSide });
     const skin = new THREE.MeshStandardMaterial({ color: 0x0e0f12, roughness: 0.35, metalness: 0.2 });
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x1b1c20, roughness: 0.85 });
+    const frame = new THREE.MeshStandardMaterial({ color: 0x1d1f24, roughness: 0.4, metalness: 0.7 }); frame.userData.env = 1;
 
-    // nose with its pointed plan, windscreen, headlights and the air intake under them
-    mk(smoothGeo(shapeBody(extrudeProfile(shp([[1.0, 0.86], [0.92, 0.97], [0.76, 1.06], [0.58, 1.11], [0.44, 1.1], [0.38, 0.98], [0.42, 0.8], [0.62, 0.76], [0.84, 0.76], [0.96, 0.8]]), 0.42, 0.035), { half: 0.62, zc: 0.42, belt: 0.82, roof: 1.12, tumble: 0.28, plan: 0.78 })), pm, g);
-    const screen = mk(extrudeProfile(shp([[0.76, 1.08], [0.5, 1.29], [0.44, 1.27], [0.56, 1.12]]), 0.27, 0.01), smoke, g);
-    mk(boxG(0.13, 0.05, 0.04, 0, 0.8, 1.01), skin, g);
-    mk(mergeGeos([-1, 1].map(sd => ball([sd * 0.052, 0.905, 0.955], 0.05, 1, 0.34, 0.6))), led, g);
-    mk(mergeGeos([-1, 1].map(sd => boxG(0.012, 0.02, 0.14, sd * 0.12, 0.84, 0.86))), acc, g);
-    // side panels with cooling vents; yellow graphics on top of them; a belly pan under the engine
-    const side = [[0.5, 0.98], [0.3, 0.96], [0.14, 0.82], [0.0, 0.55], [0.06, 0.4], [0.32, 0.36], [0.42, 0.56], [0.52, 0.72]];
-    mk(mergeGeos(sidePanels(side, 0.205, 0.025, [[[0.42, 0.74], [0.24, 0.8], [0.12, 0.58], [0.3, 0.46]]])), pm, g);
-    mk(mergeGeos(sidePanels([[0.48, 0.95], [0.3, 0.93], [0.18, 0.82], [0.22, 0.81], [0.32, 0.89], [0.49, 0.9]], 0.219, 0.008)), acc, g);
-    mk(mergeGeos(sidePanels([[0.33, 0.43], [0.1, 0.45], [0.08, 0.41], [0.31, 0.39]], 0.219, 0.008)), acc, g);
-    mk(smoothGeo(extrudeProfile(shp([[0.38, 0.32], [0.26, 0.2], [-0.02, 0.19], [-0.08, 0.3], [0.08, 0.3]]), 0.3, 0.025)), carbon, g);
-    // tank, seat, tail and its LED, number-plate hanger
-    mk(smoothGeo(shapeBody(extrudeProfile(shp([[0.38, 1.05], [0.16, 1.2], [-0.12, 1.2], [-0.27, 1.05], [-0.22, 0.9], [0.26, 0.92]]), 0.44, 0.08), { half: 0.5, zc: 0.05, belt: 0.95, roof: 1.2, tumble: 0.42, plan: 0.28 })), pm, g);
-    mk(extrudeProfile(shp([[0.2, 1.07], [-0.1, 1.14], [-0.14, 1.11], [0.18, 1.03]]), 0.05, 0.01).translate(0.13, 0, 0), acc, g);
-    mk(extrudeProfile(shp([[0.2, 1.07], [-0.1, 1.14], [-0.14, 1.11], [0.18, 1.03]]), 0.05, 0.01).translate(-0.13, 0, 0), acc, g);
-    mk(smoothGeo(shapeBody(extrudeProfile(shp([[-0.24, 1.03], [-0.56, 1.1], [-0.68, 1.1], [-0.62, 1.02], [-0.26, 0.94]]), 0.28, 0.04), { half: 0.5, zc: -0.3, belt: 0.95, roof: 1.1, tumble: 0.1, plan: 0.5 })), matte, g);
-    mk(smoothGeo(shapeBody(extrudeProfile(shp([[-0.58, 1.1], [-0.72, 1.14], [-1.06, 1.27], [-1.09, 1.21], [-0.88, 1.05], [-0.56, 0.92], [-0.3, 0.9]]), 0.28, 0.045), { half: 0.8, zc: -0.3, belt: 0.9, roof: 1.3, tumble: 0.2, plan: 0.82 })), pm, g);
-    mk(mergeGeos(sidePanels([[-0.72, 1.12], [-1.02, 1.24], [-1.02, 1.2], [-0.78, 1.06]], 0.095, 0.01)), acc, g);
-    mk(boxG(0.1, 0.03, 0.03, 0, 1.235, -1.09, 0.5), red, g);
-    mk(mergeGeos([boxG(0.04, 0.03, 0.34, 0, 0.95, -0.98, 0.75), boxG(0.16, 0.02, 0.2, 0, 0.84, -1.1, 0.75)]), matte, g);
-    mk(boxG(0.17, 0.1, 0.012, 0, 0.77, -1.2), plateMat, g);
-    mk(mergeGeos([limb([0.08, 0.86, -1.07], [0.2, 0.86, -1.07], 0.008, 0.008, 6), limb([-0.08, 0.86, -1.07], [-0.2, 0.86, -1.07], 0.008, 0.008, 6)]), matte, g);
-    mk(mergeGeos([ball([0.21, 0.86, -1.07], 0.022, 1.3, 0.7, 0.7), ball([-0.21, 0.86, -1.07], 0.022, 1.3, 0.7, 0.7)]), new THREE.MeshBasicMaterial({ color: 0xff9a2a }), g);
+    // ### The bodywork is drawn as curved skins. A skin is a side outline (z forward, y up) whose surface stands out from the
+    // ### centre line by X(z, y), on both sides, with an inner face a few millimetres in and its edges closed, so vents are
+    // ### real holes. hull() gives the X of a body that is W(z) wide and rounds over to the centre line at its top edge
+    // ### (and, with nb, at its bottom edge), so the two halves meet in one smooth shape.
+    const at = (pts, z) => {
+      if (z >= pts[0][0]) return pts[0][1];
+      for (let i = 1; i < pts.length; i++) if (z >= pts[i][0]){ const [z0, a] = pts[i - 1], [z1, b] = pts[i]; return b + (a - b) * (z - z1) / (z0 - z1 || 1); }
+      return pts[pts.length - 1][1];
+    };
+    const round = (u, n) => n ? Math.pow(Math.max(0, 1 - Math.pow(u, n)), 1 / n) : 1;
+    const hull = (top, bot, W, nt, nb) => (z, y) => {
+      const t = at(top, z), b = at(bot, z), u = Math.min(1, Math.max(0, (y - b) / Math.max(t - b, 1e-3)));
+      return at(W, z) * (u >= 0.5 ? round(2 * u - 1, nt) : round(1 - 2 * u, nb));
+    };
+    // splits every triangle (z, y pairs) until no edge is longer than L, so the skin can curve
+    const tess = (tris, L) => {
+      const out = [], q = tris.slice();
+      while (q.length){
+        const t = q.pop(), e = k => Math.hypot(t[(k + 1) % 3 * 2] - t[k * 2], t[(k + 1) % 3 * 2 + 1] - t[k * 2 + 1]);
+        let k = 0; for (let j = 1; j < 3; j++) if (e(j) > e(k)) k = j;
+        if (e(k) <= L){ out.push(t); continue; }
+        const b = (k + 1) % 3, c = (k + 2) % 3, P = i => [t[i * 2], t[i * 2 + 1]], m = [(t[k * 2] + t[b * 2]) / 2, (t[k * 2 + 1] + t[b * 2 + 1]) / 2];
+        q.push([...P(k), ...m, ...P(c)], [...m, ...P(b), ...P(c)]);
+      }
+      return out;
+    };
+    const skinGeo = (outline, X, o = {}) => {
+      const th = o.thick === undefined ? 0.01 : o.thick, L = o.L || 0.03, sides = o.sides || [1, -1];
+      const sh = shp(outline), loops = [outline, ...(o.holes || [])];
+      (o.holes || []).forEach(h => { const p = new THREE.Path(); h.forEach((q, i) => i ? p.lineTo(q[0], q[1]) : p.moveTo(q[0], q[1])); p.closePath(); sh.holes.push(p); });
+      const flat = new THREE.ShapeGeometry(sh).toNonIndexed().attributes.position.array, tris = [];
+      for (let i = 0; i < flat.length; i += 9) tris.push([flat[i], flat[i + 1], flat[i + 3], flat[i + 4], flat[i + 6], flat[i + 7]]);
+      const pos = [], nor = [], d = 0.002;
+      const pt = (sd, z, y, inner) => {
+        const x = X(z, y), xy = (X(z, y + d) - X(z, y - d)) / (2 * d), xz = (X(z + d, y) - X(z - d, y)) / (2 * d), n = new THREE.Vector3(sd, -xy, -xz).normalize();
+        return { p: [sd * x - (inner ? n.x * th : 0), y - (inner ? n.y * th : 0), z - (inner ? n.z * th : 0)], n: inner ? [-n.x, -n.y, -n.z] : [n.x, n.y, n.z] };
+      };
+      const put = v => { pos.push(...v.p); nor.push(...v.n); };
+      for (const sd of sides){
+        for (const t of tess(tris, L)){
+          const v = [0, 1, 2].map(k => [t[k * 2], t[k * 2 + 1]]), order = sd > 0 ? [0, 2, 1] : [0, 1, 2];
+          order.forEach(k => put(pt(sd, v[k][0], v[k][1], false)));
+          if (th) order.slice().reverse().forEach(k => put(pt(sd, v[k][0], v[k][1], true)));
+        }
+        // the edges, both ways round (they are thin), so a cut-out shows the thickness of the panel
+        if (th) for (const loop of loops) for (let i = 0; i < loop.length; i++){
+          const a = loop[i], b = loop[(i + 1) % loop.length], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / L));
+          for (let s = 0; s < n; s++){
+            const p0 = [a[0] + (b[0] - a[0]) * s / n, a[1] + (b[1] - a[1]) * s / n], p1 = [a[0] + (b[0] - a[0]) * (s + 1) / n, a[1] + (b[1] - a[1]) * (s + 1) / n];
+            const A = pt(sd, p0[0], p0[1], false).p, B = pt(sd, p1[0], p1[1], false).p, C = pt(sd, p1[0], p1[1], true).p, D = pt(sd, p0[0], p0[1], true).p;
+            const fn = new THREE.Vector3().crossVectors(new THREE.Vector3(...B).sub(new THREE.Vector3(...A)), new THREE.Vector3(...D).sub(new THREE.Vector3(...A))).normalize().toArray();
+            for (const [q, m] of [[[A, B, C, A, C, D], fn], [[A, C, B, A, D, C], fn.map(c => -c)]]) q.forEach(p => { pos.push(...p); nor.push(...m); });
+          }
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+      return geo;
+    };
+    const lift = (X, dx) => (z, y) => X(z, y) + dx;
+    const body = (top, bot, W, nt, nb) => ({ outline: [...top, ...bot.slice().reverse()], X: hull(top, bot, W, nt, nb) });
+
+    // the nose: a pointed upper fairing that rounds over to the centre line above and below
+    const nose = body([[1.045, 0.875], [0.97, 0.94], [0.86, 1.015], [0.72, 1.075], [0.6, 1.11], [0.53, 1.12]],
+      [[1.045, 0.858], [1.0, 0.8], [0.9, 0.765], [0.76, 0.75], [0.62, 0.76], [0.53, 0.79]],
+      [[1.045, 0.0], [1.0, 0.06], [0.94, 0.115], [0.84, 0.165], [0.7, 0.205], [0.53, 0.232]], 2.2, 3);
+    mk(skinGeo(nose.outline, nose.X, { thick: 0.012 }), pm, g);
+    // the two slim headlights in dark housings, and the air intake in the chin between them
+    const lampEdge = [[0.995, 0.876], [0.93, 0.905], [0.85, 0.93], [0.815, 0.918], [0.88, 0.886], [0.965, 0.858]];
+    mk(skinGeo([[1.005, 0.88], [0.93, 0.915], [0.845, 0.942], [0.8, 0.925], [0.87, 0.878], [0.965, 0.848]], lift(nose.X, 0.0025), { thick: 0 }), skin, g);
+    mk(skinGeo(lampEdge, lift(nose.X, 0.005), { thick: 0 }), led, g);
+    mk(skinGeo([[1.03, 0.848], [0.99, 0.815], [0.93, 0.792], [0.95, 0.815], [1.0, 0.842]], lift(nose.X, 0.003), { thick: 0 }), darkGrille, g);
+    mk(skinGeo([[0.9, 0.79], [0.8, 0.79], [0.7, 0.81], [0.72, 0.8], [0.8, 0.781], [0.9, 0.78]], lift(nose.X, 0.003), { thick: 0 }), acc, g);
+    // the smoked screen sits on the nose and curves over into a bubble
+    const screen = mk(skinGeo([[0.8, 1.052], [0.68, 1.15], [0.58, 1.225], [0.5, 1.26], [0.485, 1.21], [0.5, 1.118], [0.6, 1.1], [0.7, 1.075]],
+      hull([[0.8, 1.052], [0.68, 1.15], [0.58, 1.225], [0.5, 1.26], [0.485, 1.26]], [[0.8, 1.04], [0.7, 1.07], [0.6, 1.095], [0.5, 1.115], [0.485, 1.115]], [[0.8, 0.09], [0.66, 0.125], [0.5, 0.135]], 2.2, 0), { thick: 0.004 }), smoke, g);
+    // the dark inside of the fairing behind the screen, where the bars and the instruments are
+    mk(skinGeo([[0.56, 1.1], [0.38, 1.04], [0.36, 0.84], [0.56, 0.8]], () => 0.2, { thick: 0.01 }), darkGrille, g);
+    // the side fairings: flat sides that curve in at the top and bottom, with a big vent over the engine and a slot ahead
+    // of it; graphite pinstripes along its edges
+    const sideX = (z, y) => at([[0.93, 0.125], [0.8, 0.185], [0.6, 0.228], [0.3, 0.236], [0.05, 0.226]], z) - 0.04 * Math.pow((y - 0.69) / 0.3, 2);
+    const vents = [[[0.43, 0.868], [0.31, 0.9], [0.205, 0.775], [0.235, 0.62], [0.33, 0.705]], [[0.68, 0.705], [0.54, 0.75], [0.42, 0.64], [0.5, 0.6]]];
+    mk(skinGeo([[0.93, 0.76], [0.8, 0.775], [0.64, 0.825], [0.52, 0.89], [0.42, 0.952], [0.3, 0.962], [0.2, 0.92], [0.13, 0.8], [0.08, 0.66], [0.05, 0.5],
+      [0.1, 0.44], [0.24, 0.43], [0.4, 0.45], [0.56, 0.5], [0.7, 0.57], [0.82, 0.65], [0.9, 0.715]], sideX, { thick: 0.012, holes: vents }), pm, g);
+    mk(skinGeo([[0.8, 0.7], [0.62, 0.6], [0.44, 0.53], [0.22, 0.49], [0.2, 0.515], [0.44, 0.56], [0.62, 0.63], [0.78, 0.72]], lift(sideX, 0.002), { thick: 0 }), acc, g);
+    mk(skinGeo([[0.92, 0.775], [0.8, 0.792], [0.64, 0.836], [0.52, 0.89], [0.44, 0.94], [0.44, 0.925], [0.52, 0.874], [0.64, 0.82], [0.8, 0.777], [0.9, 0.762]], lift(sideX, 0.002), { thick: 0 }), acc, g);
+    mk(skinGeo([[0.34, 0.6], [0.12, 0.66], [0.11, 0.645], [0.3, 0.585]], lift(sideX, 0.002), { thick: 0 }), acc, g);
+    // the belly pan under the engine
+    const pan = body([[0.5, 0.47], [0.3, 0.45], [0.1, 0.4], [-0.05, 0.34]], [[0.5, 0.45], [0.36, 0.3], [0.12, 0.19], [-0.05, 0.22]], [[0.5, 0.12], [0.36, 0.2], [0.2, 0.222], [-0.05, 0.19]], 0, 2.5);
+    mk(skinGeo(pan.outline, pan.X, { thick: 0.01 }), matte, g);
+    // the tank, long and high, with a hollow for each knee; the seat; the tail rising to a point over the rear wheel
+    const tank = body([[0.42, 1.0], [0.34, 1.12], [0.2, 1.2], [0.04, 1.215], [-0.12, 1.19], [-0.24, 1.09], [-0.28, 0.99]],
+      [[0.42, 0.93], [0.2, 0.915], [0, 0.905], [-0.28, 0.92]], [[0.42, 0.19], [0.28, 0.222], [0.1, 0.214], [-0.08, 0.2], [-0.28, 0.15]], 2.4, 0);
+    const knee = (z, y) => -0.028 * Math.exp(-Math.pow((z - 0.04) / 0.1, 2) - Math.pow((y - 1.0) / 0.06, 2));
+    mk(skinGeo(tank.outline, (z, y) => tank.X(z, y) + knee(z, y), { thick: 0.01 }), pm, g);
+    mk(skinGeo([[0.3, 1.13], [0.1, 1.205], [-0.1, 1.193], [-0.1, 1.178], [0.1, 1.188], [0.28, 1.118]], lift(tank.X, 0.002), { thick: 0 }), acc, g);
+    const seat = body([[-0.2, 1.045], [-0.4, 1.072], [-0.6, 1.095], [-0.66, 1.1]], [[-0.2, 0.97], [-0.66, 1.0]], [[-0.2, 0.15], [-0.42, 0.14], [-0.66, 0.1]], 4, 0);
+    mk(skinGeo(seat.outline, seat.X, { thick: 0.01 }), seatMat, g);
+    const tail = body([[-0.24, 1.0], [-0.62, 1.05], [-0.67, 1.115], [-0.82, 1.165], [-1.0, 1.24], [-1.125, 1.29]],
+      [[-0.24, 0.86], [-0.5, 0.9], [-0.72, 0.96], [-0.9, 1.04], [-1.05, 1.165], [-1.125, 1.255]], [[-0.24, 0.16], [-0.5, 0.155], [-0.72, 0.13], [-0.95, 0.085], [-1.125, 0.04]], 2.4, 2.4);
+    mk(skinGeo(tail.outline, tail.X, { thick: 0.01 }), pm, g);
+    mk(skinGeo([[-0.7, 1.115], [-0.86, 1.165], [-1.04, 1.24], [-1.04, 1.225], [-0.86, 1.15], [-0.7, 1.1]], lift(tail.X, 0.002), { thick: 0 }), acc, g);
+    // LED tail light along the tip, number-plate hanger with indicators
+    mk(skinGeo([[-1.06, 1.205], [-1.125, 1.255], [-1.125, 1.272], [-1.05, 1.226], [-0.96, 1.165], [-0.96, 1.145]], lift(tail.X, 0.003), { thick: 0 }), red, g);
+    mk(boxG(0.06, 0.02, 0.02, 0, 1.268, -1.12, 0.5), red, g);
+    mk(mergeGeos([limb([0, 1.12, -0.98], [0, 1.0, -1.14], 0.022, 0.018, 6), boxG(0.18, 0.02, 0.1, 0, 0.99, -1.15, 0.9)]), matte, g);
+    mk(boxG(0.17, 0.1, 0.012, 0, 0.93, -1.2, 0.25), plateMat, g);
+    mk(mergeGeos([limb([0.02, 1.07, -1.06], [0.13, 1.07, -1.08], 0.007, 0.007, 6), limb([-0.02, 1.07, -1.06], [-0.13, 1.07, -1.08], 0.007, 0.007, 6)]), matte, g);
+    mk(mergeGeos([ball([0.14, 1.07, -1.08], 0.02, 1.3, 0.6, 0.7), ball([-0.14, 1.07, -1.08], 0.02, 1.3, 0.6, 0.7)]), new THREE.MeshBasicMaterial({ color: 0xff9a2a }), g);
     // the engine: crankcase, four-cylinder block leaning forwards, clutch and alternator covers
     mk(mergeGeos([
       boxG(0.42, 0.2, 0.44, 0, 0.33, 0.16), boxG(0.38, 0.3, 0.2, 0, 0.56, 0.3, 0.3), boxG(0.4, 0.09, 0.22, 0, 0.73, 0.25, 0.3),
@@ -3745,22 +3842,23 @@ function loadRider(){
     // four header pipes into one, and a short silencer
     mk(mergeGeos([-0.135, -0.045, 0.045, 0.135].flatMap(x => pipe([[x, 0.62, 0.42], [x * 1.08, 0.52, 0.5], [x * 1.05, 0.34, 0.5], [x * 0.8, 0.22, 0.36], [0.05 + x * 0.3, 0.2, 0.12], [0.08, 0.21, -0.04]], 0.019))), steel, g);
     mk(mergeGeos(pipe([[0.08, 0.21, -0.04], [0.16, 0.3, -0.26]], 0.03)), steel, g);
-    mk(limb([0.16, 0.3, -0.26], [0.205, 0.45, -0.64], 0.055, 0.082, 14), carbon, g);
-    mk(cyl(0.05, 0.05, 0.03, 12).rotateX(Math.PI / 2 - 0.37).translate(0.207, 0.457, -0.655), matte, g);
+    mk(limb([0.16, 0.3, -0.26], [0.205, 0.45, -0.64], 0.06, 0.08, 6), matte, g);
+    mk(limb([0.2, 0.44, -0.62], [0.207, 0.457, -0.665], 0.05, 0.045, 12), steel, g);
+    mk(cyl(0.036, 0.036, 0.03, 12).rotateX(Math.PI / 2 - 0.37).translate(0.208, 0.46, -0.672), SHARED.trim, g);
     mk(mergeGeos([limb([0.17, 0.33, -0.3], [0.17, 0.33, -0.3], 0.06, 0.06, 4), cyl(0.086, 0.086, 0.02, 14).rotateX(Math.PI / 2 - 0.37).translate(0.2, 0.43, -0.58)]), alu, g);
     // frame, rear subframe, swingarm, shock, chain and rear brake
     mk(mergeGeos([-1, 1].flatMap(sd => [
       limb([sd * 0.05, 0.98, 0.46], [sd * 0.2, 0.92, 0.22], 0.038, 0.038, 6), limb([sd * 0.2, 0.92, 0.22], [sd * 0.17, 0.72, -0.12], 0.038, 0.04, 6), limb([sd * 0.17, 0.72, -0.12], [sd * 0.14, 0.46, -0.15], 0.04, 0.034, 6),
       limb([sd * 0.1, 0.46, -0.15], [sd * 0.11, 0.31, -0.74], 0.042, 0.026, 6), limb([sd * 0.1, 0.34, -0.16], [sd * 0.11, 0.31, -0.74], 0.016, 0.016, 6),
       limb([sd * 0.08, 0.82, -0.14], [sd * 0.08, 1.0, -0.75], 0.014, 0.012, 6)
-    ])), alu, g);
+    ])), frame, g);
     mk(mergeGeos([limb([0, 0.7, -0.26], [0, 0.42, -0.34], 0.033, 0.033, 10)]), matte, g);
     const coil = []; for (let k = 0; k < 7; k++) coil.push(new THREE.TorusGeometry(0.038, 0.007, 5, 12).rotateX(Math.PI / 2 + 0.28).translate(0, 0.46 + k * 0.035, -0.33 + k * 0.0095));
     mk(mergeGeos(coil), gold, g);
     mk(mergeGeos([boxG(0.012, 0.012, 0.66, -0.135, 0.42, -0.42, 0.13), boxG(0.012, 0.012, 0.66, -0.135, 0.28, -0.42, 0.02)]), SHARED.trim, g);
     mk(mergeGeos([boxG(0.03, 0.02, 0.03, 0.14, 0.45, -0.72), boxG(0.03, 0.09, 0.09, 0.13, 0.38, -0.8, 0.6)]), gold, g);
     // clip-on bars, levers, instruments, mirrors; rear-set pegs
-    mk(mergeGeos([-1, 1].flatMap(sd => [limb([sd * 0.07, 1.12, 0.47], [sd * 0.3, 1.08, 0.5], 0.014, 0.014, 8), limb([sd * 0.21, 1.1, 0.53], [sd * 0.31, 1.09, 0.58], 0.006, 0.005, 6), limb([sd * 0.25, 1.1, 0.74], [sd * 0.2, 1.1, 0.65], 0.008, 0.008, 6)])), matte, g);
+    mk(mergeGeos([-1, 1].flatMap(sd => [limb([sd * 0.07, 1.12, 0.47], [sd * 0.3, 1.08, 0.5], 0.014, 0.014, 8), limb([sd * 0.21, 1.1, 0.53], [sd * 0.31, 1.09, 0.58], 0.006, 0.005, 6), limb([sd * 0.26, 1.11, 0.75], [sd * 0.17, 1.02, 0.72], 0.008, 0.008, 6)])), matte, g);
     mk(mergeGeos([-1, 1].map(sd => boxG(0.1, 0.055, 0.03, sd * 0.28, 1.12, 0.76, 0.15))), matte, g);
     mk(mergeGeos([-1, 1].map(sd => boxG(0.085, 0.04, 0.008, sd * 0.28, 1.12, 0.742, 0.15))), smoke, g);
     mk(boxG(0.13, 0.03, 0.09, 0, 1.17, 0.5, 0.6), SHARED.trim, g);
@@ -3813,9 +3911,9 @@ function loadRider(){
     part(mergeGeos([ball([0, 1.64, 0.18], 0.1, 0.14, 0.55, 1.05), ...[-1, 1].map(sd => boxG(0.012, 0.024, 0.14, sd * 0.127, 1.5, 0.15))]), acc);
     part(mergeGeos([-1, 1].map(sd => boxG(0.05, 0.012, 0.03, sd * 0.035, 1.44, 0.4, 0.5))), SHARED.trim);
     const wheels = [], pivots = [];
-    const rimF = rimMat, rimR = rimMat;
-    wheel(root, { x: 0, z: 0.76, r: 0.31, w: 0.12, rim: rimF, spokes: 6, tyre: 0.16, rotors: [0.058, -0.058], rotorR: 0.158, front: true, list: wheels, pivots });
-    wheel(root, { x: 0, z: -0.74, r: 0.31, w: 0.19, rim: rimR, spokes: 6, tyre: 0.18, rotors: [0.075], rotorR: 0.11, front: false, list: wheels, pivots });
+    const rimF = rimMat, rimR = rimMat, disc = new THREE.MeshStandardMaterial({ color: 0x55595f, roughness: 0.45, metalness: 0.8 });
+    wheel(root, { x: 0, z: 0.76, r: 0.31, w: 0.12, rim: rimF, spokes: 6, tyre: 0.16, rotors: [0.058, -0.058], rotorR: 0.158, disc, front: true, list: wheels, pivots });
+    wheel(root, { x: 0, z: -0.74, r: 0.31, w: 0.19, rim: rimR, spokes: 6, tyre: 0.18, rotors: [0.075], rotorR: 0.11, disc, front: false, list: wheels, pivots });
     // the fork turns with the front wheel: thick outer tubes above, gold inner tubes and radial calipers at the axle
     const fork = new THREE.Group(); pivots[0].add(fork);
     mk(mergeGeos([-1, 1].map(sd => limb([sd * 0.09, 0.26, -0.1], [sd * 0.08, 0.62, -0.25], 0.041, 0.041, 12))), gun, fork);
@@ -3824,12 +3922,12 @@ function loadRider(){
     mk(mergeGeos([-1, 1].flatMap(sd => [boxG(0.05, 0.13, 0.05, sd * 0.09, 0.09, -0.135, -0.5), boxG(0.03, 0.05, 0.05, sd * 0.06, 0.12, -0.13)])), gold, fork);
     const fender = new THREE.Mesh(extrudeProfile(shp([[0.25, 0.14], [0.14, 0.3], [-0.06, 0.345], [-0.25, 0.2], [-0.2, 0.2], [-0.06, 0.31], [0.12, 0.27], [0.21, 0.13]]), 0.13, 0.008), carbon); fork.add(fender);
     brakeGlow(root, [[0, 1.1, -1.13]], 0.9);
-    mk(mergeGeos([-1, 1].map(sd => boxG(0.035, 0.024, 0.02, sd * 0.085, 1.215, -1.075, 0.5))), reverseLights.mat, g);
-    reverseLamps(root, [[0.085, 1.07, -1.1], [-0.085, 1.07, -1.1]], 0.55, -1.1, 2);
+    mk(mergeGeos([-1, 1].map(sd => boxG(0.03, 0.018, 0.02, sd * 0.045, 1.19, -1.065, 0.5))), reverseLights.mat, g);
+    reverseLamps(root, [[0.045, 1.05, -1.09], [-0.045, 1.05, -1.09]], 0.55, -1.1, 2);
     // battered: a side panel hanging loose and a smashed tail light. Critical: the screen is gone and the tail unit cracked open
     const damageParts = [];
     hinged(damageParts, 2, extrudeProfile(shp([[0.3, 0], [0.02, -0.02], [-0.02, -0.3], [0.24, -0.26]]), 0.02, 0.005), pm, g, [0.262, 0.82, 0.14], [0.62, 0, 0.32]);
-    hinged(damageParts, 2, boxG(0.13, 0.05, 0.05, 0, 1.235, -1.09, 0.5), SHARED.trim, g);
+    hinged(damageParts, 2, boxG(0.08, 0.04, 0.04, 0, 1.268, -1.12, 0.5), SHARED.trim, g);
     hinged(damageParts, 3, extrudeProfile(shp([[0, 0], [-0.38, 0.03], [-0.44, -0.06], [-0.04, -0.09]]), 0.02, 0.004), pm, g, [-0.15, 1.04, -0.68], [-0.3, 0.12, -0.5]);
     gone(damageParts, 3, screen);
     MODELS.bike = { skid: { x: [0], z: -0.74, w: 0.17 }, g: root, paint: pm, base: C(base), wheels, pivots, r: 0.31, damageParts, dent: 0.35, smoke: [0.15, 0.72], stage: 0, rider, eye: driverEye(root, { pos: [0, 1.5, -0.42], pitch: -0.16 }) };
@@ -6961,13 +7059,16 @@ function gameOver(reason){
 
 const ICONS = {
   car: '<svg viewBox="0 0 120 44" aria-hidden="true"><path d="M6 31h106c1.2 0 2-.8 2-2v-4.5c0-1.6-.8-2.6-2.4-3L96 18 75 9.6C72 8.5 68.5 8 64 8H53c-4.5 0-7.5.9-10.5 2.6L22 21 9.5 23.2C7.3 23.6 6 25 6 27z" fill="#56688f"/><path d="M51 11h13v8.5H34zM67 11.6c2.8.2 4.6.8 6.4 1.8l5.6 5.4-12 .9z" fill="#1c2533"/><path d="M84 15l9 1.5" stroke="#0c0d10" stroke-width="2"/><rect x="103" y="21.5" width="8" height="1.8" rx=".9" fill="#eef6ff"/><rect x="6" y="23" width="5" height="1.8" fill="#ff2a3a"/><circle cx="30" cy="31" r="8" fill="#111215"/><circle cx="90" cy="31" r="8" fill="#111215"/><circle cx="30" cy="31" r="5.2" fill="#2a2d33"/><circle cx="90" cy="31" r="5.2" fill="#2a2d33"/><circle cx="90" cy="31" r="2.6" fill="#d0202a"/><circle cx="30" cy="31" r="2.6" fill="#d0202a"/></svg>',
-  bike: '<svg viewBox="0 0 120 44" aria-hidden="true"><circle cx="32" cy="32" r="10" fill="#111215"/><circle cx="90" cy="32" r="10" fill="#111215"/><circle cx="32" cy="32" r="6.6" fill="none" stroke="#c8202a" stroke-width="2.4"/><circle cx="90" cy="32" r="6.6" fill="none" stroke="#c8202a" stroke-width="2.4"/><path d="M90 32l-7-16" stroke="#c9a04a" stroke-width="3"/><path d="M32 32l20-8" stroke="#9aa0aa" stroke-width="3"/><path d="M99 22l-6-9-21-2-9 4-9 13 15 4 18-2z" fill="#2a2d33"/><path d="M80 15l-11 13h-5l11-13z" fill="#d4f21a"/><path d="M93 13l5-6 2 3-4 5z" fill="#3b4250"/><path d="M58 16l-24 2-9 6 10 1 12-4h12z" fill="#2a2d33"/><path d="M38 19.5l-10 3" stroke="#d4f21a" stroke-width="1.6"/><path d="M56 13l7-6 8 3-4 6z" fill="#1b1d22"/><circle cx="69" cy="6.5" r="4.6" fill="#1b1d22"/><rect x="96" y="20" width="4" height="1.6" fill="#eef6ff"/></svg>',
+  bike: '<svg viewBox="0 0 120 44" aria-hidden="true"><circle cx="32" cy="32" r="10" fill="#111215"/><circle cx="90" cy="32" r="10" fill="#111215"/><circle cx="32" cy="32" r="6.6" fill="none" stroke="#3a3e46" stroke-width="2.4"/><circle cx="90" cy="32" r="6.6" fill="none" stroke="#3a3e46" stroke-width="2.4"/><path d="M90 32l-7-16" stroke="#c9a04a" stroke-width="3"/><path d="M32 32l20-8" stroke="#9aa0aa" stroke-width="3"/><path d="M99 22l-6-9-21-2-9 4-9 13 15 4 18-2z" fill="#14161a"/><path d="M80 15l-11 13h-5l11-13z" fill="#8a9099"/><path d="M93 13l5-6 2 3-4 5z" fill="#3b4250"/><path d="M58 16l-24 2-9 6 10 1 12-4h12z" fill="#14161a"/><path d="M38 19.5l-10 3" stroke="#8a9099" stroke-width="1.6"/><path d="M56 13l7-6 8 3-4 6z" fill="#1b1d22"/><circle cx="69" cy="6.5" r="4.6" fill="#1b1d22"/><rect x="96" y="20" width="4" height="1.6" fill="#eef6ff"/></svg>',
   truck: '<svg viewBox="0 0 120 44" aria-hidden="true"><rect x="10" y="27" width="96" height="4" fill="#15171d"/><rect x="24" y="23" width="26" height="3" fill="#2a2d33"/><path d="M58 3h31c4.5 0 6.5 2.4 7.5 5.5L101 27H58z" fill="#a8c6bc"/><path d="M92 9h4.5l3 13H94z" fill="#1c2533"/><rect x="65" y="11" width="15" height="10" rx="1.5" fill="#1c2533"/><path d="M90 6.5h9" stroke="#0c0d10" stroke-width="2"/><rect x="95" y="22" width="9" height="6" fill="#0c0d10"/><rect x="100" y="24" width="5" height="1.6" fill="#eef6ff"/><circle cx="30" cy="33" r="7" fill="#111215"/><circle cx="30" cy="33" r="4.2" fill="#d9dde3"/><circle cx="88" cy="33" r="7" fill="#111215"/><circle cx="88" cy="33" r="4.2" fill="#d9dde3"/></svg>'
 };
 // ### The menu shows the real vehicles: each model is rendered once at start-up to a small transparent picture, seen from the front
 // ### three-quarters, so the previews can never go out of date. If that fails, the drawn icons in ICONS are shown instead.
+// ### previewsOf draws only the vehicles named (the motorcycle again once its rider has loaded) and leaves each shown or hidden
+// ### as it was.
 const PREVIEWS = {};
-function renderPreviews(){
+function renderPreviews(){ previewsOf(Object.keys(MODELS)); }
+function previewsOf(keys){
   const W = 640, H = 340, rt = new THREE.WebGLRenderTarget(W, H), s = new THREE.Scene(), cam = new THREE.PerspectiveCamera(24, W / H, 0.1, 200);
   rt.texture.encoding = THREE.sRGBEncoding;
   s.environment = scene.environment;
@@ -6978,9 +7079,9 @@ function renderPreviews(){
   const shadows = renderer.shadowMap.enabled, clear = renderer.getClearAlpha(), pixels = new Uint8Array(W * H * 4);
   renderer.shadowMap.enabled = false; renderer.setClearAlpha(0);
   try {
-    for (const k of Object.keys(MODELS)){
-      const md = MODELS[k], parent = md.g.parent;
-      s.add(md.g); md.g.visible = true;
+    for (const k of keys){
+      const md = MODELS[k], parent = md.g.parent, was = md.g.visible, rider = md.rider && md.rider.visible;
+      s.add(md.g); md.g.visible = true; if (md.rider) md.rider.visible = true;
       const box = new THREE.Box3().setFromObject(md.g), c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length() / 2;
       const d = r / Math.sin(cam.fov * Math.PI / 360) * 0.66;
       cam.position.set(c.x + d * 0.72, c.y + d * 0.2, c.z + d * 0.66); cam.lookAt(c);
@@ -6993,7 +7094,7 @@ function renderPreviews(){
       const out = document.createElement('canvas'); out.width = W / 2; out.height = H / 2;
       out.getContext('2d').drawImage(big, 0, 0, W / 2, H / 2);
       PREVIEWS[k] = out.toDataURL('image/png');
-      parent.add(md.g); md.g.visible = false;
+      parent.add(md.g); md.g.visible = was; if (md.rider) md.rider.visible = rider;
     }
   } catch (e) { /* the drawn icons stay */ }
   renderer.setRenderTarget(null); renderer.shadowMap.enabled = shadows; renderer.setClearAlpha(clear);
