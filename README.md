@@ -49,7 +49,7 @@ A 3D police-chase driving game that runs in any modern browser. Pick a getaway v
 | | |
 |---|---|
 | Map | Lisbon's Baixa (real street names, Arco da Rua Augusta, traffic lights, 26 AI cars, 2 buses, 4 motorcycles, 3 trams) |
-| Vehicles | Muscle coupe (balanced), Superbike (fastest, most agile), Tractor unit (slowest, toughest, best at ramming) |
+| Vehicles | Muscle coupe (balanced), Superbike in gloss black (fastest, most agile), Tractor unit (slowest, toughest, best at ramming) |
 | Story mode | *The Necklace Job*, after the escape: one night in Lisbon, Officer Hale on the radio, a hidden letter, 3 endings. Which one you get depends on whether you found the letter |
 | Systems | Seven synthesised radio stations, hills on every map, wanted stars and a police helicopter, visible damage, police AI with a bust meter, crash damage and repair kits, synthesised engine sounds, map-boundary force field, radar, Ultra/Balanced graphics |
 | Controls | `W A S D` or arrow keys to drive, `Space` handbrake, hold `C` to look back, `E` nitro (a charge for every third pickup), `P` / `Esc` pause, `M` map (Lisbon), `N` sound, `R` radio, volume sliders for game and music in the menu and the pause, `Enter` confirms. On phones: touch pads (brake and gas together are the handbrake, the round button looks back, the flame button fires nitro), and steering by tilting the phone sideways |

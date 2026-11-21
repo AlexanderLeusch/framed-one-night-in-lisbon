@@ -35,7 +35,7 @@ Room 2 plays no sound files, so the steps here are synthesised, where room 1 pla
 
 Percentages are relative to the map's top speed and to the car. The menu shows the same values as bars (1–5) and as km/h and 0–80 km/h times, computed from these numbers.
 
-On the motorcycle you see yourself ride: inmate 4471 in his striped prison uniform, without a helmet (he has none), the same figure as your body in room 1, bent low over the tank with his hands on the grips and his boots on the pegs.
+On the motorcycle you see yourself ride: inmate 4471 in his striped prison uniform, without a helmet (he has none), the same figure as your body in room 1, bent low over the tank with his hands on the grips and his boots on the pegs. The motorcycle is a sports machine in gloss black: a pointed nose with two slim headlights and an air intake under them, a tall smoked screen, a layered fairing with big vents that show the engine, a long tank, a thin seat and a high, pointed tail with an LED strip; graphite pinstripes and gold fork tubes, and no badge of any make.
 
 ## The map
 
