@@ -3412,6 +3412,155 @@ const headlights = [], beams = [], headGlows = [];
 const brakeLights = { mat: new THREE.MeshBasicMaterial({ color: 0x7a0c14 }), glows: [], on: false };
 // the white reversing lights: unlit glass until the vehicle rolls backwards, then a glow around each lamp and a pool of light behind it
 const reverseLights = { mat: new THREE.MeshBasicMaterial({ color: 0x4a4e55 }), glows: [], on: false };
+// ### Inmate 4471, the player, as a real man (models/inmate.glb): the free MakeHuman base mesh (CC0, see
+// ### models/LICENSE-inmate.txt), a man in his late thirties with a skeleton of 66 bones, real eyes and a painted skin
+// ### (models/inmate-skin.jpg and its bump map) with a prison buzz cut, dark stubble and eyebrows. Over it the striped
+// ### uniform is fitted to the body: the shirt with its plain collar and the white patch with his number, the trousers
+// ### and brown leather work boots. Every piece is bound to the skeleton. The parts are kept apart by where they sit
+// ### (head, arms, the rest), so the view through his own eyes can leave out his head and the arms it draws itself.
+// ### base is the folder of room 1, where the model and the scans are. Returns the figure (g), its parts by name and a
+// ### small set of tools to pose it: reset, aim (turn a bone so the next one lies along a direction), limb (two bones
+// ### reaching a point, bending towards a pole), turn (set a bone's turn in the world) and curl (close a hand).
+function buildInmate(buf, base){
+  const dv = new DataView(buf);
+  if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('not a glb file');
+  const jl = dv.getUint32(12, true), json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jl))), bin = 20 + jl + 8;
+  const acc = i => {
+    const a = json.accessors[i], bv = json.bufferViews[a.bufferView], n = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 }[a.type];
+    const T = { 5126: Float32Array, 5125: Uint32Array, 5123: Uint16Array, 5121: Uint8Array }[a.componentType], st = bin + (bv.byteOffset || 0) + (a.byteOffset || 0);
+    return new T(buf.slice(st, st + a.count * n * T.BYTES_PER_ELEMENT));
+  };
+  const skin = json.skins[0];
+  const bones = skin.joints.map(j => { const n = json.nodes[j], b = new THREE.Bone(); b.name = n.name; b.position.fromArray(n.translation); return b; });
+  skin.joints.forEach((j, k) => (json.nodes[j].children || []).forEach(c => bones[k].add(bones[skin.joints.indexOf(c)])));
+  const ibm = acc(skin.inverseBindMatrices), inverses = bones.map((b, k) => new THREE.Matrix4().fromArray(ibm, k * 16));
+  // ---- the materials: his skin; the cloth in stripes 6.5 cm wide (one dark and one sand stripe every 13 cm, as on the
+  // ---- uniform in the washroom), woven of the scanned linen; the plain sand collar, the patch, the leather of the boots
+  const tl = new THREE.TextureLoader();
+  const tex = (file, srgb, rep) => {
+    const t = tl.load(base + file); t.anisotropy = 8; if (srgb) t.encoding = THREE.sRGBEncoding;
+    if (rep){ t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); } else t.flipY = false;
+    return t;
+  };
+  const canvas = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; };
+  const stripes = canvas(64, 128, (g, w, h) => {
+    g.fillStyle = '#c4ba98'; g.fillRect(0, 0, w, h); g.fillStyle = '#25221f'; g.fillRect(0, 0, w, h / 2);
+    for (let i = 0; i < 900; i++){ g.fillStyle = `rgba(${i % 2 ? '255,255,255' : '0,0,0'},${Math.random() * .06})`; g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 3, 1); }
+  });
+  stripes.wrapS = stripes.wrapT = THREE.RepeatWrapping; stripes.repeat.set(1 / .26, 1 / .13);
+  const linen = { normalMap: tex('textures/uniform-linen-normal.jpg', false, 1 / .3), roughnessMap: tex('textures/uniform-linen-rough.jpg', false, 1 / .3), normalScale: new THREE.Vector2(.8, .8) };
+  const std = o => new THREE.MeshStandardMaterial(Object.assign({ skinning: true }, o));
+  const cloth = std(Object.assign({ map: stripes, roughness: 1, side: THREE.DoubleSide, envMapIntensity: .2 }, linen));
+  const plain = std(Object.assign({ color: 0xc4ba98, roughness: 1, side: THREE.DoubleSide, envMapIntensity: .2 }, linen));
+  const body = std({ map: tex('models/inmate-skin.jpg', true), bumpMap: tex('models/inmate-skin-bump.jpg', false), bumpScale: .0012, roughness: .58, envMapIntensity: .3 });
+  const leather = std({ map: tex('textures/leather-color.jpg', true, 1 / .4), normalMap: tex('textures/leather-normal.jpg', false, 1 / .4), roughnessMap: tex('textures/leather-rough.jpg', false, 1 / .4), roughness: .85, envMapIntensity: .5 });
+  leather.color.setRGB(.55, .38, .26);
+  const patch = std({ roughness: .95, side: THREE.DoubleSide, map: canvas(128, 64, (g, w, h) => {
+    g.fillStyle = '#e9e6dc'; g.fillRect(0, 0, w, h); g.strokeStyle = '#8a857a'; g.lineWidth = 3; g.strokeRect(3, 3, w - 6, h - 6);
+    g.fillStyle = '#16140f'; g.font = 'bold 38px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('4471', w / 2, h / 2 + 2);
+  }) });
+  const M = { skin: body, skinHead: body, skinArm: body, shirt: cloth, shirtArm: cloth, shirtHead: plain, trousers: cloth, collar: plain, patch,
+    eyes: std({ map: tex('models/hale-eye.jpg', true), roughness: .35, envMapIntensity: .4 }),
+    cornea: std({ color: 0xffffff, roughness: .03, envMapIntensity: 1.5, transparent: true, opacity: .14, depthWrite: false }),
+    boots: leather, sole: std({ color: 0x141210, roughness: .9 }) };
+  // ---- the figure
+  const g = new THREE.Group(); g.add(bones[0]);
+  const skeleton = new THREE.Skeleton(bones, inverses), parts = {};
+  for (const p of json.meshes[0].primitives){
+    const A = p.attributes, geo = new THREE.BufferGeometry(), name = json.materials[p.material].name;
+    geo.setAttribute('position', new THREE.BufferAttribute(acc(A.POSITION), 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(acc(A.NORMAL), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(acc(A.TEXCOORD_0), 2));
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(Uint16Array.from(acc(A.JOINTS_0)), 4));
+    geo.setAttribute('skinWeight', new THREE.BufferAttribute(acc(A.WEIGHTS_0), 4));
+    geo.setIndex(new THREE.BufferAttribute(acc(p.indices), 1));
+    const m = new THREE.SkinnedMesh(geo, M[name] || cloth); m.frustumCulled = false; m.castShadow = true;
+    if (name === 'cornea') m.renderOrder = 1;
+    g.add(m); m.bind(skeleton, new THREE.Matrix4());
+    (parts[name] = parts[name] || []).push(m);
+  }
+  // ---- posing. Every bone starts unturned (lined up with the figure), so a pose is built from the rest pose each time.
+  const by = Object.fromEntries(bones.map(b => [b.name, b])), rest = bones.map(b => b.position.clone());
+  const V = () => new THREE.Vector3(), q = new THREE.Quaternion(), pq = new THREE.Quaternion(), a = V(), b = V(), c = V(), e = V(), u = V(), p = V();
+  const at = (bone, out) => bone.getWorldPosition(out);
+  const reset = () => { bones.forEach((bn, i) => { bn.quaternion.set(0, 0, 0, 1); bn.position.copy(rest[i]); }); g.updateWorldMatrix(true, true); };
+  // turns bone so that the line from it to tip points along dir (in the world)
+  const aim = (bone, tip, dir) => {
+    bone.updateWorldMatrix(true, true);
+    at(bone, a); at(tip, b); b.sub(a).normalize();
+    q.setFromUnitVectors(b, u.copy(dir).normalize());
+    bone.parent.getWorldQuaternion(pq);
+    bone.quaternion.premultiply(pq.clone().invert().multiply(q).multiply(pq));
+    bone.updateWorldMatrix(false, true);
+  };
+  // two bones from bone1 through bone2 to end: end goes to target (or as near as the limb reaches), the middle joint
+  // bends towards pole (a direction in the world)
+  const limb = (bone1, bone2, end, target, pole) => {
+    g.updateWorldMatrix(true, true);
+    at(bone1, a); at(bone2, b); at(end, c);
+    const l1 = a.distanceTo(b), l2 = b.distanceTo(c);
+    u.copy(target).sub(a); const d = Math.min(u.length(), (l1 + l2) * .995); u.normalize();
+    const x = (l1 * l1 - l2 * l2 + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, l1 * l1 - x * x));
+    p.copy(pole).addScaledVector(u, -pole.dot(u)).normalize();
+    e.copy(a).addScaledVector(u, x).addScaledVector(p, hh);
+    const t = V().copy(a).addScaledVector(u, d);
+    aim(bone1, bone2, V().copy(e).sub(a));
+    aim(bone2, end, t.sub(at(bone2, V())));
+  };
+  // sets the bone's turn in the world (the figure's rest axes turned by quat)
+  const turn = (bone, quat) => { bone.parent.updateWorldMatrix(true, false); bone.parent.getWorldQuaternion(pq); bone.quaternion.copy(pq.invert().multiply(quat)); bone.updateWorldMatrix(false, true); };
+  // closes the fingers of one hand ('L' or 'R') by amount, the thumb by thumb: each joint turns round the line across
+  // its finger and the palm, as found in the rest pose (MakeHuman's own measurements, as for Officer Hale)
+  g.updateWorldMatrix(true, true);
+  const restDir = (b1, b2) => at(b2, V()).sub(at(b1, V())).normalize(), curlAxis = {};
+  for (const [s, sg] of [['R', 1], ['L', -1]]){
+    const across = restDir(by['finger2-1.' + s], by['finger5-1.' + s]), along = restDir(by['finger3-1.' + s], by['finger3-2.' + s]);
+    const palm = V().crossVectors(along, across).multiplyScalar(sg).normalize();
+    for (let f = 1; f <= 5; f++) for (let k = 1; k <= 2; k++){
+      const n = 'finger' + f + '-' + k + '.' + s;
+      curlAxis[n] = V().crossVectors(restDir(by[n], by['finger' + f + '-' + (k + 1) + '.' + s]), palm).normalize();
+    }
+    for (let f = 1; f <= 5; f++) curlAxis['finger' + f + '-3.' + s] = curlAxis['finger' + f + '-2.' + s];
+  }
+  const curl = (s, amount, thumb) => {
+    for (let f = 1; f <= 5; f++) for (let k = 1; k <= 3; k++){ const n = 'finger' + f + '-' + k + '.' + s; by[n].quaternion.setFromAxisAngle(curlAxis[n], (f === 1 ? thumb : amount) * (k === 1 ? .8 : 1)); }
+  };
+  const show = (names, on) => names.forEach(n => (parts[n] || []).forEach(m => { m.visible = on; }));
+  return { g, by, parts, bones, reset, aim, limb, turn, curl, show, mats: Object.values(M) };
+}
+// ### The rider on the motorcycle is the player himself, inmate 4471 in his striped uniform and without a helmet (he
+// ### has none). The figure in leathers stays as the stand-in until the model has loaded, or if it cannot be loaded. He
+// ### sits back on the seat with his chest low over the tank and looks ahead past the screen, his hands closed round the
+// ### grips, the balls of his boots on the pegs and his knees against the tank. The pose is set once (in the bike's own
+// ### measures, from the seat, the grips and the pegs); the rider's group still tucks him in at speed.
+function poseRider(I){
+  const by = I.by, X = new THREE.Vector3(1, 0, 0), v = (x, y, z) => new THREE.Vector3(x, y, z);
+  I.reset();
+  by.root.position.set(0, 0.975, -0.4);
+  by.spine05.quaternion.setFromAxisAngle(X, 0.5); by.spine03.quaternion.setFromAxisAngle(X, 0.35); by.spine01.quaternion.setFromAxisAngle(X, 0.2);
+  by.neck01.quaternion.setFromAxisAngle(X, -0.5); by.head.quaternion.setFromAxisAngle(X, -0.4);
+  for (const [s, sd] of [['L', 1], ['R', -1]]){
+    I.limb(by['upperleg01.' + s], by['lowerleg01.' + s], by['foot.' + s], v(sd * 0.2, 0.54, -0.27), v(sd * 0.35, 0.1, 1));
+    I.turn(by['foot.' + s], new THREE.Quaternion().setFromAxisAngle(X, 0.35));
+    I.limb(by['upperarm01.' + s], by['lowerarm01.' + s], by['wrist.' + s], v(sd * 0.245, 1.0, 0.43), v(sd, -0.5, -0.3));
+    I.aim(by['wrist.' + s], by['finger3-1.' + s], v(sd * 0.05, -0.2, 1));
+    I.curl(s, 1.15, 0.6);
+  }
+  I.g.updateWorldMatrix(true, true);
+}
+// ### Loads the player's figure from room 1 and seats it on the motorcycle in place of the stand-in. The bike's frame is
+// ### drawn tall and scaled down (MODELS.bike: g.scale.y), so the figure sits in a group that undoes that.
+function loadRider(){
+  const md = MODELS.bike, standIn = md.rider.children.slice();
+  fetch('../room-1-escape/models/inmate.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(buf => {
+    const I = buildInmate(buf, '../room-1-escape/');
+    poseRider(I);
+    const hold = new THREE.Group(); hold.position.set(0, -1.1 - 0.31 * (1 - 0.84) / 0.84, 0.38); hold.scale.set(1, 1 / 0.84, 1);
+    hold.add(I.g); md.rider.add(hold);
+    standIn.forEach(m => { m.visible = false; });
+    md.inmate = I;
+  }).catch(() => {});
+}
 (function buildPlayerModels(){
   const mk = (geo, mat, parent) => { const m = new THREE.Mesh(geo, mat); m.castShadow = true; parent.add(m); return m; };
   const paintMat = (hex, rough, metal) => { const m = new THREE.MeshPhysicalMaterial({ color: hex, roughness: rough, metalness: metal, clearcoat: 1, clearcoatRoughness: 0.05 }); m.userData.env = 1.15; m.onBeforeCompile = dentShader; return m; };
@@ -3821,6 +3970,7 @@ const reverseLights = { mat: new THREE.MeshBasicMaterial({ color: 0x4a4e55 }), g
     const glow = glowSprite(C(0xfff4e0), 0.85, 0.75); carTilt.add(glow); headGlows.push(glow);
   });
 })();
+loadRider();
 // ### Shows the chosen vehicle and moves the headlights to fit it.
 function setVehicle(key){
   V = VEH[key];
