@@ -497,6 +497,29 @@ test('escape room: Officer Hale is the MakeHuman body, shipped with its licence 
   for (const f of ['hale-skin.jpg', 'hale-skin-bump.jpg', 'hale-eye.jpg']) assert.ok(fs.existsSync(path.join(dir, f)), f);
 });
 
+test('the player, inmate 4471, is the MakeHuman body: in room 1 your body and you in the mirror, in room 2 the rider', () => {
+  const dir = path.join(ROOT, 'room-1-escape', 'models');
+  const buf = fs.readFileSync(path.join(dir, 'inmate.glb'));
+  assert.equal(buf.readUInt32LE(0), 0x46546C67, 'inmate.glb is a binary glTF file');
+  const json = JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString());
+  const names = json.nodes.map(n => n.name);
+  for (const n of ['root', 'spine05', 'spine03', 'spine01', 'neck01', 'neck02', 'head', 'upperarm01.R', 'lowerarm01.R', 'wrist.R', 'finger3-1.R', 'upperleg01.L', 'lowerleg01.L', 'foot.L']) assert.ok(names.includes(n), n + ' is a bone the games turn');
+  const parts = json.meshes[0].primitives.map(p => json.materials[p.material].name);
+  for (const n of ['skinHead', 'skinArm', 'shirt', 'shirtArm', 'trousers', 'collar', 'patch', 'eyes', 'cornea', 'boots', 'sole']) assert.ok(parts.includes(n), n);
+  for (const p of json.meshes[0].primitives) for (const k of ['POSITION', 'NORMAL', 'TEXCOORD_0', 'JOINTS_0', 'WEIGHTS_0']) assert.ok(p.attributes[k] !== undefined, k);
+  assert.match(fs.readFileSync(path.join(dir, 'LICENSE-inmate.txt'), 'utf8'), /CC0/);
+  for (const f of ['inmate-skin.jpg', 'inmate-skin-bump.jpg', 'hale-eye.jpg']) assert.ok(fs.existsSync(path.join(dir, f)), f);
+  const room = fs.readFileSync(path.join(ROOT, 'room-1-escape', 'js', 'room.js'), 'utf8');
+  assert.match(room, /fetch\('models\/inmate\.glb'\)/);
+  assert.match(room, /poseInmate\(INMATE, J\.neck, J\.hips, Wk\.legYaw, knees, ankles, footQ\)/, 'your body when you look down');
+  assert.match(room, /poseInmate\(INMATE, neck, hips, by, legs\.knees, legs\.ankles/, 'and on the ladder');
+  assert.match(room, /if \(SELF\) poseReal\(me, eye, posed\)/, 'and in the mirror');
+  assert.match(game, /fetch\('\.\.\/room-1-escape\/models\/inmate\.glb'\)/, 'room 2 seats him on the motorcycle');
+  // the same builder in both rooms, as they load nothing of each other's code
+  const from = src => src.slice(src.indexOf('function buildInmate('), src.indexOf('\n}\n', src.indexOf('function buildInmate(')));
+  assert.equal(from(room), from(rawGame));
+});
+
 test('escape room: the real hand models are shipped with their licence and are what room.js loads', () => {
   const dir = path.join(ROOT, 'room-1-escape', 'models');
   for (const side of ['right', 'left']){

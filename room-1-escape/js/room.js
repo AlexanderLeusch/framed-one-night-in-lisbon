@@ -816,8 +816,9 @@ const WATER = (() => {
       clip.multiplyScalar(2 / clip.dot(q));
       e[2] = clip.x; e[6] = clip.y; e[10] = clip.z + 1; e[14] = clip.w;
       mat.visible = false; for (const m of murks) m.visible = false;
+      const own = INMATE && INMATE.g.visible; if (own) INMATE.g.visible = false;   // your body is drawn without a head
       renderer.setRenderTarget(rt); renderer.render(scene, mirror); renderer.setRenderTarget(null);
-      mat.visible = true; for (const m of murks) m.visible = true;
+      mat.visible = true; for (const m of murks) m.visible = true; if (own) INMATE.g.visible = true;
     }
   };
 })();
@@ -986,7 +987,32 @@ const MIRROR = (() => {
       me.shoulder[i].position.copy(_s); me.elbow[i].position.copy(me.elbowAt[i]); reach(me.upper[i], _s, me.elbowAt[i]);
       me.fore[i].visible = me.fist[i].visible = !shown;
       if (!shown){ reach(me.fore[i], me.elbowAt[i], _w); me.fist[i].position.copy(_w); }
+      if (SELF) posed[i] = { wrist: _w.clone(), shown };
     });
+    if (SELF) poseReal(me, eye, posed);
+  }
+  // ### The real figure in the mirror (SELF): its eyes where yours are, the head turned as you look, the body after it;
+  // ### each arm reaches from the shoulder to where your real hand is, or hangs at your side while your hands are out of
+  // ### sight (then its own hands show). The elbows it finds are where your real forearms are bent to in the picture.
+  const posed = [], _ey = new THREE.Vector3();
+  function poseReal(me, eye, arms){
+    const I = SELF, by = I.by, sc = I.g.scale.x, fwd = _ey.set(Math.sin(me.yaw), 0, -Math.cos(me.yaw));
+    I.reset();
+    I.g.rotation.set(0, Math.PI - me.yaw, 0);
+    I.g.position.copy(eye).addScaledVector(fwd, -.131 * sc); I.g.position.y -= 1.69 * sc;
+    I.g.updateWorldMatrix(true, true);
+    const pitch = clamp(cam.pitch, -.7, .5), turnY = clamp(wrapAngle(me.yaw - cam.yaw), -1.2, 1.2);
+    by.neck02.quaternion.setFromEuler(new THREE.Euler(-pitch * .4, turnY * .4, 0, 'YXZ'));
+    by.head.quaternion.setFromEuler(new THREE.Euler(-pitch * .6, turnY * .6, 0, 'YXZ'));
+    let hands = false;
+    ['R', 'L'].forEach((s, i) => {
+      const a = arms[i], side = s === 'R' ? -1 : 1;
+      I.limb(by['upperarm01.' + s], by['lowerarm01.' + s], by['wrist.' + s], a.wrist, _e.set(side, -1, -.3).applyQuaternion(I.g.quaternion));
+      by['lowerarm01.' + s].getWorldPosition(me.elbowAt[i]);
+      I.curl(s, .35, .25); hands = hands || !a.shown;
+    });
+    I.show(['skinArm'], hands);
+    I.g.updateWorldMatrix(true, true);
   }
   // ### Your real hands, drawn into the mirror's picture: for that one picture each forearm is turned from the wrist to
   // ### the figure's elbow and its sleeve cut to that length, then everything is put back as it was.
@@ -1045,9 +1071,10 @@ const MIRROR = (() => {
       if (!me) me = buildSelf();
       poseSelf(me, camPos, dt);
       for (const o of api.hide) o.visible = false;
-      me.g.visible = true;
+      const own = INMATE && INMATE.g.visible; if (own) INMATE.g.visible = false;
+      (SELF ? SELF.g : me.g).visible = true;
       renderer.setRenderTarget(rt); renderer.render(scene, mcam);
-      me.g.visible = false;
+      (SELF ? SELF.g : me.g).visible = false; if (own) INMATE.g.visible = true;
       if (HANDS.r.arm.visible){
         handCamM.matrix.multiplyMatrices(camera.matrixWorldInverse, mcam.matrixWorld); handCamM.matrixWorldNeedsUpdate = true;
         handCamM.projectionMatrix.copy(mcam.projectionMatrix); handCamM.projectionMatrixInverse.copy(mcam.projectionMatrix).invert();
@@ -1933,6 +1960,156 @@ function loadRealHale(){
   }));
 }
 loadRealHale();
+// ### Inmate 4471, the player, as a real man (models/inmate.glb): the free MakeHuman base mesh (CC0, see
+// ### models/LICENSE-inmate.txt), a man in his late thirties with a skeleton of 66 bones, real eyes and a painted skin
+// ### (models/inmate-skin.jpg and its bump map) with a prison buzz cut, dark stubble and eyebrows. Over it the striped
+// ### uniform is fitted to the body: the shirt with its plain collar and the white patch with his number, the trousers
+// ### and brown leather work boots. Every piece is bound to the skeleton. The parts are kept apart by where they sit
+// ### (head, arms, the rest), so the view through his own eyes can leave out his head and the arms it draws itself.
+// ### base is the folder of room 1, where the model and the scans are. Returns the figure (g), its parts by name and a
+// ### small set of tools to pose it: reset, aim (turn a bone so the next one lies along a direction), limb (two bones
+// ### reaching a point, bending towards a pole), turn (set a bone's turn in the world) and curl (close a hand).
+function buildInmate(buf, base){
+  const dv = new DataView(buf);
+  if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('not a glb file');
+  const jl = dv.getUint32(12, true), json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jl))), bin = 20 + jl + 8;
+  const acc = i => {
+    const a = json.accessors[i], bv = json.bufferViews[a.bufferView], n = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 }[a.type];
+    const T = { 5126: Float32Array, 5125: Uint32Array, 5123: Uint16Array, 5121: Uint8Array }[a.componentType], st = bin + (bv.byteOffset || 0) + (a.byteOffset || 0);
+    return new T(buf.slice(st, st + a.count * n * T.BYTES_PER_ELEMENT));
+  };
+  const skin = json.skins[0];
+  const bones = skin.joints.map(j => { const n = json.nodes[j], b = new THREE.Bone(); b.name = n.name; b.position.fromArray(n.translation); return b; });
+  skin.joints.forEach((j, k) => (json.nodes[j].children || []).forEach(c => bones[k].add(bones[skin.joints.indexOf(c)])));
+  const ibm = acc(skin.inverseBindMatrices), inverses = bones.map((b, k) => new THREE.Matrix4().fromArray(ibm, k * 16));
+  // ---- the materials: his skin; the cloth in stripes 6.5 cm wide (one dark and one sand stripe every 13 cm, as on the
+  // ---- uniform in the washroom), woven of the scanned linen; the plain sand collar, the patch, the leather of the boots
+  const tl = new THREE.TextureLoader();
+  const tex = (file, srgb, rep) => {
+    const t = tl.load(base + file); t.anisotropy = 8; if (srgb) t.encoding = THREE.sRGBEncoding;
+    if (rep){ t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); } else t.flipY = false;
+    return t;
+  };
+  const canvas = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; };
+  const stripes = canvas(64, 128, (g, w, h) => {
+    g.fillStyle = '#c4ba98'; g.fillRect(0, 0, w, h); g.fillStyle = '#25221f'; g.fillRect(0, 0, w, h / 2);
+    for (let i = 0; i < 900; i++){ g.fillStyle = `rgba(${i % 2 ? '255,255,255' : '0,0,0'},${Math.random() * .06})`; g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 3, 1); }
+  });
+  stripes.wrapS = stripes.wrapT = THREE.RepeatWrapping; stripes.repeat.set(1 / .26, 1 / .13);
+  const linen = { normalMap: tex('textures/uniform-linen-normal.jpg', false, 1 / .3), roughnessMap: tex('textures/uniform-linen-rough.jpg', false, 1 / .3), normalScale: new THREE.Vector2(.8, .8) };
+  const std = o => new THREE.MeshStandardMaterial(Object.assign({ skinning: true }, o));
+  const cloth = std(Object.assign({ map: stripes, roughness: 1, side: THREE.DoubleSide, envMapIntensity: .2 }, linen));
+  const plain = std(Object.assign({ color: 0xc4ba98, roughness: 1, side: THREE.DoubleSide, envMapIntensity: .2 }, linen));
+  const body = std({ map: tex('models/inmate-skin.jpg', true), bumpMap: tex('models/inmate-skin-bump.jpg', false), bumpScale: .0012, roughness: .58, envMapIntensity: .3 });
+  const leather = std({ map: tex('textures/leather-color.jpg', true, 1 / .4), normalMap: tex('textures/leather-normal.jpg', false, 1 / .4), roughnessMap: tex('textures/leather-rough.jpg', false, 1 / .4), roughness: .85, envMapIntensity: .5 });
+  leather.color.setRGB(.55, .38, .26);
+  const patch = std({ roughness: .95, side: THREE.DoubleSide, map: canvas(128, 64, (g, w, h) => {
+    g.fillStyle = '#e9e6dc'; g.fillRect(0, 0, w, h); g.strokeStyle = '#8a857a'; g.lineWidth = 3; g.strokeRect(3, 3, w - 6, h - 6);
+    g.fillStyle = '#16140f'; g.font = 'bold 38px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('4471', w / 2, h / 2 + 2);
+  }) });
+  const M = { skin: body, skinHead: body, skinArm: body, shirt: cloth, shirtArm: cloth, shirtHead: plain, trousers: cloth, collar: plain, patch,
+    eyes: std({ map: tex('models/hale-eye.jpg', true), roughness: .35, envMapIntensity: .4 }),
+    cornea: std({ color: 0xffffff, roughness: .03, envMapIntensity: 1.5, transparent: true, opacity: .14, depthWrite: false }),
+    boots: leather, sole: std({ color: 0x141210, roughness: .9 }) };
+  // ---- the figure
+  const g = new THREE.Group(); g.add(bones[0]);
+  const skeleton = new THREE.Skeleton(bones, inverses), parts = {};
+  for (const p of json.meshes[0].primitives){
+    const A = p.attributes, geo = new THREE.BufferGeometry(), name = json.materials[p.material].name;
+    geo.setAttribute('position', new THREE.BufferAttribute(acc(A.POSITION), 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(acc(A.NORMAL), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(acc(A.TEXCOORD_0), 2));
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(Uint16Array.from(acc(A.JOINTS_0)), 4));
+    geo.setAttribute('skinWeight', new THREE.BufferAttribute(acc(A.WEIGHTS_0), 4));
+    geo.setIndex(new THREE.BufferAttribute(acc(p.indices), 1));
+    const m = new THREE.SkinnedMesh(geo, M[name] || cloth); m.frustumCulled = false; m.castShadow = true;
+    if (name === 'cornea') m.renderOrder = 1;
+    g.add(m); m.bind(skeleton, new THREE.Matrix4());
+    (parts[name] = parts[name] || []).push(m);
+  }
+  // ---- posing. Every bone starts unturned (lined up with the figure), so a pose is built from the rest pose each time.
+  const by = Object.fromEntries(bones.map(b => [b.name, b])), rest = bones.map(b => b.position.clone());
+  const V = () => new THREE.Vector3(), q = new THREE.Quaternion(), pq = new THREE.Quaternion(), a = V(), b = V(), c = V(), e = V(), u = V(), p = V();
+  const at = (bone, out) => bone.getWorldPosition(out);
+  const reset = () => { bones.forEach((bn, i) => { bn.quaternion.set(0, 0, 0, 1); bn.position.copy(rest[i]); }); g.updateWorldMatrix(true, true); };
+  // turns bone so that the line from it to tip points along dir (in the world)
+  const aim = (bone, tip, dir) => {
+    bone.updateWorldMatrix(true, true);
+    at(bone, a); at(tip, b); b.sub(a).normalize();
+    q.setFromUnitVectors(b, u.copy(dir).normalize());
+    bone.parent.getWorldQuaternion(pq);
+    bone.quaternion.premultiply(pq.clone().invert().multiply(q).multiply(pq));
+    bone.updateWorldMatrix(false, true);
+  };
+  // two bones from bone1 through bone2 to end: end goes to target (or as near as the limb reaches), the middle joint
+  // bends towards pole (a direction in the world)
+  const limb = (bone1, bone2, end, target, pole) => {
+    g.updateWorldMatrix(true, true);
+    at(bone1, a); at(bone2, b); at(end, c);
+    const l1 = a.distanceTo(b), l2 = b.distanceTo(c);
+    u.copy(target).sub(a); const d = Math.min(u.length(), (l1 + l2) * .995); u.normalize();
+    const x = (l1 * l1 - l2 * l2 + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, l1 * l1 - x * x));
+    p.copy(pole).addScaledVector(u, -pole.dot(u)).normalize();
+    e.copy(a).addScaledVector(u, x).addScaledVector(p, hh);
+    const t = V().copy(a).addScaledVector(u, d);
+    aim(bone1, bone2, V().copy(e).sub(a));
+    aim(bone2, end, t.sub(at(bone2, V())));
+  };
+  // sets the bone's turn in the world (the figure's rest axes turned by quat)
+  const turn = (bone, quat) => { bone.parent.updateWorldMatrix(true, false); bone.parent.getWorldQuaternion(pq); bone.quaternion.copy(pq.invert().multiply(quat)); bone.updateWorldMatrix(false, true); };
+  // closes the fingers of one hand ('L' or 'R') by amount, the thumb by thumb: each joint turns round the line across
+  // its finger and the palm, as found in the rest pose (MakeHuman's own measurements, as for Officer Hale)
+  g.updateWorldMatrix(true, true);
+  const restDir = (b1, b2) => at(b2, V()).sub(at(b1, V())).normalize(), curlAxis = {};
+  for (const [s, sg] of [['R', 1], ['L', -1]]){
+    const across = restDir(by['finger2-1.' + s], by['finger5-1.' + s]), along = restDir(by['finger3-1.' + s], by['finger3-2.' + s]);
+    const palm = V().crossVectors(along, across).multiplyScalar(sg).normalize();
+    for (let f = 1; f <= 5; f++) for (let k = 1; k <= 2; k++){
+      const n = 'finger' + f + '-' + k + '.' + s;
+      curlAxis[n] = V().crossVectors(restDir(by[n], by['finger' + f + '-' + (k + 1) + '.' + s]), palm).normalize();
+    }
+    for (let f = 1; f <= 5; f++) curlAxis['finger' + f + '-3.' + s] = curlAxis['finger' + f + '-2.' + s];
+  }
+  const curl = (s, amount, thumb) => {
+    for (let f = 1; f <= 5; f++) for (let k = 1; k <= 3; k++){ const n = 'finger' + f + '-' + k + '.' + s; by[n].quaternion.setFromAxisAngle(curlAxis[n], (f === 1 ? thumb : amount) * (k === 1 ? .8 : 1)); }
+  };
+  const show = (names, on) => names.forEach(n => (parts[n] || []).forEach(m => { m.visible = on; }));
+  return { g, by, parts, bones, reset, aim, limb, turn, curl, show, mats: Object.values(M) };
+}
+// ### You, as a real man: two figures of inmate 4471 from models/inmate.glb. INMATE is the body you see when you look
+// ### down and on the ladder (posed by poseBody and climbHands from the same joints as before; your head and your arms
+// ### are left out, as the view and your real hands are already there); SELF is you in the steel mirror, all of you. Until
+// ### the model has loaded (or if it cannot be), the figures built in code stand in, as before. Your own body is drawn a
+// ### tenth smaller than the model, so its legs are as long as the walk measures them (LEG); the one in the mirror so
+// ### that its eyes are where yours are.
+let INMATE = null, SELF = null;
+const INMATE_HIDE = ['skinHead', 'eyes', 'cornea', 'skinArm', 'shirtArm'];
+function loadInmate(){
+  loading('Inmate', fetch('models/inmate.glb').then(glbBytes).then(buf => {
+    const I = buildInmate(buf, ''), S = buildInmate(buf, '');
+    I.g.scale.setScalar(.9); I.show(INMATE_HIDE, false); I.g.visible = false; I.g.traverse(o => { o.castShadow = false; });
+    S.g.scale.setScalar(.96); S.g.visible = false;
+    scene.add(I.g, S.g); INMATE = I; SELF = S;
+  }));
+}
+loadInmate();
+const _iq = new THREE.Quaternion(), _iy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), _iv = new THREE.Vector3(), _ip = new THREE.Vector3(), _ia = new THREE.Vector3();
+// ### Poses your body from its joints in the room: the hips, the base of the neck, the way the legs face (yaw, as for
+// ### the camera), and for each side (right, then left) the knee, the ankle and how the boot is turned. The model's
+// ### ankle sits lower in its boot than the walk's, so each boot is set that much lower.
+function poseInmate(I, neck, hips, yaw, knees, ankles, footQ){
+  const by = I.by; I.reset();
+  I.g.position.copy(hips); I.g.rotation.set(0, Math.PI - yaw, 0); by.root.position.set(0, 0, 0); I.g.updateWorldMatrix(true, true);
+  I.aim(by.spine05, by.neck01, _iv.subVectors(neck, by.spine05.getWorldPosition(_ip)));
+  ['R', 'L'].forEach((s, i) => {
+    const hip = by['upperleg01.' + s].getWorldPosition(_ip);
+    _ia.set(0, -.044, 0).applyQuaternion(footQ[i]).add(ankles[i]);
+    I.limb(by['upperleg01.' + s], by['lowerleg01.' + s], by['foot.' + s], _ia, _iv.subVectors(knees[i], hip));
+    I.turn(by['foot.' + s], _iq.copy(footQ[i]).multiply(_iy));
+  });
+}
+// ### The figures built in code for your chest and legs give way to the model once it is there.
+function codeBody(){ if (!ME) return; const on = !INMATE; ME.torso.visible = on; for (const k of ['thigh', 'shin', 'hip', 'knee', 'boot']) ME[k].forEach(m => { m.visible = on; }); }
 // the cold light that falls in through the open door
 const doorLight = new THREE.SpotLight(0xd4e6ff, 0, 9, .62, .55, 1.3);
 doorLight.position.set(0, 2.3, 4.1); doorLight.target.position.set(0, 0, .3); room.add(doorLight, doorLight.target);
@@ -5413,7 +5590,7 @@ function climbHands(dt){
   _qy.setFromAxisAngle(AXIS_Y, -by);
   ME.g.visible = true;
   HANDS.scaled = true;
-  const follow = climb.t > 1.2 ? 1 : 1 - Math.exp(-dt * (8 + climb.t * 60));
+  const follow = climb.t > 1.2 ? 1 : 1 - Math.exp(-dt * (8 + climb.t * 60)), legs = { knees: [], ankles: [] };
   for (const key of ['r', 'l']){
     const h = HANDS[key], g = climb.hand[key], side = key === 'r' ? 1 : -1, i = key === 'r' ? 0 : 1;
     // the rung sits across the palm: the wrist is a hand's breadth back along the forearm and a little to the back of the hand
@@ -5483,6 +5660,7 @@ function climbHands(dt){
     const leg = ankle.clone().sub(hip);
     if (leg.length() > LEG_REACH) ankle.copy(hip).addScaledVector(leg.normalize(), LEG_REACH);
     const knee = twoBone(hip, ankle, THIGH, SHIN, fwd.clone().addScaledVector(right, side * .25));
+    legs.knees[i] = knee; legs.ankles[i] = ankle;
     placeLimb(ME.thigh[i], hip, knee); placeLimb(ME.shin[i], knee, ankle);
     ME.hip[i].position.copy(toCam(hip)); ME.knee[i].position.copy(toCam(knee));
     aimJoint(ME.hip[i], knee.clone().sub(hip));
@@ -5491,6 +5669,8 @@ function climbHands(dt){
   }
   // the chest: an oval of 38 by 22 cm from the base of the neck to the hips, turned with the body
   ME.torso.position.copy(toCam(neck)); ME.torso.quaternion.copy(_qc).multiply(_qy); fitShirt(neck.y - hips.y);
+  codeBody();
+  if (INMATE){ INMATE.g.visible = true; poseInmate(INMATE, neck, hips, by, legs.knees, legs.ankles, [_qy, _qy]); }
 }
 // ### Fits the shirt to a body len metres from the base of the neck to the hips (the hem hangs 12 % lower), its buttons
 // ### down the front; breath swells the chest a little.
@@ -5504,6 +5684,7 @@ function leaveLadder(){
   HANDS.scaled = false;
   for (const key of ['r', 'l']) HANDS[key].arm.children.forEach(o => { if (o.material === HAND_MAT.sleeve) o.scale.z = 1; });
   if (ME) ME.g.visible = false;
+  if (INMATE) INMATE.g.visible = false;
 }
 
 // ---------- Your body when you look down ----------
@@ -5708,8 +5889,12 @@ function poseBody(dt, show){
     }
   });
   Wk.sleeves = !REDUCED && Math.max(down, kneel) > .001;
+  if (INMATE && !climb){
+    INMATE.g.visible = bodyOn;
+    if (bodyOn) poseInmate(INMATE, J.neck, J.hips, Wk.legYaw, knees, ankles, footQ);
+  }
   if (ME && !climb){
-    ME.g.visible = bodyOn;
+    ME.g.visible = bodyOn; codeBody();
     if (bodyOn){
       ME.torso.position.copy(toCam(J.neck));
       ME.torso.quaternion.copy(_qc).multiply(_bq.setFromEuler(_fe.set(-lean, -Wk.torsoYaw, 0, 'YXZ')));
