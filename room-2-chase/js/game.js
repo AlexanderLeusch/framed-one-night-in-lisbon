@@ -1801,13 +1801,16 @@ function buildCity(){
   trim.box(-153, 700, 0, 0.35, 151, 157, stoneCol);
   const pillars = mergeGeos([-6, 6].flatMap(x => [new THREE.CylinderGeometry(0.5, 0.6, 6, 12).translate(x, 3.3, 155), new THREE.BoxGeometry(1.5, 0.6, 1.5).translate(x, 6.5, 155)]));
   const colunas = new THREE.Mesh(pillars, stone); colunas.castShadow = true; grp.add(colunas);
-  const river = new THREE.Mesh(new THREE.PlaneGeometry(1400, 640, 280, 128).rotateX(-Math.PI / 2), riverMaterial());
+  // ### The river is as wide as the south bank (2.6 km), so from the loop and the bridge it reaches the horizon on both sides
+  // ### instead of ending in a straight edge 700 m out.
+  const river = new THREE.Mesh(new THREE.PlaneGeometry(2600, 640, 520, 128).rotateX(-Math.PI / 2), riverMaterial());
   river.position.set(0, 0.08, 157 + 320); river.userData.dynamic = true; river.frustumCulled = false;
   grp.add(river); CITY.water = river;
   // ### West of the Baixa the river comes in behind a quay wall, up to the road along the bank and round the foot of the hill, so
   // ### the approach road to the bridge runs out over the water and its loop stands in the river. It is the same water (one
   // ### material, so it moves with the river), calm in there as the waves die down north of the quay.
-  for (const [x0, x1, z0, z1] of [[-700, -455, -700, 157], [-455, -153, 124, 157]]){
+  // the water behind the quay goes on west and north past the edge of the city, so the loop never looks out onto an end of it
+  for (const [x0, x1, z0, z1] of [[-1300, -455, -1300, 157], [-455, -153, 124, 157]]){
     const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0, Math.round((x1 - x0) / 6), Math.round((z1 - z0) / 6)).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
     const basin = new THREE.Mesh(g, river.material);
     basin.position.y = 0.08; basin.userData.dynamic = true; basin.frustumCulled = false; grp.add(basin);
@@ -6775,7 +6778,7 @@ function witnessCard(){
 // ### it is the end of the run.
 // ### music: the anthem starts this many metres before the deck, so it is already playing as you come up onto the bridge; from
 // ### then on the engine fades out bit by bit over duck seconds until it is silent (quiet: 0), and the music is all you hear.
-const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 10.2, dawnFrom: 0.8, dawnTo: 8.4, shot: 3.8, cruise: 0.45, accel: 1.6, music: 80, quiet: 0, duck: 6 });
+const FINALE = Object.freeze({ fade: 0.8, start: -270, speed: 24, lane: 4.1, end: 10.2, dawnFrom: 0.8, dawnTo: 8.4, shot: 3.8, cruise: 0.45, accel: 1.6, music: 200, quiet: 0, duck: 6 });
 const finale = { on: false, done: false, t: 0, placed: false, deckY: 42.12, throttle: 0, level: 1, kick: false, ramp: false, rt: 0, s: 0, lane: 1, side: null, idle: 0, hOff: 0, cut: false, shot: 0 };
 const fader = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 fader.position.z = -0.6; fader.renderOrder = 9999; fader.frustumCulled = false; camera.add(fader); scene.add(camera);
@@ -6794,13 +6797,13 @@ function startFinale(){
 // ### RAMP.autoSpeed. Through the gate at an angle or too fast it may still touch a parapet: they keep it on the road (a scrape
 // ### throws sparks, a hard knock slows it down), and from 90 m on the barrier in the middle keeps it on its side. The clock
 // ### stopped at the gate. On the deck the drive over the bridge takes over without a cut, at the same speed and in the same lane.
-const RAMP = Object.freeze({ edge: 1.1, median: 1.3, knock: 6, settle: 1.2, look: 9, autoSpeed: 22, autoLane: 4.2 });
+const RAMP = Object.freeze({ edge: 1.1, median: 1.3, knock: 6, settle: 1.2, look: 11, autoSpeed: 26, autoLane: 4.2 });
 // ### The long straight along the river is not shown in full. RAMP_CUT.at seconds behind the gate the picture cuts, as in a film,
 // ### to a helicopter shot high outside the loop: the vehicle is now RAMP_CUT.before metres before the loop, in your lane and at
 // ### your speed (at least RAMP_CUT.speed), and the camera, RAMP_CUT.up metres up and RAMP_CUT.out metres outside the road,
 // ### follows it into the curve for RAMP_CUT.shot seconds, then cuts back behind it. Only a
 // ### vehicle still at least RAMP_CUT.min metres short of the cut point is moved, so a fast driver is never sent back.
-const RAMP_CUT = Object.freeze({ at: 2.5, before: 25, min: 30, speed: 18, shot: 4, out: 34, up: 17 });
+const RAMP_CUT = Object.freeze({ at: 2.5, before: 25, min: 30, speed: 22, shot: 4, out: 34, up: 17 });
 function rampCut(A){
   const f = finale, s = A.loop - RAMP_CUT.before, side = (f.lane > 0 ? 1 : -1) * RAMP.autoLane, p = A.at(s, side);
   Object.assign(car, { x: p.x, z: p.z, y: p.y, heading: p.h, camHeading: p.h, speed: Math.max(car.speed, RAMP_CUT.speed), steer: 0, yaw: 0, pitch: 0, roll: 0, shake: 0 });
@@ -6974,7 +6977,8 @@ function updateFinale(dt){
 
 // ### Heroic music for the finale, synthesised like the radio: a brass choir and strings on a rising progression in D major
 // ### (D, A, B minor, G, then D, G, A and a long D), a trumpet melody on top, timpani at each change, a roll and a cymbal into the
-// ### last chord, all in a little hall reverb. About 14 seconds. It plays on the music volume, once per finale (startAnthem).
+// ### last chord, all in a little hall reverb. Before the melody the strings and horns swell in over four chords, so it can start
+// ### early in the loop and still end under the result card. About 19 seconds. It plays on the music volume, once per finale (startAnthem).
 const anthem = { out: null };
 function startAnthem(){ if (finale.music) return; finale.music = true; playAnthem(); }
 function playAnthem(){
@@ -6996,7 +7000,15 @@ function playAnthem(){
   const melody = [[74, 1], [78, 1], [76, 1.5], [69, 0.5], [78, 1], [83, 1], [81, 1.5], [79, 0.5], [78, 1], [74, 1], [76, 1], [79, 1], [81, 1], [85, 1]];
   // two beats of a timpani roll that swells into the first chord
   for (let i = 0; i < 12; i++) timp(38, t0 + i * beat / 6, 0.05 + i * 0.02);
-  const s0 = t0 + 2 * beat;
+  // the swell: strings and soft horns over D, B minor, G and A, louder chord by chord, with a timpani stroke on each
+  const intro = [[38, [57, 62, 66]], [35, [59, 62, 66]], [31, [59, 62, 67]], [33, [57, 61, 64]]];
+  intro.forEach(([b, ch], i) => {
+    const at = t0 + (2 + i * 2) * beat, v = 0.4 + 0.2 * i;
+    radioOsc('sawtooth', mtof(b + 12), at, 2 * beat, 0.09 * v, out, { lp: 500, attack: 0.2, hold: true, release: 0.3 });
+    ch.forEach(n => { strings(n + 12, at, 2 * beat, 0.03 * v); brass(n, at, 2 * beat * 0.95, 0.02 * v); });
+    timp(b < 36 ? b + 12 : b, at, 0.18 * v);
+  });
+  const s0 = t0 + 10 * beat;
   prog.forEach(([b, ch], i) => {
     const at = s0 + i * 2 * beat;
     radioOsc('sawtooth', mtof(b + 12), at, 2 * beat, 0.12, out, { lp: 600, attack: 0.05, hold: true, release: 0.3 });
