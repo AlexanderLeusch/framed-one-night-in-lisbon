@@ -602,6 +602,9 @@ test('after the whole night the end screen shows only the leaderboard of both ro
   const section = game.match(/function boardSection\(m\)\{[\s\S]*?\n\}/)[0];
   // the board of the drive alone is left out; only the field for a driver name stays, when one is needed
   assert.match(section, /if \(heist\.last\) return ask;\s*return `<div class="eyebrow">Leaderboard/);
+  // the big time at the top is the total of both rooms then, with the best night under it; the drive alone is in the sum below
+  assert.match(game, /\$\{heist\.last\s*\? `<span class="eyebrow">Total time<\/span><b>\$\{fmtTimeExact\(heist\.last\.total\)\}<\/b>/);
+  assert.match(game, /: `<span class="eyebrow">Drive time<\/span><b>\$\{fmtTimeExact\(used\)\}<\/b>/, 'a drive on its own still shows the drive time');
   // an empty box is not shown, also after a name has been given
   assert.match(game, /function drawBoardBox\(lb\)\{\s*lb\.innerHTML = boardSection\(lb\.dataset\.board\);\s*lb\.hidden = !lb\.innerHTML;/);
   assert.match(game, /data-board="\$\{mode\}"\$\{boardSection\(mode\) \? '' : ' hidden'\}>/);

@@ -7189,7 +7189,9 @@ function finish(){
     </div>
     <p>With the six pieces of evidence in the glovebox and ${WITNESS.name} beside you, you cross the 25 de Abril bridge as the sky over the Tejo turns pale. Lisbon is behind you.</p>
     <div class="res-hero">
-      <div class="res-time"><span class="eyebrow">Drive time</span><b>${fmtTimeExact(used)}</b><i class="${isBest ? 'best' : ''}">${isBest ? 'New best time on this device' : 'Best on this device · ' + fmtTimeExact(best[mode])}</i></div>
+      <div class="res-time">${heist.last
+        ? `<span class="eyebrow">Total time</span><b>${fmtTimeExact(heist.last.total)}</b><i class="${heist.last.isBest ? 'best' : ''}">${heist.last.isBest ? 'New best night on this device' : 'Best night on this device · ' + fmtTimeExact(heist.last.best)}</i>`
+        : `<span class="eyebrow">Drive time</span><b>${fmtTimeExact(used)}</b><i class="${isBest ? 'best' : ''}">${isBest ? 'New best time on this device' : 'Best on this device · ' + fmtTimeExact(best[mode])}</i>`}</div>
       <div class="res-stats">
         <div class="stat"><span class="eyebrow">Time left</span><b>${fmtTime(timeLeft)}</b></div>
         <div class="stat ${dmg > 50 ? 'bad' : dmg > 20 ? 'warn' : 'good'}"><span class="eyebrow">Damage</span><b>${dmg}%</b></div>
