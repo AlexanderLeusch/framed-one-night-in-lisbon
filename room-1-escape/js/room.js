@@ -2979,37 +2979,90 @@ const TDOOR = { w: .84, h: 1.76, leafH: 1.73, pivot: null, out: null, glow: null
 const trnd = mulberry32(1912);   // its own random numbers, so the room above keeps its look
 // ### Scales a geometry's texture coordinates so that one picture covers the same number of metres on every surface.
 const uvMetres = (geo, su, sv) => { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv); return geo; };
-// ### The garage behind the tunnel door, 4 x 4 m, 128 pixels a metre, the floor 3.4 m below the top: dark walls, a
-// ### concrete floor, the car facing the door (a dark shape: bumper, grille, bonnet, windscreen, wheels) and its two
-// ### headlights, with their glare and the pools of light they throw on the floor.
-function paintGarage(g, w, h){
-  const ground = 435, cx = w / 2, glare = (x, y, r, a, sx, sy) => {
-    g.save(); g.translate(x, y); g.scale(sx || 1, sy || 1);
-    const gr = g.createRadialGradient(0, 0, 0, 0, 0, r); gr.addColorStop(0, `rgba(226,236,255,${a})`); gr.addColorStop(1, 'rgba(226,236,255,0)');
-    g.fillStyle = gr; g.fillRect(-r, -r, r * 2, r * 2); g.restore();
-  };
-  let gr = g.createLinearGradient(0, 0, 0, ground); gr.addColorStop(0, '#05070b'); gr.addColorStop(1, '#121822');
-  g.fillStyle = gr; g.fillRect(0, 0, w, ground);
-  gr = g.createLinearGradient(0, ground, 0, h); gr.addColorStop(0, '#161b22'); gr.addColorStop(1, '#0c0f14');
-  g.fillStyle = gr; g.fillRect(0, ground, w, h - ground);
-  // the car: tyres, then the body from the bumper up to the roof, the windscreen catching a little light
-  g.fillStyle = '#030406'; for (const s of [-1, 1]) g.fillRect(cx + s * 92 - 16, ground - 34, 32, 34);
-  g.fillStyle = '#07090d';
-  g.beginPath(); g.moveTo(cx - 112, ground - 14); g.lineTo(cx - 114, ground - 80); g.quadraticCurveTo(cx - 110, ground - 112, cx - 84, ground - 118);
-  g.lineTo(cx - 66, ground - 168); g.quadraticCurveTo(cx, ground - 176, cx + 66, ground - 168); g.lineTo(cx + 84, ground - 118);
-  g.quadraticCurveTo(cx + 110, ground - 112, cx + 114, ground - 80); g.lineTo(cx + 112, ground - 14); g.closePath(); g.fill();
-  gr = g.createLinearGradient(0, ground - 166, 0, ground - 122); gr.addColorStop(0, '#1b2433'); gr.addColorStop(1, '#0b0f16');
-  g.fillStyle = gr; g.beginPath(); g.moveTo(cx - 60, ground - 162); g.quadraticCurveTo(cx, ground - 169, cx + 60, ground - 162); g.lineTo(cx + 76, ground - 122); g.lineTo(cx - 76, ground - 122); g.closePath(); g.fill();
-  g.fillStyle = '#0d1118'; g.fillRect(cx - 40, ground - 92, 80, 18);   // the grille
-  g.fillStyle = '#10141b'; g.fillRect(cx - 112, ground - 40, 224, 10);   // the bumper
-  // the headlights and their glare, added on top of everything
-  g.globalCompositeOperation = 'lighter';
-  for (const s of [-1, 1]){
-    const lx = cx + s * 80, ly = ground - 88;
-    glare(lx, ground + 24, 130, .32, 1.3, .22);   // the pool of light on the floor
-    glare(lx, ly, 230, .22); glare(lx, ly, 70, .7); glare(lx, ly, 260, .2, 1.4, .06); glare(lx, ly, 18, 1);
+// ### The garage behind the tunnel door: the end of the lock-up garage of room 2, as it looks at night from its tunnel door,
+// ### built in 3D so it has depth and moves as you walk up to the door (a painted picture looked like a backdrop). A concrete
+// ### hall with joints in the floor, grey walls with the blue band and white line of room 2's garage, strip lights on the
+// ### ceiling, and the blue getaway coupe facing the door with its headlights on, their glare and the pools they throw on
+// ### the floor. Everything is unlit and its light painted in (MeshBasicMaterial, no fog), as the picture was: no new light
+// ### is switched on and no shader changes when the door opens. GARAGE_END.base holds each material's own colour, so the
+// ### whole hall can be dimmed behind the shut door and brought up as it opens (TDOOR.glow.color.setScalar).
+const GARAGE_END = { mats: [], z0: 1.25, len: 13, half: 4.5, high: 3.4 };
+function garageEnd(x, floor, zS){
+  const G = GARAGE_END, grp = new THREE.Group(), gr = mulberry32(2030), z0 = zS + G.z0, zc = z0 + G.len / 2, top = floor + G.high;
+  const mat = (o, base) => { const m = new THREE.MeshBasicMaterial(Object.assign({ fog: false }, o)); m.userData.base = new THREE.Color(base === undefined ? 0xffffff : base); m.color.copy(m.userData.base); G.mats.push(m); return m; };
+  const plane = (w, h, m, px, py, pz, rx, ry) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m); o.position.set(px, py, pz); o.rotation.set(rx || 0, ry || 0, 0); grp.add(o); return o; };
+  const carZ = z0 + 5.2, lampX = .62, LIGHTS_Z = [3.75, 8.75];
+  // the floor: concrete in slabs, lit in pools under the strip lights and, brightest, in front of the car by its headlights
+  const PX = 80, fw = G.half * 2, fl = G.len;
+  plane(fw, fl, mat({ map: canvasTex(Math.round(fw * PX), Math.round(fl * PX), (g, w, h) => {
+    g.fillStyle = '#1c1e22'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 1400; i++){ const v = 30 + gr() * 30; g.fillStyle = `rgba(${v},${v},${v + 4},${(.05 + gr() * .12).toFixed(3)})`; g.fillRect(gr() * w, gr() * h, 2 + gr() * 6, 2 + gr() * 6); }
+    const pool = (cx, cy, rx, ry, c, a) => { g.save(); g.translate(cx, cy); g.scale(rx / ry, 1); const q = g.createRadialGradient(0, 0, 0, 0, 0, ry); q.addColorStop(0, `rgba(${c},${a})`); q.addColorStop(1, `rgba(${c},0)`); g.fillStyle = q; g.fillRect(-ry, -ry, ry * 2, ry * 2); g.restore(); };
+    g.globalCompositeOperation = 'lighter';
+    for (const zz of LIGHTS_Z) pool(w / 2, zz * PX, 3.2 * PX, 2.2 * PX, '200,210,225', .1);
+    // y in the picture runs from the door (top) to the far wall (bottom); the headlights shine towards the door
+    for (const sd of [-1, 1]) pool(w / 2 + sd * lampX * PX, (carZ - z0 - 3.2) * PX, 1.1 * PX, 3.4 * PX, '226,236,255', .28);
+    g.globalCompositeOperation = 'source-over';
+    g.strokeStyle = 'rgba(10,11,13,.3)'; g.lineWidth = 2;
+    for (let xx = w / 2 - 2.25 * PX; xx <= w; xx += 1.5 * PX){ g.beginPath(); g.moveTo(xx, 0); g.lineTo(xx, h); g.stroke(); }
+    for (let yy = 0; yy <= h; yy += 2.5 * PX){ g.beginPath(); g.moveTo(0, yy); g.lineTo(w, yy); g.stroke(); }
+    // the yellow line of a bay, and the dark shadow of the car on the floor
+    g.fillStyle = 'rgba(214,176,40,.55)'; for (const sd of [-1, 1]) g.fillRect(w / 2 + sd * 1.45 * PX - 4, (carZ - z0 - 2.6) * PX, 8, h);
+    g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(w / 2 - 1.05 * PX, (carZ - z0 - 2.3) * PX, 2.1 * PX, 4.6 * PX);
+  }) }), x, floor + .0005, zc, -Math.PI / 2);
+  // the walls: concrete, darker towards the ceiling, with the blue band and white line of room 2's garage
+  const wallTex = (len) => canvasTex(Math.round(len * 48), Math.round(G.high * 48), (g, w, h) => {
+    const q = g.createLinearGradient(0, 0, 0, h); q.addColorStop(0, '#16181c'); q.addColorStop(1, '#3a3d42'); g.fillStyle = q; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 500; i++){ g.fillStyle = `rgba(0,0,0,${(gr() * .14).toFixed(3)})`; g.fillRect(gr() * w, gr() * h, 2 + gr() * 10, 2 + gr() * 10); }
+    g.fillStyle = '#1f3e58'; g.fillRect(0, h - 1.36 * 48, w, 1.2 * 48);
+    g.fillStyle = '#9da2a6'; g.fillRect(0, h - 1.49 * 48, w, .13 * 48);
+    for (let xx = 0; xx < w; xx += 2.5 * 48){ g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(xx, 0, 2, h); }
+  });
+  for (const sd of [-1, 1]) plane(G.len, G.high, mat({ map: wallTex(G.len) }), x + sd * G.half, floor + G.high / 2, zc, 0, -sd * Math.PI / 2);
+  plane(fw, G.high, mat({ map: wallTex(fw) }), x, floor + G.high / 2, z0 + G.len, 0, Math.PI);
+  // the ceiling: concrete slabs between beams, lit around each strip light (painted in, as the floor)
+  plane(fw, G.len, mat({ map: canvasTex(Math.round(fw * 40), Math.round(G.len * 40), (g, w, h) => {
+    g.fillStyle = '#26282c'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 400; i++){ g.fillStyle = `rgba(0,0,0,${(gr() * .18).toFixed(3)})`; g.fillRect(gr() * w, gr() * h, 2 + gr() * 8, 2 + gr() * 8); }
+    g.globalCompositeOperation = 'lighter';
+    for (const zz of LIGHTS_Z) for (const sd of [-1, 1]){
+      const cx = w / 2 + sd * 1.6 * 40, cy = zz * 40, q = g.createRadialGradient(cx, cy, 0, cx, cy, 1.9 * 40);
+      q.addColorStop(0, 'rgba(150,158,170,.55)'); q.addColorStop(1, 'rgba(150,158,170,0)'); g.fillStyle = q; g.fillRect(cx - 80, cy - 80, 160, 160);
+    }
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = 'rgba(0,0,0,.45)'; for (let yy = 2.5 * 40; yy < h; yy += 2.5 * 40) g.fillRect(0, yy - 6, w, 12);
+  }) }), x, top, zc, Math.PI / 2);
+  // the beams under it, across the hall
+  const beamMat = mat({}, 0x34373c);
+  for (let zz = 2.5; zz < G.len; zz += 2.5){ const b = new THREE.Mesh(new THREE.BoxGeometry(fw, .32, .3), beamMat); b.position.set(x, top - .16, z0 + zz); grp.add(b); }
+  // strip lights on the ceiling, and a pillar on each side
+  // strip lights: a grey housing with a glowing diffuser under it, hung between the beams
+  const tube = mat({}, 0xeef3ff), housing = mat({}, 0x5a5e64), pillar = mat({ map: wallTex(1) }, 0x9a9da2);
+  for (const zz of LIGHTS_Z) for (const sd of [-1, 1]){
+    const hb = new THREE.Mesh(new THREE.BoxGeometry(.3, .1, 1.5), housing); hb.position.set(x + sd * 1.6, top - .06, z0 + zz); grp.add(hb);
+    const t = new THREE.Mesh(new THREE.BoxGeometry(.22, .03, 1.4), tube); t.position.set(x + sd * 1.6, top - .125, z0 + zz); grp.add(t);
   }
-  g.globalCompositeOperation = 'source-over';
+  for (const sd of [-1, 1]){ const pl = new THREE.Mesh(new THREE.BoxGeometry(.45, G.high, .45), pillar); pl.position.set(x + sd * 3.1, floor + G.high / 2, z0 + 3.4); grp.add(pl); }
+  // the coupe, facing the door: its body shaded light on top and dark at the sides (vertex colours), dark glass, black wheels
+  const shaded = (geo, top, side) => { const n = geo.attributes.normal, col = []; for (let i = 0; i < n.count; i++){ const k = n.getY(i) > .5 ? top : n.getY(i) < -.5 ? .1 : side; col.push(k, k, k); } geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); return geo; };
+  const paint = mat({ vertexColors: true }, 0x2a58c8), glass = mat({ vertexColors: true }, 0x1a2333), rubber = mat({}, 0x070809), chrome = mat({}, 0x3a3e44);
+  const car = new THREE.Group(); car.position.set(x, floor, carZ); grp.add(car);
+  const add = (geo, m, px, py, pz) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); car.add(o); return o; };
+  add(shaded(new THREE.BoxGeometry(1.86, .5, 4.4), .95, .5), paint, 0, .55, 0);
+  add(shaded(new THREE.BoxGeometry(1.78, .12, 4.2), .8, .45), paint, 0, .86, -.05);
+  add(shaded(new THREE.CylinderGeometry(.62, .9, .5, 4, 1).rotateY(Math.PI / 4).scale(1.45, 1, 2.0), .55, .35), glass, 0, 1.17, .25);
+  add(new THREE.BoxGeometry(1.9, .14, .12), chrome, 0, .34, -2.22);
+  add(new THREE.BoxGeometry(.7, .16, .04), rubber, 0, .56, -2.21);
+  for (const sx of [-1, 1]) for (const sz of [-1.35, 1.35]) add(new THREE.CylinderGeometry(.33, .33, .26, 16).rotateZ(Math.PI / 2), rubber, sx * .86, .33, sz);
+  // the headlights and their glare: the lamp itself and two soft halos, which come up as the door opens (TDOOR.glow)
+  const lampMat = mat({}, 0xf4f8ff), white = canvasTex(128, 128, (g, w, h) => { const q = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); q.addColorStop(0, 'rgba(255,255,255,1)'); q.addColorStop(.15, 'rgba(225,235,255,.6)'); q.addColorStop(.45, 'rgba(190,210,255,.15)'); q.addColorStop(1, 'rgba(190,210,255,0)'); g.fillStyle = q; g.fillRect(0, 0, w, h); });
+  const haloMat = new THREE.SpriteMaterial({ map: white, color: 0xdce8ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false });
+  haloMat.userData.base = new THREE.Color(0xdce8ff); G.mats.push(haloMat);
+  for (const sd of [-1, 1]){
+    add(new THREE.CircleGeometry(.11, 16).rotateY(Math.PI), lampMat, sd * lampX, .62, -2.215);
+    for (const [size, dz] of [[1.1, -2.3], [3.2, -2.45]]){ const h = new THREE.Sprite(haloMat); h.scale.setScalar(size); h.position.set(sd * lampX, .62, dz); car.add(h); }
+  }
+  return grp;
 }
 // ### A scanned surface for the tunnel; the tint (linear) greys it with the dust of decades.
 function tunnelMat(color, normal, tint, o){
@@ -3058,16 +3111,17 @@ const tbox = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.Box
   for (const s of [-1, 1]) tplane(r - dw, spring - floor, TM.stone, 2.5, x + s * (r + dw) / 2, (spring + floor) / 2, zS, 0, Math.PI);
   const arch = new THREE.Shape(); arch.moveTo(-r, 0); arch.lineTo(-dw, 0); arch.lineTo(-dw, floor + dh - spring); arch.lineTo(dw, floor + dh - spring); arch.lineTo(dw, 0); arch.lineTo(r, 0); arch.absarc(0, 0, r, 0, Math.PI, false);
   const moon = new THREE.Mesh(uvMetres(new THREE.ShapeGeometry(arch, 18), 1 / 2.5, 1 / 2.5), TM.brick); moon.position.set(x, spring, zS); moon.rotation.y = Math.PI; room.add(moon);
-  // the doorway runs through the thick wall: stone sides, a brick lintel, and the pavers go on out into the garage
+  // the doorway runs through the thick wall: stone sides, a brick lintel, and the pavers as far as the garage (garageEnd)
   for (const s of [-1, 1]) tplane(deep + .9, dh, TM.stone, 2.5, x + s * dw, floor + dh / 2, zS + (deep + .9) / 2, 0, -s * Math.PI / 2);
   tplane(TDOOR.w, deep, TM.brick, 2.5, x, floor + dh, zS + deep / 2, Math.PI / 2);
-  tplane(3, 3.5, TM.floor, 2, x, floor + .001, zS + 1.75, -Math.PI / 2);
+  tplane(TDOOR.w + .1, GARAGE_END.z0, TM.floor, 2, x, floor + .001, zS + GARAGE_END.z0 / 2, -Math.PI / 2);
   for (const s of [-1, 1]) tbox(.07, dh + .08, .07, TM.wood, x + s * (dw + .035), floor + (dh + .08) / 2, zS - .03);
   tbox(TDOOR.w + .2, .08, .07, TM.wood, x, floor + dh + .04, zS - .03);
-  // outside, a few metres on: the lock-up garage at night, where the car waits with its headlights on, shining at the
-  // door. A picture (fog does not dim it) that the door hides, apart from a glint round its edges, until it swings open.
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ fog: false, map: canvasTex(512, 512, paintGarage) }));
-  glow.position.set(x, floor + 1.4, zS + 3.5); glow.rotation.y = Math.PI; room.add(glow); TDOOR.out = glow; TDOOR.glow = glow.material; glow.material.color.setScalar(.25);
+  // outside: the lock-up garage at night, where the car waits with its headlights on, shining at the door (garageEnd). The
+  // door hides it, apart from a glint round its edges, until it swings open; behind the shut door it is dimmed.
+  const hall = garageEnd(x, floor, zS); room.add(hall); TDOOR.out = hall;
+  TDOOR.glow = { color: { setScalar: v => { for (const m of GARAGE_END.mats) m.color.copy(m.userData.base).multiplyScalar(v); } } };
+  TDOOR.glow.color.setScalar(.25);
   // the door: rough planks on two iron straps that run out to the hinges on the left, a ring to pull it by on the right
   const pivot = new THREE.Group(); pivot.position.set(x + dw, floor + .012 + TDOOR.leafH / 2, zS + .04); room.add(pivot); TDOOR.pivot = pivot;
   const leaf = new THREE.Mesh(uvMetres(new THREE.BoxGeometry(TDOOR.w - .04, TDOOR.leafH, .05), 1.6, 3.4), TM.wood); leaf.position.x = -dw; pivot.add(leaf); hot('open:door', leaf);
