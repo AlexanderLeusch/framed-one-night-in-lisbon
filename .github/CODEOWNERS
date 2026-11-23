@@ -1,0 +1,16 @@
+# Who must approve changes before they reach main.
+# GitHub asks these people for a review automatically. The ruleset on main ("Require review from Code Owners")
+# turns that request into a requirement: a pull request that touches one of these paths cannot be merged without
+# the approval of one of its owners. See SECURITY.md, "Repository and deployment".
+#
+# Phase 1 (until the deadline, 23 November 2026): only the two folders where one bad change does the most damage.
+#   .github/   controls what CI runs and what gets published to GitHub Pages
+#   supabase/  holds the database rules that decide who may write to the online leaderboard
+# Everything else merges once all CI checks are green.
+/.github/   @AlexanderLeusch @Marco-open-source
+/supabase/  @AlexanderLeusch @Marco-open-source
+
+# Phase 2 (after the deadline): remove the "# " at the start of the next line, so every change needs a review.
+# Marco is the backup owner, because GitHub does not let anyone approve their own pull request: Marco reviews Alex's
+# changes. Either of the two may approve.
+# *         @AlexanderLeusch @Marco-open-source

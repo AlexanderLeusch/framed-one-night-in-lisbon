@@ -43,7 +43,7 @@ cd original-solo-project && uv run pytest   # the original Python project's test
 
 ## Branches, reviews and `main`
 
-1. Work on a branch and open a pull request. Keep changes small and merge them often; no long-lived branches.
+1. Work on a branch and open a pull request. Keep changes small and merge them often; no long-lived branches. Since 23 November 2026 a ruleset on `main` enforces this: no direct push, no force push, all CI checks green before a merge, and a code owner approves changes to `.github/` and `supabase/` (see [SECURITY.md](SECURITY.md)).
 2. **A second team member reviews every pull request before it is merged.** The reviewer checks that it does what was asked, that tests cover it (including refused actions), and that it stays in its scope. The person who merges owns the result.
 3. `npm test` and `npm run test:browser` pass before you push. CI runs them again and blocks the deploy if anything fails.
 4. **When `main` is red:** nobody merges anything else. Whoever's change broke it fixes it or reverts it at once.

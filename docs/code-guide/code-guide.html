@@ -606,6 +606,7 @@ damage += max(0, (impact − 4) · 1.0 · VEH.dmg)              <span class="c">
     <tr><td>A CDN serves a changed library</td><td>Exact versions plus SRI hashes: the browser refuses any file that differs; <code>npm run test:sri</code> re-checks them.</td></tr>
     <tr><td>Injected scripts</td><td>Content Security Policy: scripts only from this site and the exact three.js folders on the two CDNs, no inline scripts or styles, no plugins, no forms, no foreign base URL.</td></tr>
     <tr><td>Vulnerable dependencies</td><td>No npm packages; three.js 0.128.0 has 0 known vulnerabilities (npm audit, 4 November 2026); GitHub Actions pinned to commit hashes.</td></tr>
+    <tr><td>A bad change reaches <code>main</code> and goes live</td><td>Since 23 November 2026 a ruleset on <code>main</code>: pull requests only, all CI checks green, no force push or deletion, and a code owner approves changes to <code>.github/</code> and <code>supabase/</code> (<code>SECURITY.md</code>, <code>.github/CODEOWNERS</code>); Dependabot proposes updates for the pinned actions.</td></tr>
     <tr><td>Dev server exposes files</td><td>Only known file types inside the project; no hidden files, no <code>../</code>, GET and HEAD only.</td></tr>
   </table>
   <h3>Deployment</h3>
