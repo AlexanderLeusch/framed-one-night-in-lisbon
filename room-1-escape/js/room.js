@@ -3157,7 +3157,8 @@ const tbox = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.Box
     grime(g, w, h, 6, 'rgba(120,96,60,.2)', 60, false);
     g.fillStyle = 'rgba(220,214,190,.8)'; g.fillRect(w * .38, 0, w * .24, 26);   // the tape
     g.fillStyle = '#23262c'; g.font = 'italic 600 34px Georgia, serif';
-    ['Took you long enough.', 'A car is waiting at the', 'end of the tunnel.', '— H.'].forEach((l, i) => g.fillText(l, i === 3 ? w - 110 : 22, 76 + i * 52));
+    ['Took you long enough.', 'The car is waiting.', 'Do you have the key?', 'YES      NO'].forEach((l, i) => g.fillText(l, 22, 76 + i * 52));
+    g.fillText('— H.', w - 110, 76 + 3 * 52);
   }) }));
   note.position.set(x - .21, -1.05, TUN.ladderZ + .024); note.rotation.z = .06; room.add(note);
   // two old bulbs on the walls, in wire cages
@@ -4929,6 +4930,7 @@ card.addEventListener('click', e => {
   else if (d === 'replay' && miniSpot) use('play', miniSpot);
   else if (d === 'mini-start' && miniSpot && miniRules){ rulesSeen.add(miniRules); use('play', miniSpot); }   // asks Rules again: the spot may have changed while you read
   else if (d === 'try') act('try');
+  else if (d === 'key-yes' || d === 'key-no') answerKey(d === 'key-yes');
 });
 $('btnPause').addEventListener('click', e => { e.currentTarget.blur(); if (S.ending || S.scene === 'intro') return; if (paused) resumeRoom(); else showPause(); });
 $('btnNotes').addEventListener('click', e => { e.currentTarget.blur(); if (!paused && !S.ending && S.scene !== 'intro') showNotes(); });
@@ -5327,7 +5329,9 @@ function updateCine(dt){
 // ### the hands close round the rungs, the forearms run to bent elbows and up to your shoulders, and when you glance
 // ### down you see your chest, your legs and your boots on the rungs. The only sound is the old wood creaking under your
 // ### weight, with the echo of the shaft (recorded, sounds/ladder.mp3); the hatch creaks open on its hinges. Every
-// ### grab shakes dust off the wood, and on the way you pass Hale's note. At the bottom you let go, step onto the stone
+// ### grab shakes dust off the wood, and on the way you pass Hale's note. It asks "Do you have the key?": the climb stops
+// ### there and a card offers Yes and No. Yes: you climb on. No: you climb back up the same way, rung by rung, the hatch
+// ### falls shut and you are back in the washroom with the clock running (Rules: 'back'). At the bottom you let go, step onto the stone
 // ### floor and turn round to face the tunnel (with reduced motion you are simply down there). Then you walk through
 // ### the tunnel yourself, as in the washroom, tearing through the cobwebs across the vault, to the old plank door at
 // ### its far end; on a touch screen a button walks you there. Click the door (or its marker) when you stand in front
@@ -5335,7 +5339,8 @@ function updateCine(dt){
 // ### in the garage behind it shine in, fill the screen, and room 2 opens in that light (showEnding).
 // ### Ending B: the door is flung open, white corridor light floods in, then the card.
 let hatchAnim = -1, doorFlash = 0, endingShown = false, climb = null, endStep = 0, tunnelWalk = null;
-const CLIMB = { mount: 1.4, step: .74, steps: 8, off: 2.2, eye: .55 };
+const CLIMB = { mount: 1.4, step: .74, steps: 8, off: 2.2, eye: .55, askStep: 5.2 };
+CLIMB.ask = CLIMB.mount + CLIMB.askStep * CLIMB.step;   // the moment you look at the note
 CLIMB.eyeZ = TUN.ladderZ + .42;
 CLIMB.end = CLIMB.mount + CLIMB.steps * CLIMB.step + CLIMB.off;
 const FOG_ROOM = scene.fog.color.clone(), FOG_TUNNEL = new THREE.Color(0x15110c), FOG_NIGHT = new THREE.Color(0x46536a);
@@ -5369,6 +5374,25 @@ function hatchCreak(){
 function tunnelEnd(on){
   TDOOR.pivot.visible = TDOOR.out.visible = on;
   for (const m of TUN.webs){ m.material.opacity = 1 - (m.userData.torn || 0); m.visible = on && !(m.userData.torn > .99); }
+}
+// ### Hale's note on the ladder, as a card: do you have the key? The climb waits for the answer.
+function showKeyAsk(){
+  showCard(`<div class="eyebrow">A note taped to the ladder</div><h2>Do you have the <em>key</em>?</h2>
+    <div class="paper">Took you long enough. The car is waiting. Do you have the key? — H.</div>
+    <div class="actions"><button class="btn" data-do="key-yes">Yes</button><button class="btn ghost" data-do="key-no">No</button></div>`);
+}
+// ### The answer to the note. Yes: down you go. No: you climb back up (with reduced motion you are simply up again).
+function answerKey(yes){
+  hideCard();
+  if (!climb || !climb.wait) return;
+  climb.wait = false;
+  if (yes){ if (REDUCED) climb.t = CLIMB.end; say(S.inventory.includes('carkey') ? 'You feel the key in your pocket. Down you go.' : 'Down you go.'); }
+  else { climb.dir = -1; if (REDUCED) climb.t = 0; say('No key, no car. Back up the ladder.', 'warn'); }
+}
+// ### Back at the top after a No: Rules undo Ending A, the hatch falls shut and you kneel at it again.
+function climbedBack(){
+  climb = null; hatchAnim = -1;
+  act('back');
 }
 // ### At the foot of the ladder you are on your own feet again: the walk through the tunnel begins.
 function startTunnelWalk(){
@@ -5428,14 +5452,15 @@ function startClimb(){
   }
   const hand = side => ({ pos: gripAt(side, .035), moving: true, curl: .2 });
   climb = { t: REDUCED ? CLIMB.end : 0, moves, from: { pos: cam.pos.clone(), yaw: wrapAngle(cam.yaw), pitch: cam.pitch }, hands: !REDUCED,
-    grabbed: -1, landed: -1, stepped: -1, let: -1, off: 0, bodyYaw: 0, release: 0,
+    grabbed: -1, landed: -1, stepped: -1, let: -1, off: 0, bodyYaw: 0, release: 0, dir: 1, asked: false, wait: false,
     hand: { r: hand(1), l: hand(-1) }, foot: { r: footAt(1, -.6), l: footAt(-1, -.9) } };
   ladderSound('creak2', .3, .85, .5);
 }
 // ### One frame of the climb: where the eye is and where it looks, where each hand and boot is, sounds and dust.
 function updateClimb(dt){
   const c = climb, C = CLIMB, x = TUN.x, pose = { pos: new THREE.Vector3(), yaw: 0, pitch: -.5, roll: 0 };
-  c.t += endStep;
+  if (!c.wait) c.t = Math.max(0, c.t + endStep * c.dir);
+  if (!c.asked && c.t >= C.ask){ c.t = C.ask; c.asked = c.wait = true; showKeyAsk(); }   // at the note: do you have the key?
   const bottom = new THREE.Vector3(x, EYE + TUN.floor, -1.1);
   if (c.t < C.mount){
     // let yourself down into the hatch, turning to face the ladder, and take hold of the frame
@@ -6164,6 +6189,7 @@ function frame(now){
     if (tile.position.y <= .01) tileVel = 0;
     shadowsMoved();
   }
+  if (climb && climb.dir < 0 && climb.t <= 0) climbedBack();   // answered No on the ladder: up again
   // the hatch opens, the bulbs below come on (old ones, they flicker a little) and you climb down
   if (hatchAnim >= 0){
     hatchAnim += endStep;

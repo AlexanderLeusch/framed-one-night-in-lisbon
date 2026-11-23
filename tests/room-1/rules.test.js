@@ -49,6 +49,35 @@ test('Ending A: tile, car key, the code 1912, and out through the hatch', () => 
   assert.equal(r.state.ending, 'A');
   assert.equal(r.state.scene, 'tunnel');
   assert.match(r.message, /Took you long enough/);
+  assert.match(r.message, /Do you have the key\?/);
+});
+
+test('the note on the ladder: answering no takes you back up, and the clock runs again', () => {
+  let s = R.perform(turnTo(play(TO_HATCH), '1912'), 'try').state;
+  const r = R.perform(s, 'back');
+  assert.ok(r.ok);
+  assert.equal(r.state.ending, null);
+  assert.equal(r.state.scene, 'hatch');
+  assert.equal(r.state.time, s.time, 'going back up costs no time by itself');
+  assert.deepEqual(R.restore(JSON.stringify(r.state)), r.state, 'the state is one a save can hold');
+  // the clock runs again
+  assert.ok(R.tick(r.state, 1).state.time < r.state.time);
+  // the lock kept its code: one try opens the hatch again
+  const again = R.perform(r.state, 'try');
+  assert.equal(again.state.ending, 'A');
+});
+
+test('the note on the ladder: going back is refused anywhere but on the ladder', () => {
+  // edge: playing, not on the ladder
+  const playing = play(TO_HATCH), a = R.perform(playing, 'back');
+  assert.equal(a.ok, false);
+  assert.equal(a.state, playing);
+  assert.match(a.message, /not on the ladder/);
+  // rejected: after Ending B nothing brings you back
+  const caught = runClock(play(START), 700), b = R.perform(caught, 'back');
+  assert.equal(caught.ending, 'B');
+  assert.equal(b.ok, false);
+  assert.equal(b.state, caught);
 });
 
 test('Ending B: when the clock runs out, Hale takes you back', () => {

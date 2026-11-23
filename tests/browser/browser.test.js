@@ -651,6 +651,19 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       for (const [w, n, d] of [[0, 1, 1], [1, 1, -1], [2, 1, 1], [3, 2, 1]]) for (let k = 0; k < n; k++) await click(`[data-turn="${w},${d}"]`);
       assert.equal(await evaluate("[...document.querySelectorAll('#lockUi output')].map(o => o.textContent).join('')"), '1912');
       await click('[data-do="try"]');
+      // on the ladder Hale's note asks for the key. No: back up into the washroom, the hatch shut and the clock running again
+      await waitFor("!!document.querySelector('[data-do=\"key-no\"]')", 120000, 'the note on the ladder asks for the key');
+      assert.match(await text('#card'), /Do you have the key?/);
+      const stopped = await seconds();
+      await click('[data-do="key-no"]');
+      await waitFor("/Back up for the key/.test(document.getElementById('say').textContent)", 120000, 'back up the ladder');
+      await waitFor(`(() => { const t = document.getElementById('time').textContent.split(':'); return t[0] * 60 + +t[1] < ${stopped}; })()`, 20000, 'the clock runs again');
+      // the lock kept its code: one try opens the hatch again, and this time the answer is yes
+      await hs('lock');
+      await waitFor("!!document.getElementById('lockUi')", 5000, 'lock card again');
+      await click('[data-do="try"]');
+      await waitFor("!!document.querySelector('[data-do=\"key-yes\"]')", 120000, 'the note asks again');
+      await click('[data-do="key-yes"]');
       // down the ladder there is no card yet: you walk through the tunnel yourself and open the door at its far end
       await waitFor("/Walk through the tunnel to the door/.test(document.getElementById('say').textContent)", 120000, 'down the ladder, told to walk to the door');
       assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'no ending card at the foot of the ladder');

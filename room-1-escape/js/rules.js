@@ -45,7 +45,7 @@
     tunnel: { title: 'The Tunnel', text: 'A ladder into the dark. Somewhere below, water drips.', exits: [], hotspots: [] }
   };
   const ENDINGS = {
-    A: { title: 'Ending A · Out', text: 'The lock clicks. You lower yourself into the dark and pull the hatch shut above you. Taped to the ladder is a note in neat handwriting: “Took you long enough. A car is waiting at the end of the tunnel. — H.” Officer Hale wanted you out. The question is why.' },
+    A: { title: 'Ending A · Out', text: 'The lock clicks. You lower yourself into the dark and pull the hatch shut above you. Taped to the ladder is a note in neat handwriting: “Took you long enough. The car is waiting. Do you have the key? — H.” Officer Hale wanted you out. The question is why.' },
     B: { title: 'Ending B · Back to the cell', text: 'The door bangs open. Officer Hale and two officers drag you back to cell 4471. The hatch stays shut, and so does the case.' }
   };
 
@@ -82,6 +82,13 @@
   // ### saved and nothing changes; the message tells the player why.
   function perform(s, action, target){
     if (action === 'new') return result(newState(), true, 'A new night begins.', 'ok');
+    // ### On the ladder Hale's note asks whether you have the car key. Answering no takes you back up into the washroom:
+    // ### the hatch falls shut (the lock keeps its code), Ending A is undone and the clock runs again.
+    if (action === 'back'){
+      if (s.ending !== 'A') return reject(s, 'You are not on the ladder.');
+      const n = copy(s); n.ending = null; n.scene = 'hatch';
+      return result(n, true, 'Back up for the key. The hatch falls shut behind you; the lock still shows the right code. The clock is running again.', 'clunk');
+    }
     if (ended(s)) return reject(s, 'The story is over. Start a new game to play again.');
     if (action === 'start'){
       if (s.scene !== 'intro') return reject(s, 'The clock is already running.');

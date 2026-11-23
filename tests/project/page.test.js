@@ -639,6 +639,23 @@ test('on the motorcycle the hands hold the grips, a digital display shows speed 
   assert.match(game, /warming = true;\s*try \{/); assert.match(game, /finally \{\s*warming = false;/);
 });
 
+// ---------- Room 1: the note on the ladder asks for the key ----------
+test('room 1: the note on the ladder asks for the key; no takes you back up', () => {
+  const room = read('room-1-escape/js/room.js');
+  // the note itself carries the question and both answers
+  assert.match(room, /'Do you have the key\?', 'YES      NO'/);
+  // the climb stops while you look at the note (between step 4.3 and 6.1) and waits for the answer
+  const ask = Number(room.match(/askStep: ([\d.]+)/)[1]);
+  assert.ok(ask > 4.3 && ask < 6.1, 'asked at step ' + ask);
+  assert.match(room, /if \(!c\.wait\) c\.t = Math\.max\(0, c\.t \+ endStep \* c\.dir\);/);
+  assert.match(room, /if \(!c\.asked && c\.t >= C\.ask\)\{ c\.t = C\.ask; c\.asked = c\.wait = true; showKeyAsk\(\); \}/);
+  assert.match(room, /data-do="key-yes">Yes<\/button><button class="btn ghost" data-do="key-no">No<\/button>/);
+  // no: the same climb backwards, and at the top Rules undo the ending
+  assert.match(room, /else \{ climb\.dir = -1;/);
+  assert.match(room, /if \(climb && climb\.dir < 0 && climb\.t <= 0\) climbedBack\(\);/);
+  assert.match(room, /function climbedBack\(\)\{\s*climb = null; hatchAnim = -1;\s*act\('back'\);/);
+});
+
 // ---------- Room 1: side-stepping ----------
 test('room 1: walking sideways is a side step, with the hips facing the way you look', () => {
   const room = read('room-1-escape/js/room.js');
