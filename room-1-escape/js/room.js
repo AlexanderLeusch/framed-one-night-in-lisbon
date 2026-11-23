@@ -1037,6 +1037,8 @@ const MIRROR = (() => {
   const api = {
     P0, SIZE, mat, rt,
     hide: [],   // the mirror itself and the steam on it, which must not show in their own picture
+    // ### Your figure in the mirror, built now if it is not yet (see warmBodies): its face and uniform are painted on canvases.
+    self(){ if (!me) me = buildSelf(); return me; },
     resize(){ renderer.getDrawingBufferSize(size); const k = COARSE ? .35 : .45; rt.setSize(Math.max(1, size.x * k | 0), Math.max(1, size.y * k | 0)); lastT = -1; },
     // ### Draws the mirror's picture again when the mirror is in view and you stand in front of it, and the view has
     // ### changed or a twentieth of a second has passed (your hands and the steam move even while you stand still; from
@@ -1969,6 +1971,7 @@ loadRealHale();
 // ### base is the folder of room 1, where the model and the scans are. Returns the figure (g), its parts by name and a
 // ### small set of tools to pose it: reset, aim (turn a bone so the next one lies along a direction), limb (two bones
 // ### reaching a point, bending towards a pole), turn (set a bone's turn in the world) and curl (close a hand).
+const INMATE_TEX = new Map();
 function buildInmate(buf, base){
   const dv = new DataView(buf);
   if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('not a glb file');
@@ -1984,10 +1987,14 @@ function buildInmate(buf, base){
   const ibm = acc(skin.inverseBindMatrices), inverses = bones.map((b, k) => new THREE.Matrix4().fromArray(ibm, k * 16));
   // ---- the materials: his skin; the cloth in stripes 6.5 cm wide (one dark and one sand stripe every 13 cm, as on the
   // ---- uniform in the washroom), woven of the scanned linen; the plain sand collar, the patch, the leather of the boots
-  const tl = new THREE.TextureLoader();
+  // (both figures built from the model share each picture: it is loaded, decoded and sent to the graphics card once, and
+  // it counts as part of ASSETS, so it is there before the room is made ready)
   const tex = (file, srgb, rep) => {
-    const t = tl.load(base + file); t.anisotropy = 8; if (srgb) t.encoding = THREE.sRGBEncoding;
+    const key = base + file + '|' + (rep || 0);
+    if (INMATE_TEX.has(key)) return INMATE_TEX.get(key);
+    const t = new THREE.TextureLoader(ASSETS).load(base + file); t.anisotropy = 8; if (srgb) t.encoding = THREE.sRGBEncoding;
     if (rep){ t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); } else t.flipY = false;
+    INMATE_TEX.set(key, t);
     return t;
   };
   const canvas = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; };
@@ -5153,15 +5160,19 @@ const CINE_WAIT = 12;
 let openingWarm = false, nextDoorBusy = false, cineFrom = 0, cineLoading = false;
 function warmOpening(){
   openingWarm = true;
+  // first your own figures, in the light of the room as it is played (see warmBodies)
+  const bodies = warmBodies();
+  renderer.compile(scene, camera); renderer.compile(handScene, handCam);
   const was = [hall.visible, doorLight.visible, hale.g.visible];
   hall.visible = doorLight.visible = hale.g.visible = true;
   renderer.compile(scene, camera);
+  bodies();
   // every picture on every surface goes to the graphics card now, also on what is out of view (the door behind you)
   const sent = new Set(), send = t => {
     if (!t || !t.isTexture || t.isCubeTexture || sent.has(t) || !t.image || t.image.complete === false) return;
     sent.add(t); renderer.initTexture(t);
   };
-  scene.traverse(o => { for (const m of [].concat(o.material || [])){ for (const k in m) send(m[k]); if (m.uniforms) for (const k in m.uniforms) send(m.uniforms[k].value); } });
+  for (const sc of [scene, handScene]) sc.traverse(o => { for (const m of [].concat(o.material || [])){ for (const k in m) send(m[k]); if (m.uniforms) for (const k in m.uniforms) send(m.uniforms[k].value); } });
   renderer.shadowMap.needsUpdate = true;   // and Hale's shadow
   // after this frame has been drawn, all is put back as it was
   return () => { [hall.visible, doorLight.visible, hale.g.visible] = was; shadowsMoved(); };
@@ -5177,8 +5188,22 @@ function warmHatch(){
   hatchWarm = true;
   const was = [tunnelLight.visible, tunnelLight2.visible, nightLight.visible, dust.pts.visible, TDOOR.pivot.visible];
   tunnelLight.visible = tunnelLight2.visible = nightLight.visible = dust.pts.visible = true; tunnelEnd(true);
+  const bodies = warmBodies();   // your body on the ladder, in the light of the bulbs
   renderer.compile(scene, camera);
+  bodies();
   return () => { [tunnelLight.visible, tunnelLight2.visible, nightLight.visible, dust.pts.visible] = was; tunnelEnd(was[4]); };
+}
+// ### Your own figures are only drawn now and then: your body when you look down or kneel (the model, and the body built
+// ### in code for the ladder), and you in the steel mirror. Built and first drawn the moment they were needed, they held
+// ### the picture still for a moment: the code-built body and your figure in the mirror are painted on canvases, and
+// ### each figure's shaders were built only then (after the briefing scene, when the mirror came into view, and at the
+// ### first look down). warmBodies() builds them now and switches them on for the shaders to be built with the rest;
+// ### it returns what switches them off again, before anything is drawn.
+function warmBodies(){
+  if (!ME){ ME = buildBody(); ME.g.visible = false; }
+  const figs = [INMATE && INMATE.g, SELF && SELF.g, MIRROR.self().g, ME.g].filter(Boolean), was = figs.map(g => g.visible);
+  figs.forEach(g => { g.visible = true; });
+  return () => figs.forEach((g, i) => { g.visible = was[i]; });
 }
 addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== parent || !e.data) return;
@@ -5934,6 +5959,7 @@ const SHADOW = (() => {
   mesh.visible = false; mesh.renderOrder = 2; scene.add(mesh);
   const at = new THREE.Vector3(), L = new THREE.Vector3();
   let fy = 0, last = -1;
+  const seen = new Float64Array(80).fill(NaN);
   // a point of you carried from the lamp onto the floor, in the picture's pixels; z is how much the shadow grows there
   const proj = (P, out) => { const t = (L.y - fy) / Math.max(.05, L.y - P.y); out.x = (L.x + (P.x - L.x) * t - at.x) * PX + N / 2; out.y = (L.z + (P.z - L.z) * t - at.z) * PX + N / 2; out.z = t; return out; };
   const pa = new THREE.Vector3(), pb = new THREE.Vector3();
@@ -5960,10 +5986,22 @@ const SHADOW = (() => {
     update(J, ankles, footQ, floor, on){
       mesh.visible = on;
       if (!on || clock - last < 1 / 30) return;
-      last = clock; fy = floor; at.copy(J.eye).setY(fy);
+      last = clock;
+      // standing still under a steady light, the shadow is the same as last time: it is not painted and sent again (a
+      // joint has to move 4 mm, a quarter of one of its pixels, or a lamp change by a hundredth)
+      const list = lamps(J.eye);
+      let n = 0, moved = false;
+      const keep = (v, tol) => { if (!(Math.abs(v - seen[n]) <= tol)){ seen[n] = v; moved = true; } n++; };
+      keep(floor, .004);
+      for (const p of [J.eye, J.neck, J.hips, ankles[0], ankles[1]]){ keep(p.x, .004); keep(p.y, .004); keep(p.z, .004); }
+      for (const k of ['hip', 'knee', 'toe', 'shoulder', 'elbow', 'wrist', 'tip']) for (const p of J[k]){ keep(p.x, .004); keep(p.y, .004); keep(p.z, .004); }
+      for (const q of footQ){ keep(q.x, .01); keep(q.y, .01); keep(q.z, .01); keep(q.w, .01); }
+      for (let i = 0; i < 2; i++) keep(list[i] ? list[i][1] : 0, .01);
+      if (!moved) return;
+      fy = floor; at.copy(J.eye).setY(fy);
       mesh.position.set(at.x, fy + .006, at.z);
       g.globalCompositeOperation = 'source-over'; g.fillStyle = '#000'; g.fillRect(0, 0, N, N); g.globalCompositeOperation = 'lighten';
-      for (const [pos, k] of lamps(J.eye)){
+      for (const [pos, k] of list){
         if (k < .02) continue;
         L.copy(pos);
         // the legs and boots, near the floor: sharper and darker
