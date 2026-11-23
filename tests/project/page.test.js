@@ -639,6 +639,19 @@ test('on the motorcycle the hands hold the grips, a digital display shows speed 
   assert.match(game, /warming = true;\s*try \{/); assert.match(game, /finally \{\s*warming = false;/);
 });
 
+// ---------- Room 2: Change vehicle goes to the garage, and the night stays open ----------
+test('room 2: Change vehicle goes straight to the garage, and every further drive of the night ends in a total time', () => {
+  const game = read('room-2-chase/js/game.js');
+  assert.equal((game.match(/data-action="garage">Change vehicle</g) || []).length, 2, 'on the end screen and on the failed card');
+  assert.doesNotMatch(game, /data-action="menu">Change vehicle</);
+  assert.match(game, /else if \(a === 'garage'\)\{ story = null; startRun\(sel\.mode, sel\.veh, true\); enterGarage\(\); heistKeep\(\); \}/);
+  assert.match(game, /else if \(a === 'again'\)\{ startRun\(mode, V\.key\); heistKeep\(\); \}/);
+  // the escape time of the night is kept until the main menu ends it
+  assert.match(game, /heist\.run = \{ escape: h\.escape \}; heist\.night = h\.escape;/);
+  assert.match(game, /function heistKeep\(\)\{ if \(heist\.night !== null && !heist\.run\) heist\.run = \{ escape: heist\.night \}; \}/);
+  assert.match(game, /function backToMenu\(\)\{\s*heist\.run = null; heist\.night = null;/);
+});
+
 // ---------- Room 1: the note on the ladder asks for the key ----------
 test('room 1: the note on the ladder asks for the key; no takes you back up', () => {
   const room = read('room-1-escape/js/room.js');

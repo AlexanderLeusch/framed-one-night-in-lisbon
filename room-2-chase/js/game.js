@@ -6015,9 +6015,10 @@ function setDriver(raw){
 // ### (Core.parseHeist reads what room 1 left in the browser's storage). There is no menu and no card for them: the page opens
 // ### in the glare of the headlights they walked into (#arrive, shown by the address alone) and it clears on the garage. When that Lisbon run is finished, the escape and the drive are added up to the heist time, which goes on the
 // ### heist leaderboard: on this device and, when signed in, online. A failed drive can be tried again and the heist stays
-// ### open; going back to the menu ends it. heist.run: the heist being played; last: the one just finished, for the end
+// ### open; going back to the menu ends it. After a finished night, Drive again and Change vehicle drive once more with the same
+// ### escape time (heist.night), so the end screen always shows a total time. heist.run: the heist being played; last: the one just finished, for the end
 // ### screen; pending: waiting for a driver name; list: this device's board; online: everybody's, once loaded.
-const heist = { cold: false, run: null, last: null, pending: null, rank: null, list: Core.parseHeistBoard(readStore(Core.HEIST.store)), online: null, net: null };
+const heist = { cold: false, run: null, night: null, last: null, pending: null, rank: null, list: Core.parseHeistBoard(readStore(Core.HEIST.store)), online: null, net: null };
 // ### Reads the handover from room 1; null when the page was not opened from there or the handover is not valid.
 function heistArrival(){
   return /[?&]heist=1(&|$)/.test(location.search) ? Core.parseHeist(readStore(Core.HEIST.key), Date.now()) : null;
@@ -6036,7 +6037,7 @@ function heistPrepare(){
   heist.cold = false;
 }
 function heistArrive(h, again){
-  heist.run = { escape: h.escape };
+  heist.run = { escape: h.escape }; heist.night = h.escape;
   // a tap or a key in room 1 on the same page counts here too: then the sound can start now, and the door is heard
   if (navigator.userActivation && navigator.userActivation.hasBeenActive) initAudio();
   // prepared a while ago: the walk out of the tunnel begins now, with the door shut in front of you
@@ -6046,6 +6047,8 @@ function heistArrive(h, again){
   addEventListener('pointerdown', wake, true); addEventListener('keydown', wake, true);
 }
 function heistBegin(h){ heistPrepare(); heistArrive(h, false); }
+// ### Another drive in the same night: the escape time from room 1 counts again, so this drive ends in a total time too.
+function heistKeep(){ if (heist.night !== null && !heist.run) heist.run = { escape: heist.night }; }
 // ### Loads everybody's heists. Fails quietly: this device's list stays.
 async function loadHeists(){
   if (!net) return;
@@ -7208,8 +7211,12 @@ function finish(){
     <section class="lb" data-board="${mode}"${boardSection(mode) ? '' : ' hidden'}>${boardSection(mode)}</section>
     <div class="actions">
       <button class="btn" data-action="again">Drive again <small class="desk-only">Enter</small></button>
+<<<<<<< HEAD
       <button class="btn ghost" data-action="menu">Change vehicle</button>
       ${heist.last ? '<button class="btn ghost" data-action="night">Play the whole night again</button><button class="btn ghost" data-action="exit">Exit</button>' : ''}
+=======
+      <button class="btn ghost" data-action="garage">Change vehicle</button>
+>>>>>>> 699f195 (Room 2: Change vehicle goes to the garage; every further drive of the night ends in a total time)
     </div>`, 'result');
 }
 // ### After the whole night (room 1 and the drive), the end screen also offers the whole night again, from the start of room 1
@@ -7243,7 +7250,7 @@ function gameOver(reason){
     <p>${text}</p>
     <div class="actions">
       <button class="btn" data-action="again">Try again <small class="desk-only">Enter</small></button>
-      <button class="btn ghost" data-action="menu">Change vehicle</button>
+      <button class="btn ghost" data-action="garage">Change vehicle</button>
     </div>`);
 }
 
@@ -7356,7 +7363,7 @@ function showCard(html, kind){
 // ### Hides the card and returns to the game.
 function hideOverlay(){ overlay.hidden = true; menuFraming(false); }
 function backToMenu(){
-  heist.run = null;
+  heist.run = null; heist.night = null;
   garageLeave();
   setMode('city'); placeRun(); resetCar(); resetPolice(); damage = 0;
   Object.values(MODELS).forEach(md => md.paint.color.copy(md.base));
@@ -7430,7 +7437,8 @@ card.addEventListener('click', e => {
   else if (a === 'board') garageBoard();
   else if (a === 'street') garageToStreet(false);
   else if (a === 'drive-out') garageGo();
-  else if (a === 'again') startRun(mode, V.key);
+  else if (a === 'again'){ startRun(mode, V.key); heistKeep(); }
+  else if (a === 'garage'){ story = null; startRun(sel.mode, sel.veh, true); enterGarage(); heistKeep(); }   // Change vehicle: straight down into the garage
   else if (a === 'resume') resume();
   else if (a === 'menu'){ story = null; backToMenu(); }
   else if (a === 'story') showStoryIntro();

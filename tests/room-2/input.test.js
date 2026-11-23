@@ -12,6 +12,8 @@ test('accepted: each menu action works in the states whose cards show it', () =>
   assert.deepEqual(allowedIn('resume', null), ['pause']);
   // drive out of the garage door at green: only while in the garage
   assert.equal(Core.actionAllowed('drive-out', { state: 'garage', story: null }), true);
+  // Change vehicle: down into the garage after a run, finished or failed, and from nowhere else
+  assert.deepEqual(allowedIn('garage', null), ['done', 'over']);
   assert.deepEqual(allowedIn('drive-out', null), []);
   assert.deepEqual(allowedIn('again', null), ['pause', 'done', 'over']);
   assert.deepEqual(allowedIn('menu', null), ['menu', 'pause', 'done', 'over']);
