@@ -589,7 +589,7 @@ test('the game loads behind the heist page with a loading bar, and room 2 is mad
   // room 2 draws every thing once, a few at a time, with a breath between steps, and puts all back as it was
   const steps = game.match(/function\* warmSteps\(\)\{[\s\S]*?\n\}/)[0];
   assert.match(steps, /a\.o\.layers\.mask = 1 << 31;/); assert.match(steps, /a\.o\.visible = a\.o\.isLight \? a\.lit : true;/, 'the lights stay as they are');
-  assert.match(steps, /finally \{\s*for \(const a of all\)\{ a\.o\.visible = a\.visible; a\.o\.frustumCulled = a\.culled; a\.o\.layers\.mask = a\.mask; \}/);
+  assert.match(steps, /finally \{\s*warming = false;\s*for \(const a of all\)\{ a\.o\.visible = a\.visible; a\.o\.frustumCulled = a\.culled; a\.o\.layers\.mask = a\.mask; \}/);
   assert.match(game, /if \(performance\.now\(\) - t > 24\)\{[\s\S]{0,260}await new Promise\(r => setTimeout\(r, 12\)\);/);
   assert.match(game, /try \{ await warmInSteps\(\); drawOnce\(\); \} catch \(e\) \{\} \}\s*parent\.postMessage\(\{ shardHeist: 'ready' \}, location\.origin\);/);
   // on the heist page room 1 holds its opening scene back until room 2 is ready, but not for ever
@@ -612,6 +612,31 @@ test('after the whole night the end screen shows only the leaderboard of both ro
   // the board of both rooms is still there, and the drive is still recorded on its own board
   assert.match(game, /\$\{heist\.last \? `<section class="lb heist" data-heist>\$\{heistSection\(\)\}<\/section>` : ''\}/);
   assert.match(game, /if \(lb\)\{ recordPending\(\); drawBoardBox\(lb\); \}/);
+});
+
+// ---------- The motorcycle: hands on the grips, a digital display, the witness on the pillion ----------
+test('on the motorcycle the hands hold the grips, a digital display shows speed and revs, and the witness sits on the pillion', () => {
+  // the bars are two clip-ons with a grip 0.3 m either side of the middle, and each hand goes to its grip
+  assert.match(game, /tube\(\[sd \* \.235, 0, 0\], \[sd \* \.365, 0, 0\], \.02, rubber\)/, 'a grip from 0.235 to 0.365 m');
+  const bars = game.match(/const HAND_BARS = \{ r: \[([^\]]+)\], l: \[([^\]]+)\] \};/);
+  const r = bars[1].split(',').map(Number), l = bars[2].split(',').map(Number);
+  assert.equal(r[0], 0.3); assert.equal(l[0], -0.3, 'each wrist over the middle of its grip');
+  assert.ok(r[2] > -0.41 && r[2] < -0.3, 'the wrist is on the rider\'s side of the bars (they are 0.41 m from the eye)');
+  assert.match(game, /const Wp = \(HANDS\.wide \? HAND_BARS : HAND_WHEEL\)\[key\]/);
+  // the display: drawn on a canvas, only when a figure changes; km/h and revs; dark until the engine runs
+  const gauge = game.match(/barGauge = \(kmh, rpm, lit\) => \{[\s\S]*?\n    \};/)[0];
+  assert.match(gauge, /if \(key === last\) return;/);
+  assert.match(gauge, /fillText\('km\/h'/); assert.match(gauge, /fillText\('x1000 rpm'/);
+  assert.match(gauge, /if \(on > 0\)\{/, 'nothing is shown while it is off');
+  assert.match(game, /else walker\.gauge\(Math\.max\(Math\.abs\(car\.speed\) \* 3\.6, 299 \* sweep\), Math\.max\(g\.live \? eng\.rpm : 0, 12000 \* sweep\), clamp\(\(s - N\.shut\) \/ 0\.5, 0, 1\)\);/);
+  // the witness: on the pillion behind the rider (his hips are at z = -0.4), leaning forward, her hands at his waist
+  const seat = game.match(/bike: \{ stand: [^}]*seat: \[0, ([\d.]+), (-[\d.]+)\], lean: (-[\d.]+), legs: 'astride' \}/);
+  assert.ok(Number(seat[2]) <= -0.7 && Number(seat[2]) >= -0.85, 'a seat\'s length behind the rider: ' + seat[2]);
+  assert.ok(Number(seat[3]) < 0, 'she leans forward');
+  assert.match(game, /if \(o\.astride\)\{ x \+= \(0\.05 - x\) \* sit; ex \+= \(-1\.4 - ex\) \* sit; z \+= \(sd \* 0\.03 - z\) \* sit; \}/);
+  // the picture of the motorcycle is not drawn again while the world is made ready in steps (it would come out empty)
+  assert.match(game, /if \(warming\) return setTimeout\(redraw, 250\);/);
+  assert.match(game, /warming = true;\s*try \{/); assert.match(game, /finally \{\s*warming = false;/);
 });
 
 // ---------- Room 1: the hatch opens without a hitch ----------

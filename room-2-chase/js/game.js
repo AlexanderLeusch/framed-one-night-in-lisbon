@@ -3627,6 +3627,9 @@ function loadRider(){
     let tries = 0;
     const redraw = () => {
       if (!I.mats.every(m => !m.map || (m.map.image && m.map.image.width)) && ++tries < 40) return setTimeout(redraw, 250);
+      // not while the world is being made ready in steps (warmSteps): its shapes are off the camera's layer then, and the
+      // picture would come out empty
+      if (warming) return setTimeout(redraw, 250);
       const old = PREVIEWS.bike; previewsOf(['bike']);
       if (old) document.querySelectorAll('img').forEach(im => { if (im.getAttribute('src') === old) im.setAttribute('src', PREVIEWS.bike); });
     };
@@ -6736,7 +6739,7 @@ function spawnWitness(){
 const BOARD = {
   car: { stand: [-1.62, -0.45], sill: [-1.02, -0.2, 0], seat: [-0.43, 0.42, -0.22], lean: 0.62, legs: 'sit' },
   truck: { stand: [-2.0, 2.15], sill: [-1.45, 2.25, 1.22], seat: [-0.62, 1.86, 2.05], lean: 0.18, legs: 'sit' },
-  bike: { stand: [-0.85, -0.5], sill: [-0.32, -0.5, 0.2], seat: [0, 0.9, -0.52], lean: -0.15, legs: 'astride' }
+  bike: { stand: [-0.85, -0.5], sill: [-0.32, -0.5, 0.2], seat: [0, 0.93, -0.76], lean: -0.22, legs: 'astride' }
 };
 // how long each step of getting in takes, in seconds: quick, so the player is soon on the way again
 const BOARD_T = { open: 0.25, enter: 0.6, close: 0.25 };
@@ -6774,6 +6777,8 @@ function witnessPose(o){
     const sd = i ? 1 : -1, ph = stride + i * Math.PI;
     // hanging, a little away from the body; swinging against the leg of the same side; in the lap when seated
     let x = walk * Math.sin(ph) * 0.38 * (1 - sit) - sit * 0.45, z = sd * 0.07, ex = -0.12 - walk * (0.25 + 0.15 * Math.sin(ph)) - sit * 1.0, ez = 0, hz = 0;
+    // on the pillion she holds on to the rider: the upper arms beside her, the forearms forward, a hand on each side of his waist
+    if (o.astride){ x += (0.05 - x) * sit; ex += (-1.4 - ex) * sit; z += (sd * 0.03 - z) * sit; }
     if (i === 0){
       // reach for the door handle
       x += (-1.15 - x) * reach; ex += (-0.35 - ex) * reach;
@@ -8194,13 +8199,59 @@ loadRealHands();
 // ### What the hands hold once the player sits in a vehicle: a steering wheel (rim, hub and three spokes), or the bars of the
 // ### motorcycle. It belongs to the view from the seat, like the hands, and rises into the picture with them (see grip).
 const WHEEL = new THREE.Group(), BARS = new THREE.Group();
+// the motorcycle's display (see below): set once it is built
+let barGauge = () => {};
 {
   const dark = new THREE.MeshStandardMaterial({ color: 0x17181b, roughness: .55, metalness: .2 });
   WHEEL.add(new THREE.Mesh(new THREE.TorusGeometry(.19, .016, 10, 32), dark), new THREE.Mesh(new THREE.CylinderGeometry(.045, .05, .03, 16).rotateX(Math.PI / 2), dark));
   for (const a of [0, Math.PI, -Math.PI / 2]) WHEEL.add(new THREE.Mesh(new THREE.BoxGeometry(.19, .026, .012).translate(.095, 0, 0).rotateZ(a), dark));
   WHEEL.rotation.x = -.42;
-  BARS.add(new THREE.Mesh(new THREE.CylinderGeometry(.015, .015, .74, 10).rotateZ(Math.PI / 2), dark));
-  for (const sd of [-1, 1]) BARS.add(new THREE.Mesh(new THREE.CylinderGeometry(.02, .02, .13, 10).rotateZ(Math.PI / 2).translate(sd * .3, 0, 0), dark));
+  // the bars of the motorcycle as its rider sees them: two clip-ons, not one bar across the tank. Each is a rubber grip with a
+  // weight at its end, a tube that runs in and forward to the fork, and a lever in front of the grip
+  const rubber = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: .95 }), steel = new THREE.MeshStandardMaterial({ color: 0x8d9299, roughness: .35, metalness: .85 });
+  const tube = (a, b, r, mat) => {
+    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, A.distanceTo(B), 10), mat);
+    m.position.copy(A).add(B).multiplyScalar(.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
+    return m;
+  };
+  for (const sd of [-1, 1]) BARS.add(
+    tube([sd * .235, 0, 0], [sd * .365, 0, 0], .02, rubber), tube([sd * .365, 0, 0], [sd * .385, 0, 0], .023, steel),
+    tube([sd * .235, 0, 0], [sd * .1, -.035, -.17], .013, dark),
+    tube([sd * .215, .004, -.03], [sd * .36, -.004, -.062], .0065, steel), tube([sd * .215, 0, -.012], [sd * .215, .004, -.034], .011, dark));
+  // ### The motorcycle's instruments: a small digital display between the clip-ons, tilted towards the rider. A row of bars
+  // ### for the revs (the last four red), the speed in large figures, the revs in thousands beside it. It is a picture drawn
+  // ### on a canvas, drawn again only when a figure on it changes; lit is how bright it is (0 off, 1 on), so it wakes with
+  // ### the engine as the dials of the car and the truck do.
+  {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+    const g = c.getContext('2d'), tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
+    const unit = new THREE.Group();
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(.118, .059), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+    face.position.z = .0106;
+    unit.add(new THREE.Mesh(new THREE.BoxGeometry(.132, .073, .02), dark), face);
+    unit.position.set(0, .03, -.15); unit.rotation.x = -.5;
+    BARS.add(unit);
+    const MAX_RPM = 12000;
+    let last = '';
+    barGauge = (kmh, rpm, lit) => {
+      const v = Math.round(Math.max(0, kmh)), n = Math.round(Math.min(1, Math.max(0, rpm / MAX_RPM)) * 16), on = Math.round(Math.min(1, Math.max(0, lit)) * 5) / 5;
+      const key = v + ' ' + n + ' ' + Math.round(rpm / 100) + ' ' + on;
+      if (key === last) return;
+      last = key;
+      g.globalAlpha = 1; g.fillStyle = '#04070a'; g.fillRect(0, 0, 256, 128);
+      if (on > 0){
+        g.globalAlpha = on;
+        for (let i = 0; i < 16; i++){ g.fillStyle = i < n ? (i >= 12 ? '#ff4d5a' : '#55ecff') : '#14242c'; g.fillRect(12 + i * 14.7, 30 - i * 1.1, 11, 14 + i * 1.1); }
+        g.fillStyle = '#eef8ff'; g.textBaseline = 'alphabetic'; g.textAlign = 'right';
+        g.font = '700 62px "JetBrains Mono", ui-monospace, monospace'; g.fillText(String(v), 168, 112);
+        g.textAlign = 'left'; g.fillStyle = '#8fb6c6';
+        g.font = '600 17px "JetBrains Mono", ui-monospace, monospace'; g.fillText('km/h', 176, 110);
+        g.fillStyle = '#55ecff'; g.fillText((Math.max(0, rpm) / 1000).toFixed(1), 176, 84); g.fillStyle = '#8fb6c6'; g.font = '600 11px "JetBrains Mono", ui-monospace, monospace'; g.fillText('x1000 rpm', 176, 66);
+      }
+      tex.needsUpdate = true;
+    };
+    barGauge(0, 0, 0);
+  }
   WHEEL.visible = BARS.visible = false;
   handScene.add(WHEEL, BARS);
 }
@@ -8214,7 +8265,10 @@ const HAND_REACH = [.12, -.165, -.5, .3, .35, -.35];
 const HAND_TO = { r: [0, 0, 0, .25, .35, -2.45], l: [0, 0, 0, .1, -.6, 1.6] };
 const TO_FINGERS = new THREE.Vector3(0, -.024, -.088), TO_EULER = new THREE.Euler(), TO_AT = new THREE.Vector3(), TO_SHOULDER = new THREE.Vector3();
 // both hands on a steering wheel in front of the chest, palms down and closed round the rim; wide: on the bars of a motorcycle
-const HAND_WHEEL = { r: [.17, -.2, -.43, .34, .22, -.5], l: [-.17, -.2, -.43, .34, -.22, .5] }, WHEEL_WIDE = .1;
+const HAND_WHEEL = { r: [.17, -.2, -.43, .34, .22, -.5], l: [-.17, -.2, -.43, .34, -.22, .5] };
+// both hands on the bars of a motorcycle: each wrist just behind and above its grip, the back of the hand up, the fingers
+// over the grip and closed round it (the grips are 0.3 m either side of the middle, see BARS)
+const HAND_BARS = { r: [.3, -.186, -.355, .45, .03, -.1], l: [-.3, -.186, -.355, .45, -.03, .1] };
 // how much each finger is bent at rest (index to little finger, then the thumb): a relaxed hand curls more towards the little finger
 const CURL_REST = [.3, .4, .48, .56, .2];
 // ### Little things a hand does while you stand still, now and then: make a loose fist, tap with the index finger,
@@ -8269,8 +8323,8 @@ function updateHands(dt){
       lerp(rz + swing * side * .12 + wobble(sd + 6, t * .7) * .05 * idle, R[5], out)];
     // at the wheel: both hands go to the rim and stay there
     if (HANDS.gripK > .001){
-      const Wp = HAND_WHEEL[key], gk = HANDS.gripK;
-      tp[0] = lerp(tp[0], Wp[0] + side * HANDS.wide * WHEEL_WIDE, gk); tp[1] = lerp(tp[1], Wp[1], gk); tp[2] = lerp(tp[2], Wp[2], gk);
+      const Wp = (HANDS.wide ? HAND_BARS : HAND_WHEEL)[key], gk = HANDS.gripK;
+      tp[0] = lerp(tp[0], Wp[0], gk); tp[1] = lerp(tp[1], Wp[1], gk); tp[2] = lerp(tp[2], Wp[2], gk);
       for (let i = 0; i < 3; i++) tr[i] = lerp(tr[i], Wp[3 + i], gk);
     }
     // a hand that is not needed sinks out of the picture (dropHand)
@@ -8399,7 +8453,7 @@ function grip(k, wide, own){ HANDS.grip = REDUCED ? 0 : k; HANDS.wide = wide ? 1
 function handTo(key, p, curl){ const h = HANDS[key]; h.to = p && !REDUCED ? p : null; if (p) h.toCurl = curl || 0; }
 // dropHand lets one hand sink out of the picture while the other works (on = true), or brings it back
 function dropHand(key, on){ HANDS[key].drop = on ? 1 : 0; }
-return { scene: handScene, handCam, cam, EYE, BODY, WALK_SPEED, place, goTo, update, hold, grip, handTo, dropHand, drawHands, reach: reachHand, setActive, gliding: () => cam.t < 1, hands: HANDS, lowerHands: () => { HANDS.show = false; } };
+return { scene: handScene, handCam, cam, EYE, BODY, WALK_SPEED, place, goTo, update, hold, grip, handTo, dropHand, drawHands, reach: reachHand, setActive, gauge: (kmh, rpm, lit) => barGauge(kmh, rpm, lit), gliding: () => cam.t < 1, hands: HANDS, lowerHands: () => { HANDS.show = false; } };
 }
 return { create };
 })();
@@ -8776,6 +8830,7 @@ function garagePick(fromWheel){
   garageShutter(0); garageSwing(0); walker.grip(0); walker.handTo('r', null); walker.handTo('l', null); walker.dropHand('l', false);
   Object.values(MODELS).forEach(md => { if (md.drive && md.drive.flap) md.drive.flap.rotation.y = 0; });
   Object.values(MODELS).forEach(md => { if (md.dash){ md.dash.light(0); md.dash.show(0, 0); } });
+  walker.gauge(0, 0, 0);
   held.clear(); Object.keys(keys).forEach(k => keys[k] = false);
   garagePlace();
   const d = garageDoor(V.key);
@@ -9109,6 +9164,8 @@ function garageRide(dt){
   // at the start the needles sweep to the end of their dials and back, as they do when the engine wakes
   const sweep = s > N.shut && s < N.shut + 1 ? Math.sin(Math.PI * (s - N.shut)) : 0;
   if (md.dash) md.dash.show(Math.max(Math.abs(car.speed) * 2.237, 160 * sweep), Math.max(g.live ? eng.rpm / 1000 : 0, 8 * sweep));
+  // the motorcycle has a digital display between its bars: speed in km/h and the revs, awake once the engine runs
+  else walker.gauge(Math.max(Math.abs(car.speed) * 3.6, 299 * sweep), Math.max(g.live ? eng.rpm : 0, 12000 * sweep), clamp((s - N.shut) / 0.5, 0, 1));
   walker.hold(dt);
 }
 // ### The tunnel door, t seconds after a run began behind it: it swings out towards the garage and slows as it opens, as it
@@ -9438,13 +9495,14 @@ function warmUp(sc = scene, cam = camera){
 // ### their number is part of every shader. The canvas is out of sight meanwhile (under room 1, or behind the glare).
 // ### It is a generator: each step is one drawing. warmInSteps takes a breath between steps, so the room on top keeps
 // ### moving and answering; warmNow runs them through at once. At the end all is put back as it was.
-let stepsDone = false;
+let stepsDone = false, warming = false;
 function* warmSteps(){
   const all = [], drawn = o => o.isMesh || o.isPoints || o.isLine || o.isSprite;
   const seen = o => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
   scene.traverse(o => all.push({ o, visible: o.visible, culled: o.frustumCulled, mask: o.layers.mask, lit: o.isLight ? seen(o) : false }));
   const things = all.filter(a => drawn(a.o) && a.o.material);
   const draw = () => { if (composer && GFX[gfx].post) composer.render(); else renderer.render(scene, camera); };
+  warming = true;
   try {
     for (const a of all){ a.o.visible = a.o.isLight ? a.lit : true; if (drawn(a.o)){ a.o.frustumCulled = false; a.o.layers.mask = 1 << 31; } }
     const built = new Set();
@@ -9463,6 +9521,7 @@ function* warmSteps(){
     if (batch.length){ flush(); yield 1; }
     stepsDone = true;
   } finally {
+    warming = false;
     for (const a of all){ a.o.visible = a.visible; a.o.frustumCulled = a.culled; a.o.layers.mask = a.mask; }
   }
 }
