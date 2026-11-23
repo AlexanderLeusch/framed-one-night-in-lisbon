@@ -200,6 +200,7 @@ All of it is composed and synthesised by the game, with no music files. The tune
 - **How it starts.** Only from room 1: after Ending A it opens room 2 by itself and brings the escape time. Room 2 opens in the light of the headlights room 1 ended in; the light clears and you stand in the garage, with no menu and no card in between. A message shows the escape time. **Main menu** on the garage card gives the heist up. As the page was not opened by a click, the sound (and on a phone the motion sensor) starts with your first key or tap.
 - **On the motorcycle.** From the saddle you see your hands on the two grips of the clip-on bars, and between them a small digital display: the speed in km/h, the revs as a row of bars (the last four red) and as a figure. It is dark until the engine runs. The witness rides on the pillion behind you, leaning forward with her hands at your waist.
 - **One time at the top.** After the whole night the big time at the top of the end screen is the total time of both rooms, with the best night on this device under it; escape and drive are shown in the sum below it.
+- **Again, or out.** After the whole night the end screen also has **Play the whole night again** (room 1 starts over on the heist page) and **Exit** (back to the start page), beside **Drive again** and **Change vehicle**.
 - **One leaderboard at the end.** After the whole night the end screen shows only the leaderboard of both rooms together. The board of the drive alone is left out there (the drive is still kept on it, and it is shown in the menu and after a drive played on its own).
 - **What counts.** The heist is the escape followed by a finished free ride through Lisbon, with any vehicle. **Total time = escape time + drive time.** The escape time changes nothing in the drive: the same clock, police and evidence as in every Lisbon run.
 - **Trying again.** If the drive fails (busted, wrecked, out of time), **Drive again** keeps the heist open, and only the finished drive counts. Going back to the menu ends the heist. Once a heist is finished, the escape time is used up; a new heist starts in room 1.
@@ -234,6 +235,7 @@ Radio messages (Hale in orange, police dispatch in red) appear at fixed times in
 | Story mode | in the main menu, or after the final ending |
 | Start act 1 | on the story's opening card |
 | Drive again / Restart | after a run, or in the pause menu |
+| Play the whole night again / Exit | on the end screen after the whole night: the whole night again from the start of room 1 (on the heist page, with the same driver), or back to the start page. A time still being sent to the online boards is waited for, up to 3 seconds |
 | Resume | in the pause menu |
 | Main menu | anywhere except while driving |
 | Next act | after a finished act, but not after the last one |
