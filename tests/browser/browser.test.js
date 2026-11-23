@@ -550,7 +550,7 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
 
     // ### From here on the tests move between the parts of the room with the touch-screen "Walk to" buttons (hidden on a
     // ### computer, but still in the page), so they do not have to steer a walk with the arrow keys every time.
-    await escape('escape room rejected: the car key cannot be taken while the tile is on, and the sinks have nothing to take', async () => {
+    await escape('escape room rejected: the vehicle key cannot be taken while the tile is on, and the sinks have nothing to take', async () => {
       await hs('go:stall');
       assert.equal(await evaluate("!!document.querySelector('[data-hotspot=\"take:carkey\"]')"), false);
       assert.equal(await evaluate("!!document.querySelector('[data-hotspot=\"play:tile\"]')"), true);
@@ -559,18 +559,18 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await waitFor("!!document.querySelector('#card [data-do=\"mini-start\"]')", 5000, 'the card that explains battleship');
       assert.match(await text('#card'), /Sink all three/);
       assert.match(await text('#card'), /Controls/);
-      assert.match(await text('#card'), /car key/);
+      assert.match(await text('#card'), /vehicle key/);
       await key('keydown', 'Escape');
       assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'Esc closes the card');
       await hs('play:tile');
       await startMini();
       // giving the game up (Esc) gives nothing
       await waitFor("!!document.querySelector('#card .mg[data-game=\"battleship\"] .bs-grid.theirs button')", 5000, 'battleship');
-      assert.match(await text('#card'), /car key/);
+      assert.match(await text('#card'), /vehicle key/);
       assert.equal(await text('#card .mg-secs'), '30');
       await key('keydown', 'Escape');
       assert.ok(await evaluate("document.getElementById('overlay').hidden"), 'Esc closes the mini game');
-      assert.equal(await evaluate("!!document.querySelector('[data-hotspot=\"take:carkey\"]')"), false, 'rejected: no car key without winning');
+      assert.equal(await evaluate("!!document.querySelector('[data-hotspot=\"take:carkey\"]')"), false, 'rejected: no vehicle key without winning');
       await hs('go:sinks');
       assert.equal(await evaluate("[...document.querySelectorAll('[data-hotspot^=\"take:\"]')].length"), 0);
       assert.equal(await evaluate("document.querySelectorAll('.slot.full').length"), 0);

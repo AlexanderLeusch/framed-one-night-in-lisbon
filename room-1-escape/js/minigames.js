@@ -45,9 +45,9 @@
       goal: 'Finish both parts of the engine-room machine before the firewall burns up.',
       steps: ['Part 1, the wave: change the frequency and the amplitude of your red ink line on the indicator card until it lies exactly on the dashed blue master line, then lock it.', 'Part 2, the key plate: find the one of the four brass plates whose pegs match the master key plate peg for peg, and set it.', 'The firewall burns up by itself in 16 seconds, and every wrong lock or wrong plate adds 15 %. Full means you are locked out.'],
       keys: '← → (A D) for the frequency, ↑ ↓ (W S) for the amplitude, Space to lock. For the key plate, ← → and Space, or click one.', touch: 'Tap the brass buttons under the wave, or tap a key plate.' },
-    conduct: { title: 'Conduct the <em>band</em>', name: 'Conducting', how: 'The Titanic is sinking and her band plays on in the first-class dining saloon. You conduct: bring the baton down on every beat of the music with Space, ↑ or a click, just as the golden ring closes. 10 beats in time win; 12 beats missed or off the music and the band falls apart.',
-      goal: 'Keep the Titanic’s band in time for 10 beats.',
-      steps: ['The band plays Bach’s Brandenburg Concerto No. 3 in the tilting first-class dining saloon. The first four beats are counted in for you.', 'Bring the baton down on every beat, just as the golden ring closes on its tip. About a fifth of a second early or late still counts.', 'A beat you miss, or a beat off the music, puts the band out of time. Twelve of them and it falls apart.'],
+    conduct: { title: 'Conduct the <em>band</em>', name: 'Conducting', how: 'The Titanic is sinking and her band plays on in the first-class dining saloon. You conduct: bring the baton down on every beat of the music with Space, ↑ or a click, just as the golden ring closes. 8 beats in time win; 11 beats missed or off the music and the band falls apart.',
+      goal: 'Keep the Titanic’s band in time for 8 beats.',
+      steps: ['The band plays Bach’s Brandenburg Concerto No. 3 in the tilting first-class dining saloon. The first four beats are counted in for you.', 'Bring the baton down on every beat, just as the golden ring closes on its tip. About a fifth of a second early or late still counts.', 'A beat you miss, or a beat off the music, puts the band out of time. Eleven of them and it falls apart.'],
       keys: 'Space, ↑ or W on every beat, or click.', touch: 'Tap the screen on every beat.' }
   };
   const GAMES = Object.keys(INFO);
@@ -748,6 +748,7 @@
 
   BUILD.deckrun = api => {
     const { GROUND, H, LEN } = RUN, W = 640, SPEED = 230, TW = 256, AHEAD = 3;
+    const END = RUN.BOW - 30;   // the run ends at the jack staff with the flag at the very tip of the bow, past the last obstacle (LEN)
     const c = api.canvas(W, H), g = c.getContext('2d');
     const night = paintNight(W, 205, 170, 1912), layout = runLayout(api.rand);
     const tiles = new Map();
@@ -802,10 +803,10 @@
     return {
       key(code, down){ if (down && (code === 'Space' || code === 'ArrowUp' || code === 'KeyW')) jump(); },
       point(x, y, type){ if (type === 'down') jump(); },
-      start(){ api.status(`Lives: ♥♥♥ · Distance to the bow: ${LEN / 10} m`); },
+      start(){ api.status(`Lives: ♥♥♥ · Distance to the bow: ${END / 10} m`); },
       update(dt){
         t += dt; breath = (breath + dt) % 1.6;
-        dist = Math.min(LEN, dist + SPEED * dt);
+        dist = Math.min(END, dist + SPEED * dt);
         p.vy += 1700 * dt; p.y = Math.min(GROUND, p.y + p.vy * dt); if (p.y >= GROUND) p.vy = 0;
         p.hurt = Math.max(0, p.hurt - dt);
         for (const f of flakes){ f.y += 30 * f.s * dt; f.x -= (SPEED * .6 + 20) * f.s * dt; if (f.y > H) f.y -= H; if (f.x < 0) f.x += W; }
@@ -819,8 +820,8 @@
             if (lives <= 0) return api.lose('Three knocks. You slipped and went down on the icy deck.');
           }
         }
-        api.status(`Lives: ${'♥'.repeat(lives)} · Distance to the bow: ${Math.ceil((LEN - dist) / 10)} m`);
-        if (dist >= LEN) api.win('You reached the bow.');
+        api.status(`Lives: ${'♥'.repeat(lives)} · Distance to the bow: ${Math.ceil((END - dist) / 10)} m`);
+        if (dist >= END) api.win('You reached the bow.');
       },
       draw(){
         g.drawImage(night, 0, 0, W, 205);
@@ -847,7 +848,7 @@
           if (breath < .5){ g.fillStyle = `rgba(235,245,255,${.55 - breath})`; g.beginPath(); g.arc(s.mouth[0] + 4 + breath * 20, s.mouth[1] - breath * 6, 2.5 + breath * 8, 0, 7); g.fill(); }
         }
         g.fillStyle = 'rgba(255,255,255,.8)'; for (const f of flakes){ g.beginPath(); g.arc(f.x, f.y, f.s * 1.3, 0, 7); g.fill(); }
-        g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(20, 14, W - 40, 6); g.fillStyle = '#ff7a1a'; g.fillRect(20, 14, Rn((W - 40) * dist / LEN), 6);
+        g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(20, 14, W - 40, 6); g.fillStyle = '#ff7a1a'; g.fillRect(20, 14, Rn((W - 40) * dist / END), 6);
       }
     };
   };
@@ -2017,7 +2018,7 @@
   // ### when the file was made (see sounds/CREDITS.md). The first COUNT beats are counted in; after them every beat must
   // ### be conducted within GOOD seconds. condNew(), condTap() and condStep() hold all the rules and are tested in Node;
   // ### BUILD.conduct plays the music, draws the band and turns keys, clicks and taps into beats.
-  const COND = { W: 640, H: 360, BEAT: .51271, FIRST: 1.0724, COUNT: 4, BEATS: 60, PERFECT: .08, GOOD: .18, GOAL: 10, MISSES: 12 };
+  const COND = { W: 640, H: 360, BEAT: .51271, FIRST: 1.0724, COUNT: 4, BEATS: 60, PERFECT: .1, GOOD: .18, GOAL: 8, MISSES: 11 };
   const condBeat = i => COND.FIRST + i * COND.BEAT;
   // ### A new performance: nothing conducted yet. next is the first beat that has not been judged.
   function condNew(){ return { next: COND.COUNT, hits: 0, perfect: 0, misses: 0, last: null, won: false, lost: false, events: [] }; }
@@ -2239,7 +2240,7 @@
         status();
       }
       if (s.won) return api.win('The band played on, in time, to the last beat.');
-      if (s.lost) return api.lose(s.misses >= COND.MISSES ? 'The band fell apart: twelve beats out of time.' : 'The music has ended.');
+      if (s.lost) return api.lose(s.misses >= COND.MISSES ? 'The band fell apart: eleven beats out of time.' : 'The music has ended.');
     }
     function tap(){
       if (api.over) return;

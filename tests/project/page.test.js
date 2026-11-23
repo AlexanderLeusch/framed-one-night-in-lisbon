@@ -659,7 +659,15 @@ test('room 1: the note on the ladder asks for the key; no takes you back up', ()
 // ---------- Room 1: side-stepping ----------
 test('room 1: walking sideways is a side step, with the hips facing the way you look', () => {
   const room = read('room-1-escape/js/room.js');
-  const S = room.match(/const SIDE_STEP = \{ from: ([\d.]+), to: ([\d.]+), lift: ([\d.]+) \};/).slice(1).map(Number);
+  const S = room.match(/const SIDE_STEP = \{ from: ([\d.]+), to: ([\d.]+), lift: ([\d.]+), stride: ([\d.]+), speed: ([\d.]+), lead: ([\d.]+) \};/).slice(1).map(Number);
+  // a side step is shorter and slower than a step forward (0.8 m), and the feet cannot cross: when the leading foot
+  // lifts off (one stride after it landed lead metres out) the other foot lands under its own hip, 0.2 m away from it
+  assert.ok(S[3] > .2 && S[3] < .5 && S[4] > .4 && S[4] < 1, 'stride ' + S[3] + ', speed ' + S[4]);
+  assert.ok(S[5] - S[3] > -.1 && S[5] + S[3] < .65, 'lead ' + S[5]);
+  assert.match(room, /side = len && !f, sp = len \? WALK_SPEED \/ len \* \(side \? SIDE_STEP\.speed : 1\) : 0;/);
+  // the boot stays flat: it is not rolled onto its toes while side-stepping
+  assert.match(room, /lift = walking && !Wk\.side \?/);
+  assert.match(room, /s\.toPhi = Wk\.side \? 0 : \.2 \* gait;/);
   // sideways is what lies more across than along the way you look: 90 degrees is inside, straight ahead and straight back are not
   assert.ok(S[0] > 0.6 && S[0] < Math.PI / 2 && S[1] > Math.PI / 2 && S[1] < 2.6, 'from ' + S[0] + ' to ' + S[1]);
   assert.ok(S[2] > 1, 'the foot is lifted higher than in a step forward, so the knee is seen to bend');

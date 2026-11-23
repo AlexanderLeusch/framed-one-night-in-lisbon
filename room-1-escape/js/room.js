@@ -2928,12 +2928,12 @@ const TOILET = { x: 3.25, z: -2.82, top: .958 }, BOWL_Z = -2.418, BOWL_SZ = 1.22
 }
 const graffiti = plane(1.05, .66, M.graffiti, SX0 + .025, 1.32, -1.9, Math.PI / 2);
 hot('read:graffiti', graffiti);
-// The crooked tile, the dark hole behind it and the car key hidden there
+// The crooked tile, the dark hole behind it and the vehicle key hidden there
 const TILE_POS = new THREE.Vector3(2.62, .58, -2.988);
 plane(.15, .15, M.dark, TILE_POS.x, TILE_POS.y, -2.996);
 const tile = box(.15, .15, .018, tileMat(.15, .15), TILE_POS.x, TILE_POS.y, TILE_POS.z);
 tile.rotation.z = .07;
-// the car key: a brass blade, a black plastic head and a worn leather fob, lying in the hollow
+// the vehicle key: a brass blade, a black plastic head and a worn leather fob, lying in the hollow
 const carKey = new THREE.Group();
 const keyHead = new THREE.Mesh(new THREE.BoxGeometry(.03, .022, .008), new THREE.MeshStandardMaterial({ color: 0x1b1c1e, roughness: .5 }));
 const keyBlade = new THREE.Mesh(new THREE.BoxGeometry(.045, .009, .003), new THREE.MeshStandardMaterial({ color: 0xc8a24a, metalness: .85, roughness: .3 })); keyBlade.position.x = .036;
@@ -4155,7 +4155,7 @@ function walk(dt){
   for (const k of held){ f += MOVE_KEYS[k][1]; s += MOVE_KEYS[k][0]; }
   const len = Math.hypot(f, s);
   if (len && S.scene === 'hatch'){ act('go', 'stall', true); }
-  const fx = Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), sp = len ? WALK_SPEED / len : 0;
+  const fx = Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), side = len && !f, sp = len ? WALK_SPEED / len * (side ? SIDE_STEP.speed : 1) : 0;   // straight sideways you side-step, which is slower
   const k = 1 - Math.exp(-dt * (len ? 10 : 14));
   cam.vel.x += ((fx * f - fz * s) * sp - cam.vel.x) * k;
   cam.vel.z += ((fz * f + fx * s) * sp - cam.vel.z) * k;
@@ -4164,7 +4164,7 @@ function walk(dt){
     cam.pos.x += cam.vel.x * dt; cam.pos.z += cam.vel.z * dt;
     if (tunnelWalk) collideTunnel(cam.pos); else collide(cam.pos);
     const before = Math.floor(cam.stride / .8);
-    cam.stride += speed * dt;
+    cam.stride += speed * dt * (side ? .8 / SIDE_STEP.stride : 1);   // a side step is shorter than a step forward, so there are more of them
     if (Math.floor(cam.stride / .8) !== before){
       // no two steps are quite the same: each one dips the head a little more or less
       cam.stepAmp = .82 + Math.random() * .36;
@@ -4660,7 +4660,7 @@ function act(action, target, quiet){
 }
 
 // ### syncWorld puts every object where the state says it is: mop in the bucket or jammed
-// ### against the door, the tile on the wall or on the floor, the car key in its hollow, the lock wheels, the steam.
+// ### against the door, the tile on the wall or on the floor, the vehicle key in its hollow, the lock wheels, the steam.
 function syncWorld(){
   const mp = S.wedged ? MOP_DOOR : S.inventory.includes('mop') ? null : MOP_CORNER;
   mop.visible = !!mp;
@@ -4732,7 +4732,7 @@ const BRIEF = [
   [null, null, '<div class="news-wrap"><article class="news" aria-label="Front page of The Lisbon Times"><div class="mast-top"><span>Front page</span><span>Magazine</span></div><div class="mast">The Lisbon Times</div><div class="dateline"><span>Vol. CXXI · No. 107</span><span>Lisbon, Monday 16 April 2012</span><span>€1.20</span></div><h1>Titanic necklace vanishes from naval museum</h1><div class="deck">The Starfall necklace disappears on the night of the centenary. No alarm sounded.</div><div class="cols"><div class="by">By our crime correspondent</div><p>BELÉM — The Starfall necklace, on show at the Museu de Marinha for 100 years since the Titanic sank, disappeared from its glass case.</p><figure><div class="photo"><div class="ht"><svg class="necklace" viewBox="0 0 160 72" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="nl-spot" cx=".5" cy=".3" r=".62"><stop offset="0" stop-color="#d8d8d8"/><stop offset=".45" stop-color="#6e6e6e"/><stop offset="1" stop-color="#141414"/></radialGradient><linearGradient id="nl-bust" x1="0" x2="1"><stop offset="0" stop-color="#1c1c1c"/><stop offset=".42" stop-color="#3e3e3e"/><stop offset=".6" stop-color="#323232"/><stop offset="1" stop-color="#161616"/></linearGradient><radialGradient id="nl-pearl" cx=".35" cy=".32" r=".7"><stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="#e6e6e6"/><stop offset=".8" stop-color="#8a8a8a"/><stop offset="1" stop-color="#3a3a3a"/></radialGradient><linearGradient id="nl-base" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b8b8b8"/><stop offset=".12" stop-color="#5a5a5a"/><stop offset="1" stop-color="#1a1a1a"/></linearGradient><linearGradient id="nl-glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".0"/><stop offset=".45" stop-color="#fff" stop-opacity=".0"/><stop offset=".5" stop-color="#fff" stop-opacity=".28"/><stop offset=".56" stop-color="#fff" stop-opacity=".0"/><stop offset=".7" stop-color="#fff" stop-opacity=".0"/><stop offset=".73" stop-color="#fff" stop-opacity=".14"/><stop offset=".76" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><rect width="160" height="72" fill="url(#nl-spot)"/><path d="M62 0H98V9Q98 24 124 34L132 60H28L36 34Q62 24 62 9Z" fill="url(#nl-bust)"/><path d="M28 58H132L140 72H20Z" fill="url(#nl-base)"/><rect x="72" y="62" width="16" height="5" fill="#cfcfcf"/><path d="M73.5 64h13M73.5 65.6h9" stroke="#555" stroke-width=".5"/><g fill="#000" opacity=".45"><ellipse cx="104.9" cy="15.4" rx="2" ry="1.3"/><ellipse cx="103.8" cy="19.5" rx="2" ry="1.3"/><ellipse cx="102.1" cy="23.3" rx="2" ry="1.3"/><ellipse cx="100.0" cy="26.9" rx="2" ry="1.3"/><ellipse cx="97.4" cy="30.0" rx="2" ry="1.3"/><ellipse cx="94.5" cy="32.7" rx="2" ry="1.3"/><ellipse cx="91.4" cy="34.8" rx="2" ry="1.3"/><ellipse cx="88.0" cy="36.3" rx="2" ry="1.3"/><ellipse cx="84.4" cy="37.3" rx="2" ry="1.3"/><ellipse cx="80.8" cy="37.6" rx="2" ry="1.3"/><ellipse cx="77.2" cy="37.3" rx="2" ry="1.3"/><ellipse cx="73.6" cy="36.3" rx="2" ry="1.3"/><ellipse cx="70.2" cy="34.8" rx="2" ry="1.3"/><ellipse cx="67.1" cy="32.7" rx="2" ry="1.3"/><ellipse cx="64.2" cy="30.0" rx="2" ry="1.3"/><ellipse cx="61.6" cy="26.9" rx="2" ry="1.3"/><ellipse cx="59.5" cy="23.3" rx="2" ry="1.3"/><ellipse cx="57.8" cy="19.5" rx="2" ry="1.3"/><ellipse cx="56.7" cy="15.4" rx="2" ry="1.3"/></g><g fill="url(#nl-pearl)"><circle cx="104.1" cy="13.8" r="2.1"/><circle cx="103.0" cy="17.9" r="2.1"/><circle cx="101.3" cy="21.7" r="2.1"/><circle cx="99.2" cy="25.3" r="2.1"/><circle cx="96.6" cy="28.4" r="2.1"/><circle cx="93.7" cy="31.1" r="2.1"/><circle cx="90.6" cy="33.2" r="2.1"/><circle cx="87.2" cy="34.7" r="2.1"/><circle cx="83.6" cy="35.7" r="2.1"/><circle cx="80.0" cy="36.0" r="2.1"/><circle cx="76.4" cy="35.7" r="2.1"/><circle cx="72.8" cy="34.7" r="2.1"/><circle cx="69.4" cy="33.2" r="2.1"/><circle cx="66.3" cy="31.1" r="2.1"/><circle cx="63.4" cy="28.4" r="2.1"/><circle cx="60.8" cy="25.3" r="2.1"/><circle cx="58.7" cy="21.7" r="2.1"/><circle cx="57.0" cy="17.9" r="2.1"/><circle cx="55.9" cy="13.8" r="2.1"/></g><path d="M80 36.5V41" stroke="#bbb" stroke-width=".8"/><polygon points="80,40.5 82.3,46.2 88.4,46.6 83.7,50.5 85.2,56.4 80,53.1 74.8,56.4 76.3,50.5 71.6,46.6 77.7,46.2" fill="url(#nl-pearl)" stroke="#111" stroke-width=".5"/><g stroke="#fff" stroke-linecap="round"><path d="M80 43.5v6M77 46.5h6" stroke-width=".7"/><path d="M93 15v5M90.5 17.5h5M61 27v3M59.5 28.5h3" stroke-width=".45" opacity=".8"/></g><path d="M22 2H138V72M22 2V72" fill="none" stroke="#9a9a9a" stroke-width=".5" opacity=".35"/><rect width="160" height="72" fill="url(#nl-glass)"/></svg></div><b></b></div><figcaption>The Starfall necklace, before the theft.</figcaption></figure><p>A detective has been put on the case.</p></div></article></div>'],
   ['Cell Block D · 02:14', 'Plot <em>Twist</em>', 'You were that detective, until the trail ended at your own door: the necklace’s box, hidden in your car. Now you are <b>inmate 4471</b>. Someone framed you.</p><p><b>Your oldest friend on the force</b> found the proof of your innocence, then vanished. He <b>hid it across Lisbon</b>, where only you would look. Get out, find it, and <b>prove your innocence</b>.'],
   ['The washroom · 02:16', 'Ten <em>minutes</em>', 'cine'],
-  ['The rumour', 'A way <em>down</em>', 'A <b>hatch in the floor</b> is locked with a four-digit code. Three Titanic mini games hide <b>a car key</b> and the <b>two halves of the code</b>. Open the hatch before Hale comes back.'],
+  ['The rumour', 'A way <em>down</em>', 'A <b>hatch in the floor</b> is locked with a four-digit code. Three Titanic mini games hide <b>a vehicle key</b> and the <b>two halves of the code</b>. Open the hatch before Hale comes back.'],
   ['How to play', 'Your <em>moves</em>', null]
 ];
 let briefStep = 0;
@@ -4822,7 +4822,7 @@ function renderLock(){
 let mini = null, miniSpot = null, miniRules = null;
 const rulesSeen = new Set();
 const SPOT_NAME = { tile: 'The crooked tile', mirror: 'Writing on the mirror', scratches: 'Scratches by the door' };
-const SPOT_PRIZE = { tile: 'the car key', mirror: 'the first two digits of the code', scratches: 'the last two digits of the code' };
+const SPOT_PRIZE = { tile: 'the vehicle key', mirror: 'the first two digits of the code', scratches: 'the last two digits of the code' };
 function showMini(spot, id){
   const info = MiniGames.INFO[id];
   if (!info) return;
@@ -5832,8 +5832,10 @@ function leaveLadder(){
 const STAND = { torso: .52, hipW: .095, thigh: .42, shin: .385, ankle: .111, tilt: -.1, apart: .1, out: .12, lead: .22 };
 const LEG = STAND.thigh + STAND.shin;
 // side-stepping: from how far across the way you look the walk counts as sideways, to how far (beyond that you walk
-// backwards), in radians, and how much higher the foot is lifted than in a step forward
-const SIDE_STEP = { from: .95, to: 2.2, lift: 1.7 };
+// backwards), in radians, and how much higher the foot is lifted than in a step forward; a side step is stride metres
+// long and walked at speed times the walking speed; the leading foot lands lead metres out from under its hip, the
+// other closes up to under its own hip, so the feet never cross
+const SIDE_STEP = { from: 1.2, to: 1.95, lift: 1.3, stride: .32, speed: .65, lead: .24 };
 // the two points a boot rocks on: the ball of the foot under the sole and the back of the heel (the boot's own space,
 // ankle at the origin); STAND.tilt stands the boot so its heel and toe both touch the floor, the ankle STAND.ankle above it
 const BALL = new THREE.Vector3(0, -.093, -.15), HEEL = new THREE.Vector3(0, -.112, .08);
@@ -5926,8 +5928,10 @@ function poseBody(dt, show){
     if (!f.swing || f.swing.n !== n){ startSwing(f, n, 0); f.swing.lift = (.07 + .03 * gait) * (Wk.side ? SIDE_STEP.lift : 1); }
     const s = f.swing, dir = _bv.copy(Wk.vel).normalize();
     s.u = steps - n;
-    footClear(s.to.copy(homes[i]).addScaledVector(dir, STAND.lead * Math.max(.4, gait)));
-    s.toYaw = aim(i); s.toPhi = .2 * gait;
+    // (side-stepping: the foot on the side you go to steps out, the other closes up beside it, and both land flat)
+    const lead = Wk.side ? ((i ? -1 : 1) * dir.dot(rightL) > 0 ? SIDE_STEP.lead : 0) : STAND.lead * Math.max(.4, gait);
+    footClear(s.to.copy(homes[i]).addScaledVector(dir, lead));
+    s.toYaw = aim(i); s.toPhi = Wk.side ? 0 : .2 * gait;
   } else {
     for (const k of keys){ const s = F[k].swing; if (s && s.n >= 0){ s.n = -1; s.rate = 1 / .22; } }
     keys.forEach((k, i) => { const s = F[k].swing; if (s){ s.to.copy(homes[i]); s.toYaw = aim(i); s.toPhi = 0; s.lift = Math.min(s.lift, .05); } });
@@ -5961,12 +5965,12 @@ function poseBody(dt, show){
       if (s.rate && s.u >= 1) landFoot(f);
     } else {
       // a planted foot: after landing the toes slap down; walking, it rolls up onto its toes as it falls behind you
-      // (side-stepping, "behind" is the side you come from: the foot you push off with rolls onto its toes)
-      const behind = -_bv.subVectors(f.g, hip).setY(0).dot(Wk.side ? _bw.copy(Wk.vel).setY(0).normalize() : fwdL), lift = walking ? -clamp((behind - .1) / .32, 0, 1) * .7 : 0;
+      // (side-stepping the boot stays flat on the floor: rolling a boot that points ahead onto its toes would stand it on its tip)
+      const behind = -_bv.subVectors(f.g, hip).setY(0).dot(fwdL), lift = walking && !Wk.side ? -clamp((behind - .1) / .32, 0, 1) * .7 : 0;
       f.phi += (lift - f.phi) * (1 - Math.exp(-dt * (f.phi > lift ? 9 : 14)));
       footPose(f.g, f.yaw, f.phi, fy, f.ankle, f.q);
       // far behind, it rolls further onto its toes rather than leave the floor
-      for (let t = 0; t < 6 && f.phi <= 0 && f.ankle.distanceTo(hip) > LEG * 1.02; t++){ f.phi -= .1; footPose(f.g, f.yaw, f.phi, fy, f.ankle, f.q); }
+      for (let t = 0; t < 6 && !Wk.side && f.phi <= 0 && f.ankle.distanceTo(hip) > LEG * 1.02; t++){ f.phi -= .1; footPose(f.g, f.yaw, f.phi, fy, f.ankle, f.q); }
     }
     // kneeling at the hatch you sit back on your heels: the boots lie on their insteps under you, soles up, and the
     // knees come forward onto the floor

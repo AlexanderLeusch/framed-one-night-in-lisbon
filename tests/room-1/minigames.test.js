@@ -464,7 +464,7 @@ test('conducting: a fair player keeps the band in time, a guessing or hurried on
     const m = M.condNew(); for (let t = 0; t < 30 && !m.won && !m.lost; t += .125) M.condTap(m, t); if (m.won) mash++;
     const r = M.condNew(); for (let t = 0; t < 30 && !r.won && !r.lost; t += .2 + rand() * .6) M.condTap(r, t); if (r.won) random++;
   }
-  // since 20 November (Sarah): 10 beats win and 12 may go wrong, so every other beat is just enough, one in three is not
+  // since 23 November: 8 beats win and 11 may go wrong (before: 10 and 12), so every other beat is enough, one in three is not
   assert.equal(half, 50, 'every other beat is enough');
   assert.equal(thirds, 0, 'one beat in three is not');
   assert.ok(sloppy <= 15, `four tenths of a second off seldom does (${sloppy} of 50)`);

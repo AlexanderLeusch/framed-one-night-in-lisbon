@@ -41,7 +41,7 @@ test('a new game starts in the briefing with the full ten minutes and nothing in
   assert.equal(s.ending, null);
 });
 
-test('Ending A: tile, car key, the code 1912, and out through the hatch', () => {
+test('Ending A: tile, vehicle key, the code 1912, and out through the hatch', () => {
   let s = play(TO_HATCH);
   s = turnTo(s, '1912');
   const r = R.perform(s, 'try');
@@ -125,7 +125,7 @@ test('rejected: walking where there is no way, taking what is not there or twice
   assert.match(again.message, /already/);
 });
 
-test('rejected: the door needs the mop, the car key needs the tile off, the tile comes off only once', () => {
+test('rejected: the door needs the mop, the vehicle key needs the tile off, the tile comes off only once', () => {
   const s = play([['start'], ['go', 'stall']]);
   assert.ok(!R.visibleHotspots(play([['go', 'sinks']], s)).some(h => h.action === 'take'), 'nothing to take at the sinks');
   const game = R.perform(s, 'play', 'tile');
@@ -135,13 +135,13 @@ test('rejected: the door needs the mop, the car key needs the tile off, the tile
   const pried = R.perform(s, 'win', 'tile');
   assert.equal(pried.ok, true, 'winning it takes the tile off');
   assert.equal(pried.state.tileOpen, true);
-  assert.match(pried.message, /car key/);
+  assert.match(pried.message, /vehicle key/);
   assert.equal(R.perform(pried.state, 'play', 'tile').ok, false, 'the tile is already off');
   assert.equal(R.perform(pried.state, 'win', 'tile').ok, false, 'and is only won once');
   const key = R.perform(s, 'take', 'carkey');
   assert.equal(key.ok, false);
   assert.match(key.message, /still in place/);
-  assert.ok(!R.visibleHotspots(s).some(h => h.target === 'carkey'), 'no car key marker while the tile is on');
+  assert.ok(!R.visibleHotspots(s).some(h => h.target === 'carkey'), 'no vehicle key marker while the tile is on');
   const door = play([['start']]);
   const wedge = R.perform(door, 'wedge');
   assert.equal(wedge.ok, false);
@@ -151,7 +151,7 @@ test('rejected: the door needs the mop, the car key needs the tile off, the tile
   assert.equal(R.perform(twice, 'take', 'mop').ok, false, 'the mop is stuck in the door now');
 });
 
-test('the scratches by the door give the last two digits after their mini game, and the car key waits behind the tile', () => {
+test('the scratches by the door give the last two digits after their mini game, and the vehicle key waits behind the tile', () => {
   let s = play([['start']]);
   assert.ok(R.visibleHotspots(s).some(h => h.action === 'play' && h.target === 'scratches'), 'the scratches open a mini game at the door');
   assert.ok(!R.visibleHotspots(s).some(h => h.action === 'read' && h.target === 'scratches'), 'nothing to read before it is won');
