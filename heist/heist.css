@@ -22,3 +22,13 @@ body.heist-page.playing{overflow:hidden}
   .heist-page .start-wrap>*{grid-column:1}
   .heist-page .heist-board{grid-column:2;grid-row:1 / span 3;padding-top:clamp(0px,6vw,64px)}
 }
+/* the loading bar: the whole game is loaded behind this page, both rooms in their frames, out of sight */
+.heist-load{display:grid;gap:8px}
+.heist-load[hidden]{display:none}
+.heist-load progress{appearance:none;-webkit-appearance:none;width:100%;height:8px;border:0;border-radius:99px;overflow:hidden;background:rgba(255,255,255,.1)}
+.heist-load progress::-webkit-progress-bar{background:rgba(255,255,255,.1)}
+.heist-load progress::-webkit-progress-value{background:var(--spark);transition:width .4s}
+.heist-load progress::-moz-progress-bar{background:var(--spark)}
+.heist-load p{margin:0;font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.heist-load.done p{color:var(--spark)}
+#rooms.behind{visibility:hidden}

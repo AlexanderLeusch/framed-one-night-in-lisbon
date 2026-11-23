@@ -5156,8 +5156,12 @@ let cineT = -1, shake = 0;
 // ### The scene waits for this on its card, at most CINE_WAIT seconds; on a very slow connection it then plays anyway, with
 // ### what has arrived. On the heist page room 2 is loaded ahead in the same window, and while it builds its world the
 // ### scene waits for that too (nextDoorBusy, told by the heist page).
-const CINE_WAIT = 12;
-let openingWarm = false, nextDoorBusy = false, cineFrom = 0, cineLoading = false;
+// ### Room 2 makes itself ready in small steps, so that this room keeps answering meanwhile; but the graphics card is busy with
+// ### it, and a scene played over that would stutter. So on the heist page (FRAMED) the scene waits for the room next door
+// ### from the start, until the heist page says 'calm', NEXT_DOOR_WAIT seconds at most. All the waiting of the heist is
+// ### here, on a card that says so, before anything moves; whoever reads the two cards before it hardly waits.
+const CINE_WAIT = 12, NEXT_DOOR_WAIT = 40;
+let openingWarm = false, nextDoorBusy = FRAMED, cineFrom = 0, cineLoading = false;
 function warmOpening(){
   openingWarm = true;
   // first your own figures, in the light of the room as it is played (see warmBodies)
@@ -5174,8 +5178,11 @@ function warmOpening(){
   };
   for (const sc of [scene, handScene]) sc.traverse(o => { for (const m of [].concat(o.material || [])){ for (const k in m) send(m[k]); if (m.uniforms) for (const k in m.uniforms) send(m.uniforms[k].value); } });
   renderer.shadowMap.needsUpdate = true;   // and Hale's shadow
+  // in this one frame nothing is left out for being out of view, so every shape goes to the graphics card as well
+  const culled = [];
+  scene.traverse(o => { if (o.frustumCulled){ culled.push(o); o.frustumCulled = false; } });
   // after this frame has been drawn, all is put back as it was
-  return () => { [hall.visible, doorLight.visible, hale.g.visible] = was; shadowsMoved(); };
+  return () => { [hall.visible, doorLight.visible, hale.g.visible] = was; for (const o of culled) o.frustumCulled = true; shadowsMoved(); };
 }
 // ### The hatch is made ready the same way, in the frame after the briefing scene: when the lid opens, the two bulbs of the
 // ### tunnel and the headlights behind its door are switched on, and three more lights change the shader of every lit
@@ -5183,7 +5190,7 @@ function warmOpening(){
 // ### warmHatch() draws one frame with those lights in the scene (at no brightness, so nothing shows), with the dust and the
 // ### tunnel door, while the first cards are read; the lid then opens without a hitch. Not while the briefing scene plays
 // ### (the door light is on then, which is a different set of lights) and not once the hatch is open.
-let hatchWarm = false;
+let hatchWarm = false, warmTold = false;
 function warmHatch(){
   hatchWarm = true;
   const was = [tunnelLight.visible, tunnelLight2.visible, nightLight.visible, dust.pts.visible, TDOOR.pivot.visible];
@@ -5191,7 +5198,11 @@ function warmHatch(){
   const bodies = warmBodies();   // your body on the ladder, in the light of the bulbs
   renderer.compile(scene, camera);
   bodies();
-  return () => { [tunnelLight.visible, tunnelLight2.visible, nightLight.visible, dust.pts.visible] = was; tunnelEnd(was[4]); };
+  // in this one frame nothing is left out for being out of view: the shaft and the tunnel lie under the floor, and their
+  // shapes and pictures go to the graphics card now, not when the lid lifts
+  const culled = [];
+  scene.traverse(o => { if (o.frustumCulled){ culled.push(o); o.frustumCulled = false; } });
+  return () => { [tunnelLight.visible, tunnelLight2.visible, nightLight.visible, dust.pts.visible] = was; tunnelEnd(was[4]); for (const o of culled) o.frustumCulled = true; };
 }
 // ### Your own figures are only drawn now and then: your body when you look down or kneel (the model, and the body built
 // ### in code for the ladder), and you in the steel mirror. Built and first drawn the moment they were needed, they held
@@ -5234,7 +5245,7 @@ function updateCine(dt){
   if (cineT < 0) return;
   // not ready yet: the door stays shut and the card says so, until it is (or has waited long enough)
   const waited = (performance.now() - cineFrom) / 1000;   // in real seconds, however slow the frames are
-  if (cineT === 0 && (!openingWarm || nextDoorBusy) && waited < CINE_WAIT){
+  if (cineT === 0 && ((!openingWarm && waited < CINE_WAIT) || (nextDoorBusy && waited < NEXT_DOOR_WAIT))){
     if (waited > .5 && !cineLoading){ cineLoading = true; cineLine('<span class="narr">Loading the scene…</span>'); }
     return;
   }
@@ -6127,6 +6138,8 @@ function frame(now){
     renderer.render(scene, camera);
     drawHands();
     if (warmed) warmed();
+    // on the heist page: the room is ready (its loading bar moves on)
+    if (FRAMED && hatchWarm && !warmTold){ warmTold = true; parent.postMessage({ shardHeist: 'warm' }, location.origin); }
   }
   adaptResolution(elapsed);
 }

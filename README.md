@@ -157,7 +157,7 @@ framed-one-night-in-lisbon/
 
 ## Testing
 
-`npm test` runs 212 tests in Node (47 of them for the escape room), and `npm run test:browser` runs 24 more in headless Chrome (8 of them in the escape room, 1 on the start page, 1 on the heist page). CI runs all of them, plus the SRI check and the 36 pytest checks of `original-solo-project/`, on every push to `main` and on every pull request. They cover:
+`npm test` runs 213 tests in Node (47 of them for the escape room), and `npm run test:browser` runs 24 more in headless Chrome (8 of them in the escape room, 1 on the start page, 1 on the heist page). CI runs all of them, plus the SRI check and the 36 pytest checks of `original-solo-project/`, on every push to `main` and on every pull request. They cover:
 
 - **Escape room:** both endings and the jammed-door grace minute; refused actions (walking where there is no exit, taking an item twice, the car key before the tile is off, the door without the mop, lock wheels that do not exist, anything before the briefing or after an ending) return the unchanged state; wrong codes cost 30 s but never take the clock below zero; warnings sound once; tampered saved games are rejected; in the browser: briefing, refused action, save and continue after a reload, a wrong code and then Ending A (down the ladder, the door refused from the foot of it, the walk to it and the door opened).
 - **Accepted actions:** each menu action in the states whose cards show it; valid map and vehicle picks; restoring a valid saved selection; finishing every story act; both story endings.

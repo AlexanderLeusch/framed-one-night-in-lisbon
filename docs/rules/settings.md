@@ -57,7 +57,7 @@ Every stored value comes from outside the program, so each one is checked when i
 | Best time per map | 2 | No best time (only 10 s to 900 s counts) |
 | Drivers and leaderboards (all time, and the current month) | 2 | Empty boards; names are cleaned again, impossible times and unknown maps are dropped, only each driver's best run per map is kept, and a monthly board with an invalid month is dropped |
 | Active driver | 2 | No driver: the end screen asks for a name |
-| Heist leaderboard (`shard-heist-heists`): each driver's best heist on this device | 2 | Empty board; names are cleaned again, impossible times are dropped and every total is added up again from its two parts |
+| Leaderboard of the whole night (`shard-heist-heists`): each driver's best night on this device | 2 | Empty board; names are cleaned again, impossible times are dropped and every total is added up again from its two parts |
 | Escape time handed from room 1 to room 2 (`shard-heist-handover`), written by Ending A and emptied when the heist is finished | 1 and 2 | No heist: room 2 opens its menu. Broken, impossible or older than six hours counts as missing |
 | Online login (`shard-heist-session`): the login Supabase gave this browser, renewed before it ends | 2 | Signed out; an incomplete or changed login is dropped |
 | Radio station | 2 | Off |

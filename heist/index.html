@@ -6,8 +6,8 @@
 <!-- ### SECURITY: scripts and frames only from this site; the only other address is the online leaderboard (Supabase), for the driver name. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://nqjeonoudywpdwivfuyp.supabase.co; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<title>Framed: One Night in Lisbon · The heist</title>
-<meta name="description" content="The whole heist: break out of Cell Block D, then the police chase through Lisbon, with one driver name and one time.">
+<title>Framed: One Night in Lisbon · The whole night</title>
+<meta name="description" content="The whole night: break out of Cell Block D, then the police chase through Lisbon, with one driver name and one time.">
 <link rel="icon" href="data:,">
 <!-- the heist page shares room 2's design system and its fonts, like the start page -->
 <link rel="stylesheet" href="../room-2-chase/styles.css">
@@ -18,17 +18,22 @@
      ### while room 2 is loaded behind it, so that the door at the end of the tunnel opens straight into the garage. -->
 <main class="start-wrap" id="who">
   <header class="start-head">
-    <div class="eyebrow">The whole heist · both rooms · one time</div>
+    <div class="eyebrow">The whole night · both rooms · one time</div>
     <h1 class="m-logo">Framed<em class="sub">One night in Lisbon</em></h1>
-    <p>You break out of Cell Block D, walk through the tunnel to the garage and drive. Your escape time and your drive through Lisbon add up to one heist time, on a leaderboard everybody shares.</p>
+    <p>You break out of Cell Block D, walk through the tunnel to the garage and drive. Your escape time and your drive through Lisbon add up to one total time, on a leaderboard everybody shares.</p>
   </header>
   <section class="heist-who" aria-labelledby="whoTitle">
     <div class="m-label" id="whoTitle"><span>01</span>Driver · your name on the leaderboard, in both rooms</div>
     <div id="whoBox"><p class="heist-wait">One moment…</p></div>
+    <!-- the whole game is loaded behind this page; the bar says how far it is (heist.js) -->
+    <div class="heist-load" id="load" hidden>
+      <progress id="loadBar" max="100" value="0" aria-labelledby="loadText"></progress>
+      <p id="loadText" role="status">Loading the game…</p>
+    </div>
   </section>
   <!-- the heist leaderboard, before anything is played: everybody's best heist (online), or the heists of this device -->
   <section class="heist-board" aria-labelledby="boardTitle">
-    <div class="m-label" id="boardTitle"><span>02</span>Heist leaderboard · the times to beat</div>
+    <div class="m-label" id="boardTitle"><span>02</span>Leaderboard · the times to beat</div>
     <div id="boardBox" class="lb"><p class="heist-wait">Loading the leaderboard…</p></div>
   </section>
   <p class="start-foot"><a href="../">Back to the start page</a></p>

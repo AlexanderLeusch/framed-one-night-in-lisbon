@@ -3,6 +3,10 @@
    ###    same online account as room 2 (room-2-chase/js/online.js: a name is enough, no email and no password) and the same
    ###    rules for names (Core.cleanName). When the online board can't be reached, the name becomes a driver of this device, as
    ###    in room 2. A player may also start without a name; room 2 then asks for one at the end.
+   ### 0. Loading. The whole game is loaded behind this page, both rooms in their frames, out of sight, and a bar says how far
+   ###    it is. With a driver known from an earlier visit it begins when the page opens; otherwise when the name is given
+   ###    (room 2 reads the driver as it loads). "Let's start" before the bar is full waits for it and then starts by itself;
+   ###    "Start now" does not wait: the rest then loads while the briefing of room 1 is read, as it did before.
    ### 2. The rooms. Room 1 is played in a frame. While it is played, room 2 is loaded in a second frame under it (in its waiting
    ###    mode, ?heist=wait: it builds its world and then stands still). When room 1 is left through the tunnel door (it tells
    ###    this page, see showEnding in its room.js), room 2 is shown at once and told to begin: no page is loaded at that moment,
@@ -30,7 +34,9 @@
   const PHONE = (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600) || (navigator.deviceMemory && navigator.deviceMemory < 4);
   const AHEAD = !PHONE;
   const ROOM1 = '../room-1-escape/?heist=frame', ROOM2_WAIT = '../room-2-chase/?heist=wait#arrive', ROOM2 = '../room-2-chase/?heist=1#arrive';
-  const state = { name: '', online: false, busy: false, msg: '', bad: false, started: false, ready: false, left: false };
+  const state = { name: '', online: false, busy: false, msg: '', bad: false, started: false, ready: false, left: false,
+    loading: false, want: false, done: false, pct: 0 };
+  const loadBox = $('load'), loadBar = $('loadBar'), loadText = $('loadText');
   let frame1 = null, frame2 = null;
 
   // ---------- The driver ----------
@@ -49,9 +55,16 @@
   // ### Draws the box: who is driving and the button that starts the heist, or the field for a name.
   function draw(){
     const dis = state.busy ? ' disabled' : '';
+    // "Let's start" was pressed while the game is still loading: it starts by itself when the bar is full
+    if (state.want && !state.started){
+      const who = state.name ? 'Driving as <b>' + esc(state.name) + '</b> · the' : 'The';
+      box.innerHTML = '<div class="acc on"><p>' + who + ' game starts by itself as soon as it has loaded.</p><button type="button" class="drv" data-do="now">Start now</button></div>';
+      drawBoard();
+      return;
+    }
     const msg = state.msg ? `<p class="heist-msg${state.bad ? ' bad' : ''}" role="status">${esc(state.msg)}</p>` : '';
     if (state.name){
-      box.innerHTML = `<div class="acc on"><p>${state.online ? 'Online as' : 'Driving as'} <b>${esc(state.name)}</b> · ${state.online ? 'your times go on the online leaderboards of room 2 and of the heist.' : 'your times stay on this device.'}</p><button type="button" class="drv" data-do="other"${dis}>Not you?</button></div>
+      box.innerHTML = `<div class="acc on"><p>${state.online ? 'Online as' : 'Driving as'} <b>${esc(state.name)}</b> · ${state.online ? 'your times go on the online leaderboards of room 2 and of the whole night.' : 'your times stay on this device.'}</p><button type="button" class="drv" data-do="other"${dis}>Not you?</button></div>
         ${msg}<div class="heist-go"><button type="button" class="btn" data-do="start"${dis}>Let's start <small>Enter</small></button></div>`;
     } else {
       box.innerHTML = `<div class="acc"><p>Type a driver name and you are on the online leaderboard. No email, no password. The name counts in both rooms.</p>
@@ -70,8 +83,8 @@
     const line = r => '<li class="' + (r.me ? 'me' : '') + (r.gap ? ' gap' : '') + (r.place <= 3 ? ' p' + r.place : '') + '"><span class="lb-place">' + r.place + '</span>'
       + '<span class="lb-who"><span class="lb-name">' + esc(r.name) + '</span><span class="lb-meta">Escape ' + Core.fmtTimeExact(r.escape) + ' · Drive ' + Core.fmtTimeExact(r.drive) + ' · ' + esc(Core.VEH[r.veh].name) + '</span></span>'
       + '<span class="lb-time"><b>' + Core.fmtTimeExact(r.time) + '</b>' + (r.place > 1 ? '<small>+' + (r.time - lead).toFixed(1) + ' s</small>' : '') + '</span></li>';
-    const where = '<p class="lb-where' + (board.online ? ' on' : '') + '">' + (board.online ? 'Online · everybody\'s best heist' : 'This device only') + '</p>';
-    const list = rows.length ? '<ol class="lb-list">' + rows.map(line).join('') + '</ol>' : '<p class="heist-wait">No heist yet. Yours can be the first.</p>';
+    const where = '<p class="lb-where' + (board.online ? ' on' : '') + '">' + (board.online ? 'Online · everybody\'s best night' : 'This device only') + '</p>';
+    const list = rows.length ? '<ol class="lb-list">' + rows.map(line).join('') + '</ol>' : '<p class="heist-wait">No time yet. Yours can be the first.</p>';
     boardBox.innerHTML = where + list;
   }
   // ### Loads the board: what this device has kept comes first, the online board takes its place when it can be reached.
@@ -85,14 +98,16 @@
   // ### What is known when the page opens: an online account from an earlier visit (its name is asked for), or the driver of
   // ### this device.
   async function init(){
-    if (!Core || !rooms){ box.textContent = 'The heist could not be loaded. Please load the page again.'; return; }
+    if (!Core || !rooms){ box.textContent = 'The game could not be loaded. Please load the page again.'; return; }
     loadBoard();
     if (net && net.user){
       const r = await net.driverName();
-      if (r.ok && r.name){ state.name = r.name; state.online = true; setLocalDriver(r.name); draw(); return; }
+      if (r.ok && r.name){ state.name = r.name; state.online = true; setLocalDriver(r.name); draw(); load(); return; }
     }
     state.name = localDriver();
     draw();
+    // a driver from an earlier visit: the game loads while the leaderboard is looked at
+    if (state.name) load();
   }
   // ### The name from the field: checked by the same rules as in room 2, then put on the online board (an account for this
   // ### browser is made, with no email); a taken name is refused; with no connection it becomes a driver of this device.
@@ -113,6 +128,8 @@
     state.busy = true; draw();
     if (net && net.user) await net.signOut();
     writeStore('shard-heist-driver', '');
+    // room 2 has read the driver as it loaded: with another driver the page, and with it the game, is loaded again
+    if (state.loading){ location.reload(); return; }
     Object.assign(state, { name: '', online: false, busy: false, msg: '', bad: false });
     draw();
   }
@@ -125,28 +142,59 @@
     rooms.appendChild(f);
     return f;
   };
-  // ### Starts the heist: room 1 fills the window. Once it has loaded, and where there is memory for both, room 2 is loaded
-  // ### under it; the briefing of room 1 is read meanwhile.
-  function start(){
-    if (state.started) return;
-    state.started = true;
-    // a new heist: what an earlier one handed over no longer counts
-    writeStore(Core.HEIST.key, '');
-    if (!AHEAD){ location.assign('../room-1-escape/'); return; }
-    $('who').hidden = true; rooms.hidden = false; document.body.classList.add('playing');
+  // ### How far the loading is, on the bar: room 1 opened (5), loaded (25) and made ready (45), room 2 loaded (55) and made
+  // ### ready step by step (up to 100).
+  function progress(pct, text){
+    state.pct = Math.max(state.pct, Math.min(100, Math.round(pct)));
+    loadBar.value = state.pct;
+    loadText.textContent = text || (state.done ? 'The game has loaded' : 'Loading the game… ' + state.pct + ' %');
+    loadBox.classList.toggle('done', state.done);
+  }
+  // ### Loads the game behind this page: room 1 in its frame, then room 2 under it, both out of sight until the heist starts.
+  // ### (A phone loads one room at a time, as a page of its own: nothing is loaded here.)
+  function load(){
+    if (!AHEAD || state.loading) return;
+    state.loading = true;
+    loadBox.hidden = false; rooms.hidden = false; rooms.classList.add('behind');
+    progress(5);
     frame1 = makeFrame(ROOM1, 'Room 1 · Plot Twist: Cell Block D', false);
     frame1.addEventListener('load', () => {
-      try { frame1.contentWindow.focus(); } catch (e) {}
+      progress(25);
       // (room 2 goes under room 1: the frame that comes first on the page lies below)
       setTimeout(() => {
         if (state.left || frame2 || !frame1) return;
         tellRoomOne('busy');
         frame2 = makeFrame(ROOM2_WAIT, 'Room 2 · The chase', true); rooms.insertBefore(frame2, frame1);
-        // room 2 is ready (it has loaded everything and drawn the garage once): room 1 may play its scenes again. Should it
-        // never say so (it failed to load), room 1 is told a while after the page has loaded
-        frame2.addEventListener('load', () => setTimeout(() => tellRoomOne('calm'), 20000), { once: true });
-      }, 2500);
+        // room 2 says when it is ready (everything loaded, the whole world drawn once): room 1 may play its scenes then.
+        // Should it never say so (it failed to load), room 1 is told a while after the page has loaded
+        frame2.addEventListener('load', () => { progress(55); setTimeout(() => tellRoomOne('calm'), 30000); }, { once: true });
+      }, 300);
     }, { once: true });
+    // whatever happens to the loading, the heist can start: after a minute and a half the bar no longer holds it back
+    setTimeout(loaded, 90000);
+  }
+  // ### All of the game has loaded: the heist starts if "Let's start" was pressed, otherwise the bar says so.
+  function loaded(){
+    if (state.done) return;
+    state.done = true; progress(100);
+    if (state.want) reveal();
+  }
+  // ### "Let's start": the heist begins when the game has loaded; until then the box says so and offers "Start now".
+  function start(){
+    if (state.started) return;
+    if (!AHEAD){ state.started = true; writeStore(Core.HEIST.key, ''); location.assign('../room-1-escape/'); return; }
+    state.want = true;
+    load();
+    if (state.done) reveal(); else draw();
+  }
+  // ### Room 1 fills the window: the heist begins.
+  function reveal(){
+    if (state.started) return;
+    state.started = true;
+    // a new heist: what an earlier one handed over no longer counts
+    writeStore(Core.HEIST.key, '');
+    $('who').hidden = true; rooms.classList.remove('behind'); document.body.classList.add('playing');
+    try { frame1.contentWindow.focus(); } catch (e) {}
   }
   const tellRoomOne = what => { if (frame1) frame1.contentWindow.postMessage({ shardHeist: what }, location.origin); };
   // ### Room 1 was left through the tunnel door: room 2 comes up. Ready and waiting, it is shown and told to begin; otherwise
@@ -171,8 +219,10 @@
   // only messages from our own two frames, on our own address, count
   addEventListener('message', e => {
     if (e.origin !== location.origin || !e.data || typeof e.data.shardHeist !== 'string') return;
-    if (frame2 && e.source === frame2.contentWindow && e.data.shardHeist === 'ready'){
-      state.ready = true; rooms.dataset.ready = '1'; tellRoomOne('calm');
+    if (frame2 && e.source === frame2.contentWindow && e.data.shardHeist === 'steps' && !state.ready) progress(55 + 43 * Math.max(0, Math.min(1, Number(e.data.part) || 0)));
+    else if (frame1 && e.source === frame1.contentWindow && e.data.shardHeist === 'warm') progress(45);
+    else if (frame2 && e.source === frame2.contentWindow && e.data.shardHeist === 'ready'){
+      state.ready = true; rooms.dataset.ready = '1'; tellRoomOne('calm'); loaded();
       // the player is already waiting in the glare: begin at once
       if (state.left) frame2.contentWindow.postMessage({ shardHeist: 'go' }, location.origin);
     }
@@ -183,6 +233,7 @@
     const b = e.target.closest('[data-do]');
     if (!b || state.busy) return;
     if (b.dataset.do === 'start') start();
+    else if (b.dataset.do === 'now') reveal();
     else if (b.dataset.do === 'name') takeName();
     else if (b.dataset.do === 'other') other();
   });

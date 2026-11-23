@@ -85,7 +85,7 @@ function tuneEnv(root){
 
 // ### Loading up front. Every picture and model that comes in after the page has opened (the player's figure, the linen of
 // ### the uniform, the hands, the tunnel's scans) is counted by one loading manager (ASSETS), so the page knows when all of it
-// ### is there: then everything is made ready for the graphics card at once (warmAll, under "Loop"), instead of in the frames
+// ### is there: then everything is made ready for the graphics card (warmSteps, under "Loop"), instead of in the frames
 // ### where it is first seen, which held the picture still for a moment (on the way into the garage, for one).
 const ASSETS = new THREE.LoadingManager();
 let assetsBusy = false;
@@ -6075,18 +6075,18 @@ function heistSection(){
   if (!h) return '';
   const on = signedIn() && heist.online, list = on ? heist.online : heist.list, me = on ? online.name : driver, N = heist.net;
   let head = '';
-  if (signedIn() && N) head = N.pending ? 'Saving the heist online…' : N.error ? esc(N.error) : N.place ? `Online: ${esc(online.name)} is in place <b>${N.place}</b> of ${N.n}.` : '';
-  else if (heist.rank && heist.rank.rank) head = (heist.rank.best ? (heist.rank.prev ? `New best heist for ${esc(driver)} (was ${fmtTimeExact(heist.rank.prev)}).` : `${esc(driver)} is on the heist board.`) : `${esc(driver)}'s best heist stays ${fmtTimeExact(heist.rank.prev)}.`) + ` Place <b>${heist.rank.rank}</b> of ${heist.list.length}.`;
+  if (signedIn() && N) head = N.pending ? 'Saving the night online…' : N.error ? esc(N.error) : N.place ? `Online: ${esc(online.name)} is in place <b>${N.place}</b> of ${N.n}.` : '';
+  else if (heist.rank && heist.rank.rank) head = (heist.rank.best ? (heist.rank.prev ? `New best night for ${esc(driver)} (was ${fmtTimeExact(heist.rank.prev)}).` : `${esc(driver)} is on the leaderboard of the whole night.`) : `${esc(driver)}'s best night stays ${fmtTimeExact(heist.rank.prev)}.`) + ` Place <b>${heist.rank.rank}</b> of ${heist.list.length}.`;
   const rows = Core.heistRows(list, me), lead = rows.length && rows[0].place === 1 ? rows[0].time : null;
   const body = rows.length ? `<ol class="lb-list">${rows.map(r => `<li class="${r.me ? 'me' : ''}${r.gap ? ' gap' : ''}${r.place <= 3 ? ' p' + r.place : ''}"><span class="lb-place">${r.place}</span>`
       + `<span class="lb-who"><span class="lb-name">${esc(r.name)}</span><span class="lb-meta">Escape ${fmtTimeExact(r.escape)} · Drive ${fmtTimeExact(r.drive)} · ${VEH[r.veh].name}</span></span>`
       + `<span class="lb-time"><b>${fmtTimeExact(r.time)}</b>${lead !== null && r.place > 1 ? `<small>+${(r.time - lead).toFixed(1)} s</small>` : ''}</span></li>`).join('')}</ol>`
-    : `<p class="lb-empty">${driver ? 'No heists yet.' : 'Enter a driver name below to put this heist on the board.'}</p>`;
-  return `<div class="eyebrow">The whole heist · Cell Block D to the bridge</div>
-    <div class="heist-sum"><div><span class="eyebrow">Escape · room 1</span><b>${fmtTimeExact(h.escape)}</b></div><i>+</i><div><span class="eyebrow">Drive · room 2</span><b>${fmtTimeExact(h.drive)}</b></div><i>=</i><div class="total"><span class="eyebrow">Heist time</span><b>${fmtTimeExact(h.total)}</b></div></div>
-    <p class="heist-best${h.isBest ? ' new' : ''}">${h.isBest ? 'New best heist on this device' : 'Best heist on this device · ' + fmtTimeExact(h.best)}${on && heist.online[0] ? ` · Online record · ${fmtTimeExact(heist.online[0].time)} by ${esc(heist.online[0].name)}` : ''}</p>
+    : `<p class="lb-empty">${driver ? 'No times yet.' : 'Enter a driver name below to put this night on the board.'}</p>`;
+  return `<div class="eyebrow">The whole night · Cell Block D to the bridge</div>
+    <div class="heist-sum"><div><span class="eyebrow">Escape · room 1</span><b>${fmtTimeExact(h.escape)}</b></div><i>+</i><div><span class="eyebrow">Drive · room 2</span><b>${fmtTimeExact(h.drive)}</b></div><i>=</i><div class="total"><span class="eyebrow">Total time</span><b>${fmtTimeExact(h.total)}</b></div></div>
+    <p class="heist-best${h.isBest ? ' new' : ''}">${h.isBest ? 'New best night on this device' : 'Best night on this device · ' + fmtTimeExact(h.best)}${on && heist.online[0] ? ` · Online record · ${fmtTimeExact(heist.online[0].time)} by ${esc(heist.online[0].name)}` : ''}</p>
     ${head ? `<p class="lb-head${N && N.error ? ' bad' : ''}">${head}</p>` : ''}
-    <p class="lb-where${on ? ' on' : ''}">${on ? 'Heist leaderboard · online · everybody\'s heists' : 'Heist leaderboard · this device only'}</p>${body}`;
+    <p class="lb-where${on ? ' on' : ''}">${on ? 'Leaderboard of the whole night · online · everybody\'s best' : 'Leaderboard of the whole night · this device only'}</p>${body}`;
 }
 
 // ---------- Online account ----------
@@ -9406,25 +9406,64 @@ function storyGameOver(reason){
 
 // Compiles the shaders of everything in the scene, hidden objects included, before they are first seen
 function warmUp(sc = scene, cam = camera){
+  // loaded ahead on the heist page, the world is made ready in small steps instead (see warmSteps)
+  if (HEIST_WAIT && !heist.went) return;
   const hidden = [];
   sc.traverse(o => { if (!o.visible && !o.isLight){ hidden.push(o); o.visible = true; } });
   try { renderer.compile(sc, cam); } catch (e) {}
   hidden.forEach(o => { o.visible = false; });
 }
-// ### Loaded ahead on the heist page, once everything has loaded (ASSETS): the shaders of the world and of your hands are
-// ### built again with all that has come in, and every picture goes to the graphics card now, also those of what is out of
-// ### sight (the garage and its tunnel, the figure on the motorcycle). Otherwise each would be built or sent in the first
-// ### frames after the tunnel, and hold the picture still just as the player arrives. (Opened on its own, the page does
-// ### not do this: it would hold the menu still while the player types a name.)
-function warmAll(){
-  warmUp(); warmUp(walker.scene, walker.handCam);
-  const sent = new Set(), send = t => {
-    if (!t || !t.isTexture || t.isCubeTexture || t.isRenderTargetTexture || sent.has(t) || !t.image || t.image.complete === false) return;
-    sent.add(t);
-    try { renderer.initTexture(t); } catch (e) {}
-  };
-  for (const sc of [scene, walker.scene]) sc.traverse(o => { for (const m of [].concat(o.material || [])){ for (const k in m) send(m[k]); if (m.uniforms) for (const k in m.uniforms) send(m.uniforms[k].value); } });
+// ### Makes the whole world ready for the graphics card by really drawing every thing in it once, a few things at a time:
+// ### the city too, which is not drawn down in the garage, and what is hidden (police cars, the helicopter, the other
+// ### vehicles). Only a real drawing builds the shaders the game will use (Ultra draws into a picture of its own, for the
+// ### glow, and a shader built for the screen is no use there), sends the shapes to the graphics card and draws the
+// ### shadows. Done all at once this held the page still for many seconds: under room 1 while its briefing was read, and
+// ### again for the city, at the very moment the roller door of the garage went up.
+// ### How: every thing that is drawn is put on a layer the camera does not see, and step by step a few of them come back
+// ### to their own layer for one drawing: all that share shaders already built, or one thing with a new material, which is
+// ### what takes long. Groups are made visible so that what is in them is reached; lights stay exactly as they are, because
+// ### their number is part of every shader. The canvas is out of sight meanwhile (under room 1, or behind the glare).
+// ### It is a generator: each step is one drawing. warmInSteps takes a breath between steps, so the room on top keeps
+// ### moving and answering; warmNow runs them through at once. At the end all is put back as it was.
+function* warmSteps(){
+  const all = [], drawn = o => o.isMesh || o.isPoints || o.isLine || o.isSprite;
+  const seen = o => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
+  scene.traverse(o => all.push({ o, visible: o.visible, culled: o.frustumCulled, mask: o.layers.mask, lit: o.isLight ? seen(o) : false }));
+  const things = all.filter(a => drawn(a.o) && a.o.material);
+  const draw = () => { if (composer && GFX[gfx].post) composer.render(); else renderer.render(scene, camera); };
+  try {
+    for (const a of all){ a.o.visible = a.o.isLight ? a.lit : true; if (drawn(a.o)){ a.o.frustumCulled = false; a.o.layers.mask = 1 << 31; } }
+    const built = new Set();
+    let batch = [], fresh = false;
+    const flush = () => { for (const a of batch) a.o.layers.mask = a.mask; draw(); for (const a of batch) a.o.layers.mask = 1 << 31; batch = []; fresh = false; };
+    let n = 0;
+    for (const a of things){
+      n++;
+      // a material counts as new once for plain shapes and once each for shapes drawn many times over or bent by bones
+      const kind = a.o.isInstancedMesh ? 'i' : a.o.isSkinnedMesh ? 's' : '';
+      const isNew = [].concat(a.o.material).some(m => !built.has(m.uuid + kind));
+      if (batch.length >= 60 || (isNew && fresh)){ flush(); yield n / things.length; }
+      for (const m of [].concat(a.o.material)) built.add(m.uuid + kind);
+      batch.push(a); fresh = fresh || isNew;
+    }
+    if (batch.length){ flush(); yield 1; }
+  } finally {
+    for (const a of all){ a.o.visible = a.visible; a.o.frustumCulled = a.culled; a.o.layers.mask = a.mask; }
+  }
 }
+// ### Loaded ahead under room 1: the steps one after another, with a breath whenever 24 ms have gone by.
+async function warmInSteps(){
+  let t = performance.now();
+  for (const part of warmSteps()){
+    if (performance.now() - t > 24){
+      // the heist page shows how far it is on its loading bar
+      parent.postMessage({ shardHeist: 'steps', part }, location.origin);
+      await new Promise(r => setTimeout(r, 12)); t = performance.now();
+    }
+  }
+}
+// ### Arriving on a page of its own (a phone): all the steps at once, behind the glare of the headlights.
+function warmNow(){ for (const step of warmSteps()); }   // eslint-disable-line no-unused-vars
 // ### Draws the picture once, as frame() would, without moving anything: loaded ahead on the heist page, the garage is drawn
 // ### once while it waits, so its first frame after the tunnel has nothing left to build or send.
 function drawOnce(){
@@ -9537,7 +9576,7 @@ warmUp();
 // the glare of the headlights (shown when the address ends in #arrive) clears once the garage has been drawn
 const clearGlare = () => { const glare = $('arrive'); if (glare) requestAnimationFrame(() => requestAnimationFrame(() => glare.classList.add('gone'))); };
 // from room 1 with a valid escape time: straight into the garage
-if (!HEIST_WAIT){ const h = heistArrival(); if (h) heistBegin(h); clearGlare(); }
+if (!HEIST_WAIT){ const h = heistArrival(); if (h){ heistBegin(h); try { warmNow(); } catch (e) {} } clearGlare(); }
 // a saved online login is checked only now: while the world is being built the page is too busy to answer in time
 if (net && net.user) setTimeout(afterSignIn, 0);
 if (!HEIST_WAIT) requestAnimationFrame(frame);
@@ -9545,12 +9584,13 @@ else {
   // ### Loaded ahead by the heist page: prepared and standing still. When that page says go (only its message, from our own
   // ### address, counts, and only once), the escape time is read, the player arrives and the picture starts to move.
   heistPrepare();
-  // ready once everything has loaded and the garage has been drawn once (see warmAll and drawOnce); on a very slow
+  // ready once everything has loaded and the whole world has been drawn once (see warmSteps and drawOnce); on a very slow
   // connection after HEIST_READY_WAIT seconds at most, with what has arrived
   const HEIST_READY_WAIT = 20, waitFrom = performance.now();
-  const ready = () => {
+  const ready = async () => {
     if (assetsBusy && performance.now() - waitFrom < HEIST_READY_WAIT * 1000) return setTimeout(ready, 250);
-    if (!heist.went){ try { warmAll(); drawOnce(); } catch (e) {} }
+    // the whole world, in small steps (the room on top keeps moving meanwhile), then the garage as the player will find it
+    if (!heist.went){ try { await warmInSteps(); drawOnce(); } catch (e) {} }
     parent.postMessage({ shardHeist: 'ready' }, location.origin);
   };
   addEventListener('message', e => {

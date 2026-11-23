@@ -454,16 +454,24 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.equal(await evaluate("document.querySelectorAll('#rooms iframe').length"), 0, 'no room is loaded before the heist is started');
       // the heist leaderboard is there before anything is played (the stand-in's online board is empty)
       await waitFor("/Online/.test((document.querySelector('#boardBox .lb-where') || {}).textContent || '')", 15000, 'the online heist board');
-      assert.match(await text('#boardBox'), /No heist yet/);
+      assert.match(await text('#boardBox'), /No time yet/);
       assert.ok(supa.calls.includes('GET /rest/v1/heist_board'), 'the board was asked for');
       // accepted: the name goes online, becomes the driver of this device, and room 1 opens in its frame
       await give('Alex');
       await waitFor("document.querySelectorAll('#rooms iframe').length >= 1", 15000, 'room 1 in its frame');
       assert.equal(supa.mine, 'Alex', 'the name is on the online board');
       assert.equal(await evaluate("localStorage.getItem('shard-heist-driver')"), 'Alex');
-      assert.equal(await evaluate("document.getElementById('who').hidden"), true);
-      // room 2 is loaded under room 1 while room 1 is played, and says when it is ready
+      // the game loads behind the heist page, out of sight; the bar says how far it is, and "Start now" need not wait for it
+      assert.equal(await evaluate("document.getElementById('who').hidden"), false, 'the heist page stays while the game loads');
+      assert.equal(await evaluate("getComputedStyle(document.getElementById('rooms')).visibility"), 'hidden', 'the rooms load out of sight');
+      assert.equal(await evaluate("document.getElementById('load').hidden"), false, 'the loading bar is shown');
+      assert.match(await text('#whoBox'), /game starts by itself as soon as it has loaded/);
+      assert.equal(await evaluate("!!document.querySelector('[data-do=\"now\"]')"), true, '"Start now" is offered');
+      // room 2 is loaded under room 1, and says when it is ready: then the bar is full and the heist starts by itself
       await waitFor("document.getElementById('rooms').dataset.ready === '1'", 240000, 'room 2 ready under room 1');
+      await waitFor("document.getElementById('who').hidden", 5000, 'the heist starts by itself');
+      assert.equal(await evaluate("document.getElementById('loadBar').value"), 100, 'the bar is full');
+      assert.equal(await evaluate("getComputedStyle(document.getElementById('rooms')).visibility"), 'visible', 'room 1 is shown');
       assert.equal(await evaluate("document.querySelectorAll('#rooms iframe').length"), 2);
       assert.equal(await evaluate("getComputedStyle(document.querySelector('#rooms iframe.under')).visibility"), 'hidden', 'room 2 is out of sight');
       assert.match(await evaluate("document.querySelector('#rooms iframe.under').contentWindow.location.search"), /heist=wait/);

@@ -572,6 +572,31 @@ test('the heist page holds both rooms, and the rooms still load nothing of each 
   assert.match(js, /<span class="lb-name">' \+ esc\(r\.name\) \+ '<\/span>/);
 });
 
+// ---------- Loading: behind the heist page, with a bar, and room 2 in small steps ----------
+test('the game loads behind the heist page with a loading bar, and room 2 is made ready in small steps', () => {
+  const page = read('heist/index.html'), js = read('heist/heist.js'), room = read('room-1-escape/js/room.js');
+  // the bar is a real progress element, labelled, hidden until the loading begins
+  assert.match(page, /<div class="heist-load" id="load" hidden>\s*<progress id="loadBar" max="100" value="0" aria-labelledby="loadText"><\/progress>/);
+  // with a driver known from an earlier visit the loading begins as the page opens; otherwise with "Let's start"
+  assert.match(js, /if \(state\.name\) load\(\);/);
+  assert.match(js, /state\.want = true;\s*load\(\);\s*if \(state\.done\) reveal\(\); else draw\(\);/);
+  // out of sight until the heist starts; it starts by itself when all has loaded, and never waits for ever
+  assert.match(js, /rooms\.classList\.add\('behind'\);/); assert.match(read('heist/heist.css'), /#rooms\.behind\{visibility:hidden\}/);
+  assert.match(js, /if \(state\.want\) reveal\(\);/); assert.match(js, /setTimeout\(loaded, 90000\);/);
+  assert.match(js, /else if \(b\.dataset\.do === 'now'\) reveal\(\);/, '"Start now" does not wait');
+  // another driver: room 2 has read the old one, so the page is loaded again
+  assert.match(js, /if \(state\.loading\)\{ location\.reload\(\); return; \}/);
+  // room 2 draws every thing once, a few at a time, with a breath between steps, and puts all back as it was
+  const steps = game.match(/function\* warmSteps\(\)\{[\s\S]*?\n\}/)[0];
+  assert.match(steps, /a\.o\.layers\.mask = 1 << 31;/); assert.match(steps, /a\.o\.visible = a\.o\.isLight \? a\.lit : true;/, 'the lights stay as they are');
+  assert.match(steps, /finally \{\s*for \(const a of all\)\{ a\.o\.visible = a\.visible; a\.o\.frustumCulled = a\.culled; a\.o\.layers\.mask = a\.mask; \}/);
+  assert.match(game, /if \(performance\.now\(\) - t > 24\)\{[\s\S]{0,260}await new Promise\(r => setTimeout\(r, 12\)\);/);
+  assert.match(game, /try \{ await warmInSteps\(\); drawOnce\(\); \} catch \(e\) \{\} \}\s*parent\.postMessage\(\{ shardHeist: 'ready' \}, location\.origin\);/);
+  // on the heist page room 1 holds its opening scene back until room 2 is ready, but not for ever
+  assert.match(room, /NEXT_DOOR_WAIT = 40;/); assert.match(room, /nextDoorBusy = FRAMED,/);
+  assert.match(room, /\(nextDoorBusy && waited < NEXT_DOOR_WAIT\)/);
+});
+
 // ---------- Room 1: the hatch opens without a hitch ----------
 test('room 1 makes the opening of the hatch ready while the briefing is read', () => {
   const room = read('room-1-escape/js/room.js');
@@ -579,7 +604,7 @@ test('room 1 makes the opening of the hatch ready while the briefing is read', (
   const warm = room.match(/function warmHatch\(\)\{[\s\S]*?\n\}/)[0];
   assert.match(warm, /tunnelLight\.visible = tunnelLight2\.visible = nightLight\.visible = dust\.pts\.visible = true; tunnelEnd\(true\);/);
   assert.match(warm, /renderer\.compile\(scene, camera\);/);
-  assert.match(warm, /= was; tunnelEnd\(was\[4\]\);/, 'and all is put back as it was');
+  assert.match(warm, /= was; tunnelEnd\(was\[4\]\); for \(const o of culled\) o\.frustumCulled = true; \};/, 'and all is put back as it was');
   // the same lights are the ones Ending A switches on
   assert.match(room, /function endingA\(\)\{[\s\S]*?tunnelLight\.visible = tunnelLight2\.visible = nightLight\.visible = dust\.pts\.visible = true; tunnelEnd\(true\);/);
   // after the briefing scene has been made ready, never while it plays, and not once the hatch is open
