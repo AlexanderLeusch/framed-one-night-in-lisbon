@@ -2,13 +2,21 @@
 
 *Framed: One Night in Lisbon* is a two-room browser game (its working title was *Shard Heist*, which the repository carried until 20 November 2026; the code still uses it in the names of saved values). **Room 1, *Plot Twist: Cell Block D***, is a 3D prison escape room: find the code for the hatch in the washroom floor before the guard comes back. **Room 2, *The Chase***, is the 3D police chase that follows. A start page leads to both rooms.
 
-**▶ Play the game:** https://alexanderleusch.github.io/framed-one-night-in-lisbon/ (start page, leads to both rooms)
+**▶ Play the game:** https://alexanderleusch.github.io/framed-one-night-in-lisbon/ (start page: one button, **Start the game**, plays both rooms in one go)
 
 Both rooms take place on the same night and share one design system (the same fonts, panels, buttons and cards), with orange as the accent of the prison and cyan as the accent of the chase. Room 2's story starts where room 1 ends: inmate 4471 is on the run, and Officer Hale helps over the radio.
 
 Both are published automatically from `main` once all tests pass. The rules of both rooms are written out in plain English in [docs/rules/](docs/rules/README.md).
 
 The folder `original-solo-project/` holds the original solo project *Plot Twist: The Missing Necklace* (Python and Streamlit), which room 1 rebuilds in 3D. It is kept for reference, and CI tests it, but it is not part of the deployed game. Run it with `cd original-solo-project && uv run streamlit run app.py`.
+
+## Objectives
+
+- **One game from two projects.** Join the team's escape room and its police chase into one playable night with one story, one driver name, one total time and one shared leaderboard, with no loading screen between the rooms.
+- **Run in any browser, with nothing to install.** Plain JavaScript and three.js, no framework and no build step; published automatically with GitHub Pages.
+- **Rules that can be read and tested.** Every game rule is a pure function with unit tests (accepted, rejected and edge cases), and the same rules are written out in plain English in [docs/rules/](docs/rules/README.md).
+- **Safe by construction.** A strict Content-Security-Policy, no secrets in the repository, and every name or saved value is checked before it is used (see [Security](#security)).
+- **A repository the whole team can work in.** Small pull requests, tests that must pass on `main` before anything is published, and one set of rules for people and coding agents ([AGENTS.md](AGENTS.md)).
 
 ## Team
 
@@ -52,9 +60,17 @@ A 3D police-chase driving game that runs in any modern browser. Pick a getaway v
 | Systems | Seven synthesised radio stations, hills, wanted stars and a police helicopter, visible damage, police AI with a bust meter, crash damage and repair kits, synthesised engine sounds, map-boundary force field, radar, Ultra/Balanced graphics |
 | Controls | `W A S D` or arrow keys to drive, `Space` handbrake, hold `C` to look back, `E` nitro (a charge for every third pickup), `P` / `Esc` pause, `M` map (Lisbon), `N` sound, `R` radio, volume sliders for game and music in the menu and the pause, `Enter` confirms. On phones: touch pads (brake and gas together are the handbrake, the round button looks back, the flame button fires nitro), and steering by tilting the phone sideways |
 
-## Run it locally
+## Install and run it locally
 
-You need [Node.js](https://nodejs.org) 22 or newer. There is nothing to install.
+To play, nothing has to be installed: open the link above. To run the project on your own computer you need [Node.js](https://nodejs.org) 22 or newer and Git; there are no packages to install (no `npm install`).
+
+```bash
+git clone https://github.com/AlexanderLeusch/framed-one-night-in-lisbon.git
+cd framed-one-night-in-lisbon
+npm start          # then open http://localhost:8080
+```
+
+All commands:
 
 ```bash
 npm start          # serves the start page and both rooms: http://localhost:8080
