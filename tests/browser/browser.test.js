@@ -199,19 +199,21 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await click('[data-action="board"]');
       await waitFor("document.getElementById('overlay').hidden", 10000, 'the garage card to go away');
       await key('keydown', 'KeyW');
-      // about 15 s of game time (the walk, getting in, 50 m up the ramp, then the vehicle drives itself out through the roller
-      // door and into the street); a slow CI machine draws only a few frames a second, and fewer still once the city is drawn.
+      // about 15 s of game time (the walk, getting in, 50 m up the ramp, then the vehicle drives itself to the traffic light
+      // before the roller door); a slow CI machine draws only a few frames a second, and fewer still once the city is drawn.
       // CI machines differ: the same drive took 231 s on one and more than 300 s on a slower one, so it gets 10 minutes
-      await waitFor("!!document.getElementById('ovMap')", 600000, 'the map of the evidence on the street');
-      assert.ok(await evaluate("!document.getElementById('hud').classList.contains('off')"), 'the HUD is back on the street');
+      await waitFor("!!document.getElementById('ovMap')", 600000, 'the map of the evidence at the garage door');
+      assert.ok(await evaluate("!document.getElementById('hud').classList.contains('off')"), 'the HUD is back at the door');
       await key('keyup', 'KeyW');
       assert.match(await text('#card h2'), /Where the evidence is/);
       assert.match(await evaluate("document.getElementById('ovMap').getAttribute('aria-label')"), /Photos.*Fingerprints.*Torch.*Lockpick.*Clothes.*Balaclava/);
+      assert.match(await text('#garWait'), /Green in \d+ s|Almost ready|Green: the door opens/, 'the traffic light at the door');
       const clock0 = await text('#time'); await sleep(1500);
       assert.equal(await text('#time'), clock0, 'the clock waits while the map is open');
-      await click('[data-action="resume"]');
-      await waitFor(playing, 30000, 'run to start');
-      await waitFor("!document.getElementById('guide').hidden", 10000, 'the guide arrow');
+      // drive out: at green the roller door rolls up and the vehicle drives itself out into the street, then the run begins
+      await click('[data-action="drive-out"]');
+      await waitFor(playing, 30000, 'the map to close');
+      await waitFor("!document.getElementById('guide').hidden", 600000, 'driven out onto the street: the guide arrow');
       assert.match(await text('#guideName'), /Photos|Fingerprints|Torch|Lockpick|Clothes|Balaclava/);
       const t0 = await text('#time');
       await key('keydown', 'KeyW');
@@ -411,15 +413,23 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await send('Emulation.clearDeviceMetricsOverride');
     });
 
-    await escape('the start page leads to both rooms, in playing order, and runs no script', async () => {
+    await escape('the start page has one way in, the heist page, shows the game on its monitor and runs no script', async () => {
       errors.length = 0;
       await send('Page.navigate', { url: base });
-      await waitFor("!!document.querySelector('.start-rooms')", 15000, 'start page');
+      await waitFor("!!document.querySelector('.start-heist')", 15000, 'start page');
       // the stylesheet may arrive a moment after the markup
-      await waitFor("getComputedStyle(document.querySelector('.start-room b')).fontFamily.includes('Big Shoulders')", 10000, 'start page stylesheet').catch(() => {});
-      assert.equal(await evaluate("[...document.querySelectorAll('.start-room')].map(a => a.getAttribute('href')).join()"), 'room-1-escape/,room-2-chase/');
+      await waitFor("getComputedStyle(document.querySelector('.start-heist')).fontFamily.includes('Big Shoulders')", 10000, 'start page stylesheet').catch(() => {});
+      assert.equal(await evaluate("[...document.querySelectorAll('main a')].map(a => a.getAttribute('href')).join()"), 'heist/,https://github.com/AlexanderLeusch/framed-one-night-in-lisbon', 'one button, and the link to the source');
+      assert.match(await text('.start-heist'), /Start the game/);
       assert.equal(await evaluate("document.scripts.length"), 0, 'no script on the start page');
-      assert.equal(await evaluate("getComputedStyle(document.querySelector('.start-room b')).fontFamily.includes('Big Shoulders')"), true, 'the shared fonts load');
+      assert.equal(await evaluate("getComputedStyle(document.querySelector('.start-heist')).fontFamily.includes('Big Shoulders')"), true, 'the shared fonts load');
+      // the four pictures of the game have loaded and lie in the monitor
+      await waitFor("[...document.querySelectorAll('.peek img')].every(i => i.complete)", 15000, 'the pictures');
+      assert.equal(await evaluate("[...document.querySelectorAll('.peek img')].filter(i => i.naturalWidth === 1600 && i.naturalHeight === 900).length"), 4);
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, 'nothing sticks out sideways');
+      // the button leads to the heist page
+      await click('.start-heist');
+      await waitFor("location.pathname.endsWith('/heist/') && !!document.getElementById('boardBox')", 15000, 'the heist page');
       assert.deepEqual(errors, []);
     });
 
@@ -442,6 +452,10 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await give('<>');
       await waitFor("/Enter a driver name/.test((document.querySelector('.heist-msg') || {}).textContent || '')", 5000, 'an empty name is refused');
       assert.equal(await evaluate("document.querySelectorAll('#rooms iframe').length"), 0, 'no room is loaded before the heist is started');
+      // the heist leaderboard is there before anything is played (the stand-in's online board is empty)
+      await waitFor("/Online/.test((document.querySelector('#boardBox .lb-where') || {}).textContent || '')", 15000, 'the online heist board');
+      assert.match(await text('#boardBox'), /No heist yet/);
+      assert.ok(supa.calls.includes('GET /rest/v1/heist_board'), 'the board was asked for');
       // accepted: the name goes online, becomes the driver of this device, and room 1 opens in its frame
       await give('Alex');
       await waitFor("document.querySelectorAll('#rooms iframe').length >= 1", 15000, 'room 1 in its frame');

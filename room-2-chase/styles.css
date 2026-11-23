@@ -217,6 +217,13 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-display);overflow
 .guide.kit .g-arrow{fill:#4ef0a0;filter:drop-shadow(0 0 6px rgba(78,240,160,.7))}
 .guide.kit b{font-size:16px}
 /* the map of the evidence before a Lisbon run */
+/* the traffic light at the garage door, on the map card: the lamp that is on glows */
+.gar-wait{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.gar-wait .l{width:14px;height:14px;border-radius:50%;background:#2a2d33}
+.gar-wait[data-light="red"] .r{background:#ff3a30;box-shadow:0 0 10px #ff3a30}
+.gar-wait[data-light="yellow"] .y{background:#ffb21e;box-shadow:0 0 10px #ffb21e}
+.gar-wait[data-light="green"] .g{background:#35e07a;box-shadow:0 0 10px #35e07a}
+.gar-wait b{margin-left:6px;color:var(--ink);font-weight:600}
 .ov-map{display:block;width:min(100%,58vh);aspect-ratio:1;margin:0 auto;border-radius:14px;border:1px solid var(--line);background:#0e1022}
 #touch.tilt .grp:first-child{visibility:hidden}
 .pad{--p:0;position:relative;overflow:hidden;pointer-events:auto;width:72px;height:72px;border-radius:18px;border:1px solid var(--line);background:var(--glass);color:var(--ink);display:grid;place-items:center;font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);touch-action:none}
@@ -457,22 +464,13 @@ kbd{font-family:var(--f-mono);font-size:12px;color:var(--ink);background:rgba(25
 .fatal-card{border-radius:18px}
 .fatal-card h2{text-transform:uppercase;font-size:32px;font-weight:800}
 
-/* ### START PAGE (index.html at the top of the site): it uses this stylesheet too. Two cards, one per room, in playing order. */
+/* ### START PAGE (index.html at the top of the site) and the heist page: they use this stylesheet too. */
 body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:auto;min-height:100vh;background:radial-gradient(ellipse at 20% 0%,rgba(85,236,255,.12),transparent 55%),radial-gradient(ellipse at 90% 100%,rgba(255,122,26,.12),transparent 50%),var(--bg)}
 .start-wrap{box-sizing:border-box;max-width:980px;margin:0 auto;padding:clamp(24px,6vw,64px) 20px;display:grid;gap:28px}
 .start-head{display:grid;gap:12px;max-width:640px}
 .start-head .m-logo{margin:0;font-size:clamp(64px,10vw,120px);line-height:.84;font-weight:800;letter-spacing:-.045em;text-transform:uppercase}
 .start-head .m-logo em{font-style:normal;color:transparent;-webkit-text-stroke:2px var(--spark)}
 .start-head p{margin:0;color:var(--muted);font-family:var(--f-body);font-size:16px;line-height:1.55}
-.start-rooms{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
-.start-room{display:grid;gap:10px;align-content:start;padding:22px;border-radius:18px;border:1px solid var(--line);background:var(--glass-strong);color:var(--ink);text-decoration:none;transition:transform .15s,border-color .15s}
-.start-room b{font-size:28px;line-height:1.05;letter-spacing:.01em;text-transform:uppercase}
-.start-room span:not(.eyebrow){font-family:var(--f-body);font-size:15px;line-height:1.5;color:var(--muted)}
-.start-room em{font-style:normal;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:6px}
-.start-room.r1{border-color:rgba(255,122,26,.45)}
-.start-room.r1 em{color:#ff7a1a}
-.start-room.r2 em{color:var(--spark)}
-.start-room:hover,.start-room:focus-visible{transform:translateY(-2px);border-color:var(--ink);outline:none}
 .start-foot{margin:0;font-family:var(--f-body);font-size:13px;color:var(--muted)}
 .start-foot a{color:var(--ink)}
 
@@ -634,12 +632,6 @@ body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:
 .heist-sum .total b{color:var(--gold)}
 .lb.heist{border-color:rgba(255,200,87,.45)}
 @media (max-width:640px){.heist-sum{grid-template-columns:1fr auto 1fr}.heist-sum>i:nth-of-type(2){display:none}.heist-sum .total{grid-column:1/-1}}
-.start-heist{display:grid;gap:8px;padding:26px;border-radius:18px;border:1px solid rgba(255,200,87,.6);background:linear-gradient(135deg,rgba(255,200,87,.16),rgba(255,122,26,.1) 60%,rgba(255,255,255,.03));color:var(--ink);text-decoration:none;transition:transform .15s,border-color .15s}
-.start-heist b{font-size:clamp(32px,5vw,46px);line-height:1;letter-spacing:.01em;text-transform:uppercase}
-.start-heist span:not(.eyebrow){font-family:var(--f-body);font-size:16px;line-height:1.5;color:var(--muted);max-width:640px}
-.start-heist em{font-style:normal;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);margin-top:4px}
-.start-heist:hover,.start-heist:focus-visible{transform:translateY(-2px);border-color:var(--ink);outline:none}
-.start-or{margin:0}
 /* the game's name on the start page: "Framed", with "One night in Lisbon" as a smaller outlined line under it */
 .start-head .m-logo em.sub,.card .m-logo em.sub{display:block;margin-top:.14em;font-size:.34em;line-height:1.05;letter-spacing:.01em;-webkit-text-stroke:1.4px var(--spark)}
 /* arriving from room 1: the same headlight glare room 1 ended in (its #leave); under the error screen, and it lets clicks through */
@@ -655,3 +647,51 @@ body.start{overflow:auto;touch-action:auto;user-select:auto;-webkit-user-select:
 /* the best heist under the sum on the end screen, like the best time under the drive time */
 .card .heist-best{margin:0;font-family:var(--f-mono);font-size:14px;color:var(--muted);max-width:none}
 .card .heist-best.new{color:var(--gold)}
+/* ### THE START PAGE ITSELF (body.home): the name, one button ("Start the game", to the heist page) and a look into the game:
+   ### pictures of the real game on a surveillance monitor, changing every five seconds. All of it is CSS: the page runs no script. */
+.home .start-wrap{max-width:1320px;min-height:100vh;align-content:center;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:28px 56px;align-items:center}
+.home .start-head{max-width:560px;gap:16px}
+.home .start-head .m-logo{font-size:clamp(72px,11vw,150px)}
+.home .start-head p{font-size:17px}
+.home .start-foot{grid-column:1 / -1}
+.start-heist{justify-self:start;display:inline-flex;align-items:center;gap:16px;margin-top:6px;padding:18px 32px;border-radius:14px;background:var(--spark);color:var(--spark-ink);font-size:clamp(24px,3vw,34px);font-weight:800;letter-spacing:.04em;line-height:1;text-transform:uppercase;text-decoration:none;transition:transform .15s,background .15s}
+.start-heist i{font-style:normal;transition:transform .15s}
+.start-heist:hover,.start-heist:focus-visible{transform:translateY(-2px);background:#fff;outline:none}
+.start-heist:focus-visible{box-shadow:0 0 0 3px var(--bg),0 0 0 6px var(--spark)}
+.start-heist:hover i,.start-heist:focus-visible i{transform:translateX(6px)}
+.start-facts{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:8px;font-family:var(--f-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.start-facts li{display:flex;gap:12px;align-items:baseline}
+.start-facts b{color:var(--spark);font-weight:600}
+/* the monitor: the pictures lie on top of each other, the first one is shown; where motion is welcome they take turns */
+.peek{margin:0;border-radius:18px;overflow:hidden;border:1px solid rgba(85,236,255,.45);background:#05070a;box-shadow:0 30px 80px rgba(0,0,0,.65),0 0 70px rgba(85,236,255,.16);transform:perspective(1500px) rotateY(-7deg) rotateX(2deg);transform-origin:left center}
+.peek-screen{position:relative;aspect-ratio:16 / 9;overflow:hidden}
+.peek img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0}
+.peek img:first-of-type{opacity:1}
+.peek-screen::after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.2) 0 1px,transparent 1px 3px),radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55))}
+.peek-cap{display:flex;align-items:center;gap:18px;padding:13px 18px;border-top:1px solid rgba(85,236,255,.25);font-family:var(--f-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink)}
+.peek-rec{display:flex;align-items:center;gap:8px;color:var(--muted)}
+.peek-rec i{width:9px;height:9px;border-radius:50%;background:var(--stop);box-shadow:0 0 8px var(--stop)}
+.peek-lines{flex:1;display:grid;min-width:0}
+.peek-lines span{grid-area:1 / 1;opacity:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.peek-lines span:first-child{opacity:1}
+.peek-lines b{color:var(--spark);font-weight:600;margin-right:10px}
+@keyframes peekShot{0%{opacity:0;transform:scale(1.02)}3%,25%{opacity:1}28%,100%{opacity:0;transform:scale(1.09)}}
+@keyframes peekCap{0%{opacity:0}3%,25%{opacity:1}28%,100%{opacity:0}}
+@keyframes peekRec{50%{opacity:.15}}
+@keyframes startGlow{0%{box-shadow:0 0 0 0 rgba(85,236,255,.55)}100%{box-shadow:0 0 0 22px rgba(85,236,255,0)}}
+@media (prefers-reduced-motion:no-preference){
+  .peek img,.peek img:first-of-type{opacity:0;animation:peekShot 20s linear infinite backwards}
+  .peek-lines span,.peek-lines span:first-child{opacity:0;animation:peekCap 20s linear infinite backwards}
+  /* (the first picture starts 0.6 s into its turn: it is there at once, not faded in from black) */
+  .peek img:nth-of-type(1),.peek-lines span:nth-child(1){animation-delay:-.6s}
+  .peek img:nth-of-type(2),.peek-lines span:nth-child(2){animation-delay:4.4s}
+  .peek img:nth-of-type(3),.peek-lines span:nth-child(3){animation-delay:9.4s}
+  .peek img:nth-of-type(4),.peek-lines span:nth-child(4){animation-delay:14.4s}
+  .peek-rec i{animation:peekRec 1.2s steps(1) infinite}
+  .start-heist:not(:hover):not(:focus-visible){animation:startGlow 2.2s ease-out infinite}
+}
+@media (max-width:900px){
+  .home .start-wrap{grid-template-columns:1fr;align-content:start}
+  .peek{transform:none}
+  .peek-lines span{white-space:normal}
+}

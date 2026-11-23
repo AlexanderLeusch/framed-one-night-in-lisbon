@@ -563,5 +563,49 @@ test('the heist page holds both rooms, and the rooms still load nothing of each 
   // each room on its own page still loads no file of the other
   assert.doesNotMatch(escHtml, /\.\.\//); assert.doesNotMatch(html, /room-1-escape/);
   // the heist page goes online with the rest
-  assert.match(read('.github/workflows/ci.yml'), /cp -r index\.html heist room-1-escape room-2-chase _site\//);
+  assert.match(read('.github/workflows/ci.yml'), /cp -r index\.html start heist room-1-escape room-2-chase _site\//);
+  // the heist leaderboard is on the page before anything is played: this device's heists first, then the online board; every
+  // name goes through esc()
+  assert.match(page, /<div id="boardBox" class="lb">/);
+  assert.match(js, /board\.rows = Core\.parseHeistBoard\(readStore\(Core\.HEIST\.store\) \|\| ''\);/);
+  assert.match(js, /const r = await net\.heistBoard\(\);/);
+  assert.match(js, /<span class="lb-name">' \+ esc\(r\.name\) \+ '<\/span>/);
+});
+
+// ---------- Room 1: the hatch opens without a hitch ----------
+test('room 1 makes the opening of the hatch ready while the briefing is read', () => {
+  const room = read('room-1-escape/js/room.js');
+  // one frame is drawn early with the lights the open hatch switches on, so their shaders are not built as the lid moves
+  const warm = room.match(/function warmHatch\(\)\{[\s\S]*?\n\}/)[0];
+  assert.match(warm, /tunnelLight\.visible = tunnelLight2\.visible = nightLight\.visible = dust\.pts\.visible = true; tunnelEnd\(true\);/);
+  assert.match(warm, /renderer\.compile\(scene, camera\);/);
+  assert.match(warm, /= was; tunnelEnd\(was\[4\]\);/, 'and all is put back as it was');
+  // the same lights are the ones Ending A switches on
+  assert.match(room, /function endingA\(\)\{[\s\S]*?tunnelLight\.visible = tunnelLight2\.visible = nightLight\.visible = dust\.pts\.visible = true; tunnelEnd\(true\);/);
+  // after the briefing scene has been made ready, never while it plays, and not once the hatch is open
+  assert.match(room, /!openingWarm \? warmOpening\(\) : !hatchWarm && cineT < 0 && hatchAnim < 0 \? warmHatch\(\) : null/);
+  assert.doesNotMatch(room, /__dbg/);
+});
+
+// ---------- The start page: one way in, and a look into the game ----------
+test('the start page has one button, to the heist page, shows pictures of the game and runs no script', () => {
+  const start = read('index.html');
+  assert.match(start, /script-src 'none'/);
+  assert.doesNotMatch(start, /<script|\son\w+=|style="/i, 'no script, handler or inline style');
+  // one way in: the heist page. The rooms are not offered on their own any more
+  assert.deepEqual([...start.matchAll(/<a [^>]*href="([^"]+)"/g)].map(m => m[1]), ['heist/', 'https://github.com/AlexanderLeusch/framed-one-night-in-lisbon']);
+  assert.match(start, /<a class="start-heist" href="heist\/">Start the game /);
+  // the look into the game: four pictures from this site, each described for those who cannot see it, and each really there
+  const shots = [...start.matchAll(/<img src="([^"]+)"[^>]* alt="([^"]+)"/g)];
+  assert.equal(shots.length, 4);
+  for (const [, src, alt] of shots){
+    assert.match(src, /^start\/peek-[1-4]\.jpg$/);
+    assert.ok(alt.length > 20, 'a described picture');
+    const size = fs.statSync(path.join(ROOT, src)).size;
+    assert.ok(size > 20000 && size < 400000, src + ' is a picture of a sensible size: ' + size);
+  }
+  // the pictures take turns only where motion is welcome; without it the first one stays
+  const css = read('room-2-chase/styles.css');
+  assert.match(css, /\.peek img:first-of-type\{opacity:1\}/);
+  assert.match(css, /@media \(prefers-reduced-motion:no-preference\)\{\s*\.peek img,/);
 });

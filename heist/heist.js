@@ -9,8 +9,10 @@
    ###    so there is nothing to wait for. If room 2 is still loading by then, it is shown as it is, in the glare of the headlights,
    ###    and begins the moment it is ready: what has been loaded is never thrown away. Only a phone, which has too little
    ###    memory for both worlds at once, loads room 2 after room 1. Both frames share the window's time, so while room 2
-   ###    builds its world, room 1 is told so ('busy', then 'calm' once room 2 has loaded): its opening scene, where Officer
+   ###    builds its world, room 1 is told so ('busy', then 'calm' once room 2 is ready): its opening scene, where Officer
    ###    Hale shuts the door, waits for that and then plays without a stutter.
+   ### 3. The leaderboard. The heist board is shown beside the name, before anything is played: the heists of this device at
+   ###    once, then everybody's best heist from the online board when it answers. The player's own row is marked.
    ### The two rooms stay separate pages that know nothing of each other's files: only this page holds both. */
 (function (){
   'use strict';
@@ -20,7 +22,9 @@
   const writeStore = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   const esc = s => String(s).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');
   const net = Online && typeof fetch === 'function' ? Online.createClient({ fetch: (u, o) => fetch(u, o), store: { get: readStore, set: writeStore } }) : null;
-  const box = $('whoBox'), rooms = $('rooms');
+  const box = $('whoBox'), rooms = $('rooms'), boardBox = $('boardBox');
+  // the heist board as shown: the heists of this device, replaced by the online board once it has answered
+  const board = { rows: [], online: false };
   // a phone (a touch screen that is small, or very little memory) keeps one 3D world in memory at a time; everything else,
   // touch-screen laptops and tablets included, loads room 2 ahead
   const PHONE = (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600) || (navigator.deviceMemory && navigator.deviceMemory < 4);
@@ -48,19 +52,41 @@
     const msg = state.msg ? `<p class="heist-msg${state.bad ? ' bad' : ''}" role="status">${esc(state.msg)}</p>` : '';
     if (state.name){
       box.innerHTML = `<div class="acc on"><p>${state.online ? 'Online as' : 'Driving as'} <b>${esc(state.name)}</b> · ${state.online ? 'your times go on the online leaderboards of room 2 and of the heist.' : 'your times stay on this device.'}</p><button type="button" class="drv" data-do="other"${dis}>Not you?</button></div>
-        ${msg}<div class="heist-go"><button type="button" class="btn" data-do="start"${dis}>Start the heist <small>Enter</small></button></div>`;
+        ${msg}<div class="heist-go"><button type="button" class="btn" data-do="start"${dis}>Let's start <small>Enter</small></button></div>`;
     } else {
       box.innerHTML = `<div class="acc"><p>Type a driver name and you are on the online leaderboard. No email, no password. The name counts in both rooms.</p>
-        <span class="drv-new"><input type="text" class="drv-input" id="whoName" maxlength="${Core.NAME_MAX}" placeholder="Your driver name" aria-label="Your driver name" autocomplete="nickname" spellcheck="false"><button type="button" class="drv-add" data-do="name"${dis}>Start the heist</button></span>${msg}</div>
+        <span class="drv-new"><input type="text" class="drv-input" id="whoName" maxlength="${Core.NAME_MAX}" placeholder="Your driver name" aria-label="Your driver name" autocomplete="nickname" spellcheck="false"><button type="button" class="drv-add" data-do="name"${dis}>Let's start</button></span>${msg}</div>
         <div class="heist-go"><button type="button" class="drv" data-do="start"${dis}>Play without a name</button></div>`;
     }
     const first = box.querySelector(state.name ? '.btn' : '#whoName');
     if (first && !state.busy) first.focus({ preventScroll: true });
+    drawBoard();
+  }
+  // ### Draws the heist leaderboard: the top five, and the driver's own row when it is further down (Core.heistRows, as on
+  // ### the end screen of room 2). Every name is escaped; times and vehicle names come from the rules.
+  function drawBoard(){
+    if (!boardBox) return;
+    const rows = Core.heistRows(board.rows, state.name), lead = rows.length ? rows[0].time : 0;
+    const line = r => '<li class="' + (r.me ? 'me' : '') + (r.gap ? ' gap' : '') + (r.place <= 3 ? ' p' + r.place : '') + '"><span class="lb-place">' + r.place + '</span>'
+      + '<span class="lb-who"><span class="lb-name">' + esc(r.name) + '</span><span class="lb-meta">Escape ' + Core.fmtTimeExact(r.escape) + ' · Drive ' + Core.fmtTimeExact(r.drive) + ' · ' + esc(Core.VEH[r.veh].name) + '</span></span>'
+      + '<span class="lb-time"><b>' + Core.fmtTimeExact(r.time) + '</b>' + (r.place > 1 ? '<small>+' + (r.time - lead).toFixed(1) + ' s</small>' : '') + '</span></li>';
+    const where = '<p class="lb-where' + (board.online ? ' on' : '') + '">' + (board.online ? 'Online · everybody\'s best heist' : 'This device only') + '</p>';
+    const list = rows.length ? '<ol class="lb-list">' + rows.map(line).join('') + '</ol>' : '<p class="heist-wait">No heist yet. Yours can be the first.</p>';
+    boardBox.innerHTML = where + list;
+  }
+  // ### Loads the board: what this device has kept comes first, the online board takes its place when it can be reached.
+  async function loadBoard(){
+    board.rows = Core.parseHeistBoard(readStore(Core.HEIST.store) || '');
+    drawBoard();
+    if (!net) return;
+    const r = await net.heistBoard();
+    if (r.ok){ board.rows = r.rows; board.online = true; drawBoard(); }
   }
   // ### What is known when the page opens: an online account from an earlier visit (its name is asked for), or the driver of
   // ### this device.
   async function init(){
-    if (!Core || !rooms){ box.textContent = 'The heist could not be loaded. Play the rooms from the start page.'; return; }
+    if (!Core || !rooms){ box.textContent = 'The heist could not be loaded. Please load the page again.'; return; }
+    loadBoard();
     if (net && net.user){
       const r = await net.driverName();
       if (r.ok && r.name){ state.name = r.name; state.online = true; setLocalDriver(r.name); draw(); return; }
@@ -116,8 +142,9 @@
         if (state.left || frame2 || !frame1) return;
         tellRoomOne('busy');
         frame2 = makeFrame(ROOM2_WAIT, 'Room 2 · The chase', true); rooms.insertBefore(frame2, frame1);
-        // loaded (or failed to): room 1 may play its scenes again
-        frame2.addEventListener('load', () => tellRoomOne('calm'), { once: true });
+        // room 2 is ready (it has loaded everything and drawn the garage once): room 1 may play its scenes again. Should it
+        // never say so (it failed to load), room 1 is told a while after the page has loaded
+        frame2.addEventListener('load', () => setTimeout(() => tellRoomOne('calm'), 20000), { once: true });
       }, 2500);
     }, { once: true });
   }
@@ -145,7 +172,7 @@
   addEventListener('message', e => {
     if (e.origin !== location.origin || !e.data || typeof e.data.shardHeist !== 'string') return;
     if (frame2 && e.source === frame2.contentWindow && e.data.shardHeist === 'ready'){
-      state.ready = true; rooms.dataset.ready = '1';
+      state.ready = true; rooms.dataset.ready = '1'; tellRoomOne('calm');
       // the player is already waiting in the glare: begin at once
       if (state.left) frame2.contentWindow.postMessage({ shardHeist: 'go' }, location.origin);
     }

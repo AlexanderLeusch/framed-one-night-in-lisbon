@@ -83,6 +83,21 @@ function tuneEnv(root){
   });
 }
 
+// ### Loading up front. Every picture and model that comes in after the page has opened (the player's figure, the linen of
+// ### the uniform, the hands, the tunnel's scans) is counted by one loading manager (ASSETS), so the page knows when all of it
+// ### is there: then everything is made ready for the graphics card at once (warmAll, under "Loop"), instead of in the frames
+// ### where it is first seen, which held the picture still for a moment (on the way into the garage, for one).
+const ASSETS = new THREE.LoadingManager();
+let assetsBusy = false;
+ASSETS.onStart = () => { assetsBusy = true; };
+ASSETS.onLoad = () => { assetsBusy = false; };
+// ### Counts a model (fetched and built in work, a promise) as part of ASSETS.
+function loading(name, work){
+  ASSETS.itemStart(name);
+  work.catch(() => {}).then(() => ASSETS.itemEnd(name));
+  return work;
+}
+
 const hemi = new THREE.HemisphereLight(0x6f7cc8, 0x1b1b28, 0.52);
 scene.add(hemi);
 // the "sun" is the moon: cold, weak, high; street lamps, windows and headlights do the rest
@@ -3465,6 +3480,7 @@ const reverseLights = { mat: new THREE.MeshBasicMaterial({ color: 0x4a4e55 }), g
 // ### base is the folder of room 1, where the model and the scans are. Returns the figure (g), its parts by name and a
 // ### small set of tools to pose it: reset, aim (turn a bone so the next one lies along a direction), limb (two bones
 // ### reaching a point, bending towards a pole), turn (set a bone's turn in the world) and curl (close a hand).
+const INMATE_TEX = new Map();
 function buildInmate(buf, base){
   const dv = new DataView(buf);
   if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('not a glb file');
@@ -3480,10 +3496,14 @@ function buildInmate(buf, base){
   const ibm = acc(skin.inverseBindMatrices), inverses = bones.map((b, k) => new THREE.Matrix4().fromArray(ibm, k * 16));
   // ---- the materials: his skin; the cloth in stripes 6.5 cm wide (one dark and one sand stripe every 13 cm, as on the
   // ---- uniform in the washroom), woven of the scanned linen; the plain sand collar, the patch, the leather of the boots
-  const tl = new THREE.TextureLoader();
+  // (both figures built from the model share each picture: it is loaded, decoded and sent to the graphics card once, and
+  // it counts as part of ASSETS, so it is there before the room is made ready)
   const tex = (file, srgb, rep) => {
-    const t = tl.load(base + file); t.anisotropy = 8; if (srgb) t.encoding = THREE.sRGBEncoding;
+    const key = base + file + '|' + (rep || 0);
+    if (INMATE_TEX.has(key)) return INMATE_TEX.get(key);
+    const t = new THREE.TextureLoader(ASSETS).load(base + file); t.anisotropy = 8; if (srgb) t.encoding = THREE.sRGBEncoding;
     if (rep){ t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); } else t.flipY = false;
+    INMATE_TEX.set(key, t);
     return t;
   };
   const canvas = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; };
@@ -3596,7 +3616,7 @@ function poseRider(I){
 // ### drawn tall and scaled down (MODELS.bike: g.scale.y), so the figure sits in a group that undoes that.
 function loadRider(){
   const md = MODELS.bike, standIn = md.rider.children.slice();
-  fetch('../room-1-escape/models/inmate.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(buf => {
+  loading('inmate', fetch('../room-1-escape/models/inmate.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })).then(buf => {
     const I = buildInmate(buf, '../room-1-escape/');
     poseRider(I);
     const hold = new THREE.Group(); hold.position.set(0, -1.1 - 0.31 * (1 - 0.84) / 0.84, 0.38); hold.scale.set(1, 1 / 0.84, 1);
@@ -6346,17 +6366,21 @@ function showMap(){
     </div>`, 'map');
   drawOverview($('ovMap'));
 }
-function showOverview(){
-  state = 'pause'; overviewOpen = true;
+// ### atDoor: shown while the vehicle waits at the garage door (garageWaitBegin): the run has not begun, so the state stays
+// ### 'garage'; it shows the traffic light and its seconds, and its button lets the vehicle drive out at green.
+function showOverview(atDoor){
+  if (!atDoor){ state = 'pause'; overviewOpen = true; } else overviewOpen = false;
   showCard(`
     <div class="eyebrow">${story ? 'Act 1 · The Evidence' : 'Lisbon · Baixa'} · ${V.name}</div>
     <h2>Where the evidence is</h2>
+    ${atDoor ? `<div class="gar-wait" data-light="red" role="status"><span class="l r"></span><span class="l y"></span><span class="l g"></span><b id="garWait">Green in ${GARAGE_WAIT.min} s</b></div>` : ''}
     <p>Your friend hid six pieces of evidence in the Baixa. Collect all six, pick up the witness who saw the real thief, then escape through the golden gate at the south-west corner of the Baixa, on the way to the 25 de Abril bridge. While you drive, an arrow on the screen points to the nearest piece, then to her.</p>
     <canvas class="ov-map" id="ovMap" width="640" height="640" role="img" aria-label="Map of the Baixa: ${items.map(it => it.ev.name).join(', ')}, the repair kits, your start and the gate"></canvas>
     <div class="actions">
-      <button class="btn" data-action="resume">Start driving <small class="desk-only">Enter</small></button>
+      ${atDoor ? '<button class="btn" data-action="drive-out">Drive out <small class="desk-only">Enter</small></button>' : '<button class="btn" data-action="resume">Start driving <small class="desk-only">Enter</small></button>'}
       <button class="btn ghost" data-action="menu">Main menu</button>
-    </div>`);
+    </div>
+    `);
   drawOverview($('ovMap'));
 }
 // ### Draws the map: north is up (z grows to the south), the same blocks as the radar, then the markers with their names.
@@ -7378,6 +7402,7 @@ card.addEventListener('click', e => {
   if (a === 'go'){ story = null; startRun(sel.mode, sel.veh, true); enterGarage(); }
   else if (a === 'board') garageBoard();
   else if (a === 'street') garageToStreet(false);
+  else if (a === 'drive-out') garageGo();
   else if (a === 'again') startRun(mode, V.key);
   else if (a === 'resume') resume();
   else if (a === 'menu'){ story = null; backToMenu(); }
@@ -7740,6 +7765,9 @@ function updateShowroom(){
 const ShardWalker = (() => {
 function create(o){
 const THREE = o.THREE, renderer = o.renderer, camera = o.camera, canvas = o.canvas, REDUCED = !!o.reduced, BASE = o.base;
+// what is loaded here (the hands, the linen of the sleeves) is counted by the page's loading manager, when it gives one
+const ASSETS = o.manager || THREE.DefaultLoadingManager;
+const loading = (name, work) => { ASSETS.itemStart(name); work.catch(() => {}).then(() => ASSETS.itemEnd(name)); return work; };
 const ANISO = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -7951,14 +7979,17 @@ function prisonCloth(w, h, repeat, rib = 1){
 // ### over the painted stripes once the picture has loaded, and its normal and roughness maps give the weave its relief and
 // ### its matt and shiny threads. Until then, or if the scans cannot be loaded, the painted ribs of the twill show instead.
 function linenCloth(cloth, mat, strength = 1){
-  const im = new Image();
+  const im = new Image(), file = BASE + 'textures/uniform-linen-detail.jpg';
+  ASSETS.itemStart(file);
   im.onload = () => {
     const c = cloth.map.image, g = c.getContext('2d');
     g.save(); g.globalCompositeOperation = 'overlay'; g.globalAlpha = .85 * strength; g.drawImage(im, 0, 0, c.width, c.height); g.restore();
     cloth.map.needsUpdate = true;
+    ASSETS.itemEnd(file);
   };
-  im.src = BASE + 'textures/uniform-linen-detail.jpg';
-  const loader = new THREE.TextureLoader(), scan = (file, then) => loader.load(BASE + 'textures/' + file, t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = ANISO; then(t); mat.needsUpdate = true; }, undefined, () => {});
+  im.onerror = () => ASSETS.itemEnd(file);
+  im.src = file;
+  const loader = new THREE.TextureLoader(ASSETS), scan = (file, then) => loader.load(BASE + 'textures/' + file, t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = ANISO; then(t); mat.needsUpdate = true; }, undefined, () => {});
   mat.bumpMap = cloth.bump; mat.bumpScale = .002;
   scan('uniform-linen-normal.jpg', t => { mat.bumpMap = null; mat.normalMap = t; mat.normalScale = new THREE.Vector2(.7 * strength, .7 * strength); });
   scan('uniform-linen-rough.jpg', t => { mat.roughnessMap = t; mat.roughness = 1; });
@@ -8133,7 +8164,7 @@ function buildRealHand(side, buf){
 }
 // ### Loads the two real hands and swaps them in for the drawn ones. If they cannot be loaded, the drawn hands stay.
 function loadRealHands(){
-  Promise.all(['right', 'left'].map(n => fetch(BASE + 'models/hand-' + n + '.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })))
+  loading('hands', Promise.all(['right', 'left'].map(n => fetch(BASE + 'models/hand-' + n + '.glb').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }))))
     .then(([r, l]) => {
       for (const [key, buf, side] of [['r', r, 1], ['l', l, -1]]){
         const h = buildRealHand(side, buf);
@@ -8357,7 +8388,7 @@ function grip(k, wide, own){ HANDS.grip = REDUCED ? 0 : k; HANDS.wide = wide ? 1
 function handTo(key, p, curl){ const h = HANDS[key]; h.to = p && !REDUCED ? p : null; if (p) h.toCurl = curl || 0; }
 // dropHand lets one hand sink out of the picture while the other works (on = true), or brings it back
 function dropHand(key, on){ HANDS[key].drop = on ? 1 : 0; }
-return { cam, EYE, BODY, WALK_SPEED, place, goTo, update, hold, grip, handTo, dropHand, drawHands, reach: reachHand, setActive, gliding: () => cam.t < 1, hands: HANDS, lowerHands: () => { HANDS.show = false; } };
+return { scene: handScene, handCam, cam, EYE, BODY, WALK_SPEED, place, goTo, update, hold, grip, handTo, dropHand, drawHands, reach: reachHand, setActive, gliding: () => cam.t < 1, hands: HANDS, lowerHands: () => { HANDS.show = false; } };
 }
 return { create };
 })();
@@ -8522,7 +8553,7 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
   // ### towards the garage; a run begins behind it, and it swings open as you walk out (garageTunnelDoor).
   {
     const ex = tdx, zw = G.z1, zT = zw + 1, L = TD.len, r = TD.r, sp = Y + TD.spring, dh = TD.h, dw = tdw, base = '../room-1-escape/textures/';
-    const loader = new THREE.TextureLoader(), aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    const loader = new THREE.TextureLoader(ASSETS), aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     const scan = (file, srgb) => { const t = loader.load(base + file, undefined, undefined, () => {}); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; if (srgb) t.encoding = THREE.sRGBEncoding; return t; };
     const tmat = (color, normal, tint, o) => { const m = new THREE.MeshStandardMaterial(Object.assign({ map: scan(color, true), normalMap: scan(normal), roughness: 0.95, side: THREE.DoubleSide }, o)); m.color.setRGB(tint[0], tint[1], tint[2]); return m; };
     const TM = {
@@ -8623,6 +8654,24 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
     put(mergeGeos([-1, 1].map(sd => box(sd * (G.door - 0.62) - 0.065, sd * (G.door - 0.62) + 0.065, 0.001, 0.021, -T, -0.6))), paint(0xe8b21c));
     // a white stop line before the door, and the tubes and their pools as on the ramp
     put(box(-G.door + 0.4, G.door - 0.4, 0.001, 0.021, -1.6, -1.25), paint(0xe6e6de));
+    // ### The traffic light at the stop line, on the right-hand wall (as the vehicle faces the door), facing it: red, yellow and green, and under them
+    // ### a little display with the seconds until green (garageSignal). The vehicle waits here while the city is made ready.
+    {
+      const lx = -(G.door - 0.3), lz = -1.05, ly = 2.75, lamps = [], glows = [];
+      put(box(lx - 0.2, lx + 0.2, ly - 1.05, ly + 0.5, lz, lz + 0.22), paint(0x15171c));
+      put(box(lx - 0.05, lx + 0.05, ly + 0.5, G.tunnel, lz + 0.06, lz + 0.16), paint(0x2a2d33));
+      [0xff3a30, 0xffb21e, 0x35e07a].forEach((c, i) => {
+        const y = ly + 0.3 - i * 0.3, m = new THREE.Mesh(new THREE.CircleGeometry(0.11, 20).rotateY(Math.PI), new THREE.MeshBasicMaterial({ color: C(c).multiplyScalar(0.14) }));
+        m.position.set(lx, y, lz - 0.005); top.add(m); lamps.push({ m, c: C(c) });
+        const gl = glowSprite(C(c), 0.9, 0.6); gl.position.set(lx, y, lz - 0.08); gl.visible = false; top.add(gl); glows.push(gl);
+      });
+      const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64;
+      const tx = new THREE.CanvasTexture(cv); tx.encoding = THREE.sRGBEncoding;
+      const num = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.17).rotateY(Math.PI), new THREE.MeshBasicMaterial({ map: tx }));
+      num.position.set(lx, ly - 0.72, lz - 0.005); top.add(num);
+      GAR.light = { lamps, glows, cv, tx, shown: '' };
+      garageSignal('red', '');
+    }
     const topTubes = [], topPools = [];
     for (let z = -T + 2; z < -1.5; z += 6){ topTubes.push(boxG(0.16, 0.07, 1.8, 0, G.tunnel - 0.06, z), boxG(0.3, 0.05, 1.9, 0, G.tunnel - 0.02, z)); topPools.push(new THREE.PlaneGeometry(G.door * 2 - 0.8, 6.4).rotateX(-Math.PI / 2).translate(0, 0.025, z)); }
     top.add(new THREE.Mesh(mergeGeos(topTubes), new THREE.MeshBasicMaterial({ color: 0xf1f6ff })));
@@ -8666,7 +8715,7 @@ const GAR = { group: new THREE.Group(), top: new THREE.Group(), colliders: Core.
 
 // ### The player on foot: the body of the escape room (walker.js), with the garage's walls and floor and this game's sound.
 GAR.mouth = { t: 'b', x0: -Core.GARAGE.door, x1: Core.GARAGE.door, z0: Core.GARAGE.z1, z1: Core.GARAGE.z1 + 1 };
-const walker = ShardWalker.create({ THREE, renderer, camera, canvas, reduced: REDUCED, base: '../room-1-escape/', collide: garageCollide, floorAt: Core.garageFloor, pace: () => garage.run ? Core.GARAGE.run : Core.GARAGE.walk,
+const walker = ShardWalker.create({ THREE, renderer, camera, canvas, reduced: REDUCED, manager: ASSETS, base: '../room-1-escape/', collide: garageCollide, floorAt: Core.garageFloor, pace: () => garage.run ? Core.GARAGE.run : Core.GARAGE.walk,
   sound: () => audio ? { ctx: audio.ctx, out: audio.gameVol } : null, muted: () => muted });
 // ### Puts the three vehicles where they belong in the garage: the chosen one is the player's vehicle and stands in its bay, the
 // ### other two are parked in theirs. Nobody sits on the motorcycle until the player has got on.
@@ -8857,24 +8906,25 @@ function garageSwap(){
   // nothing may stand in the way out: traffic within 30 m of the door starts somewhere else (the door is still shut)
   for (const n of npcs) if (n.on && Math.hypot(n.x - G.street[0], n.z - G.street[1] - 10) < 30){ n.on = false; spawnNpc(n, 60); }
   updateNpcs(0);
-  sfx.door(true);
 }
-// ### Leaves the garage for the street and opens the map of the evidence at once. Driven out through the roller door, the
-// ### vehicle stays where it is, rolling on the street in front of the garage; with "Skip the garage" it stands at the usual
-// ### start. From "Start driving" on it is a run like any other.
+// ### Leaves the garage for the street. Driven out through the roller door, the vehicle stays where it is, rolling on the
+// ### street in front of the garage, and the run begins at once: the map of the evidence was shown while it waited at the door.
+// ### With "Skip the garage" it stands at the usual start and the map opens; from "Start driving" on it is a run like any other.
 function garageToStreet(rolling){
   const out = rolling && !!garage.shift;
   garageLeave();
   if (out){ car.prevSpeed = car.speed; car.steer = 0; } else resetCar();
   hud.classList.remove('off');
   state = 'play';
-  showOverview();
+  if (out){ initAudio(); toast('Follow the arrow to the evidence. Every police car is looking for inmate 4471.', '', 3600); }
+  else showOverview();
 }
 // ### Puts everything back as it is outside the garage: the city visible, the three models with the player's vehicle again,
 // ### the roller door shut in its house on the street.
 function garageLeave(){
   if (!garage.on) return;
-  Object.assign(garage, { on: false, live: false, phase: '', shift: null, run: false });
+  Object.assign(garage, { on: false, live: false, phase: '', shift: null, run: false, wait: null });
+  garageSignal('red', '');
   GAR.group.visible = false; CITY.group.visible = true;
   garageTop(true); garageShutter(0); garageSwing(0);
   Object.values(MODELS).forEach(md => carTilt.add(md.g));
@@ -8905,6 +8955,77 @@ function garageDrive(dt, roll){
     if (impact > 2){ car.speed *= 0.3; car.shake = Math.max(car.shake, 0.25); sfx.crash(impact); } else car.speed *= 0.985;
   }
   settleCar(dt);
+}
+// ### The wait at the roller door. Down in the garage the city is not drawn, so when the vehicle comes up into it (garageSwap)
+// ### the graphics card has to take in the whole city at once, which can hold the picture for a moment. So the vehicle stops
+// ### at the stop line before the shut door, and the traffic light beside it counts GARAGE_WAIT.min seconds down (real
+// ### seconds), while the city is drawn once in each of four directions into a small picture nobody sees (warmCity). Meanwhile
+// ### the map of the evidence is shown, which used to come on the street. The light turns yellow for the last second and green
+// ### once the time is up and the frames come quickly again (GARAGE_WAIT.slow seconds or less, three in a row), or at the latest
+// ### GARAGE_WAIT.late seconds after the city was drawn, so a slow device that never gets fast frames is not kept waiting. Closing the map
+// ### ("Drive out") lets the vehicle go at green: the door rolls up and it drives out; closed earlier, it waits for green.
+const GARAGE_WAIT = { min: 5, slow: 0.12, late: 2.5, brake: 5 };
+function garageSignal(colour, text){
+  const L = GAR.light; if (!L) return;
+  const on = ['red', 'yellow', 'green'].indexOf(colour);
+  L.lamps.forEach((p, i) => p.m.material.color.copy(p.c).multiplyScalar(i === on ? 1 : 0.14));
+  L.glows.forEach((gl, i) => { gl.visible = i === on; });
+  const key = colour + text;
+  if (key === L.shown) return;
+  L.shown = key;
+  const g = L.cv.getContext('2d');
+  g.fillStyle = '#07080a'; g.fillRect(0, 0, 128, 64);
+  g.fillStyle = on === 2 ? '#35e07a' : on === 1 ? '#ffb21e' : '#ff3a30';
+  g.font = '700 46px "JetBrains Mono", Consolas, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 64, 35);
+  L.tx.needsUpdate = true;
+}
+const warmRT = new THREE.WebGLRenderTarget(64, 64), warmCam = new THREE.PerspectiveCamera(95, 1, 0.5, 3000);
+function warmCity(i){
+  warmCam.position.set(car.x, car.y + 3, car.z); warmCam.rotation.set(0, i * Math.PI / 2, 0); warmCam.updateMatrixWorld();
+  renderer.setRenderTarget(warmRT);
+  try { renderer.render(scene, warmCam); } catch (e) {}
+  renderer.setRenderTarget(null);
+}
+function garageWaitBegin(){
+  const now = performance.now();
+  garage.phase = 'wait'; garage.wait = { t0: now, last: now, fast: 0, warm: 0, warmed: 0, go: false, green: false };
+  garageSignal('red', String(GARAGE_WAIT.min));
+  hud.classList.remove('off');
+  showOverview(true);
+}
+// the vehicle rolls on to the stop line and stands there, its nose just before the white line
+function garageHold(dt){
+  const S = garage.shift, z = car.z - S.z - GAR.end, stop = -1.7 - (Math.max(...V.samples) + V.r);
+  car.speed = Math.min(car.speed, Math.sqrt(2 * GARAGE_WAIT.brake * Math.max(0, stop - z)));
+  car.yaw = 0; car.steer = 0;
+  car.x += Math.sin(car.heading) * car.speed * dt; car.z += Math.cos(car.heading) * car.speed * dt;
+  settleCar(dt);
+}
+function garageWait(dt){
+  const g = garage, w = g.wait, now = performance.now(), real = (now - w.last) / 1000;
+  w.last = now;
+  garageHold(dt);
+  if (w.warm < 4){ warmCity(w.warm++); if (w.warm === 4) w.warmed = now; }
+  else w.fast = real <= GARAGE_WAIT.slow ? w.fast + 1 : 0;
+  const ready = w.warm >= 4 && (w.fast >= 3 || now - w.warmed >= GARAGE_WAIT.late * 1000);
+  const left = Math.max(0, GARAGE_WAIT.min - (now - w.t0) / 1000), green = left <= 0 && ready;
+  garageSignal(green ? 'green' : left <= 1 ? 'yellow' : 'red', green ? 'GO' : left > 0 ? String(Math.ceil(left)) : '...');
+  const out = card.querySelector('#garWait');
+  if (out){
+    const msg = green ? 'Green: the door opens when you drive out' : left > 0 ? `Green in ${Math.ceil(left)} s` : 'Almost ready...';
+    if (out.textContent !== msg) out.textContent = msg;
+    out.parentNode.dataset.light = green ? 'green' : left <= 1 ? 'yellow' : 'red';
+  }
+  if (green && !w.green){ w.green = true; if (!w.go) sfx.collect(); }
+  // at green the roller door rolls up (the rest of the exit phase) and the vehicle drives out
+  if (green && w.go){ Object.assign(g, { phase: 'exit', t: 0, wait: null }); sfx.door(true); }
+}
+// "Drive out" on the map at the door: the map closes, and the vehicle goes at green
+function garageGo(){
+  if (!garage.on || garage.phase !== 'wait') return;
+  hideOverlay(); garage.wait.go = true;
+  if (!garage.wait.green) toast('The roller door opens when the light turns green.', '', 2600);
 }
 // ### Over the top of the ramp the vehicle drives itself: along the level stretch, out through the roller door and round to
 // ### the left into the lane of the street (the way of Core.garageWay, followed with Core.wayAim). Returns true at its end.
@@ -9062,10 +9183,12 @@ function updateGarage(dt){
     if (Core.garageOut(car.z)) Object.assign(g, { phase: 'exit', t: 0, wi: 0, way: Core.garageWay() });
     return;
   }
+  if (g.phase === 'wait'){ garageWait(dt); garageCam(dt, false); return; }
   const done = garageAuto(dt);
   garageCam(dt, false);
-  // the step up into the city: once the camera is on the level stretch and under the first floor of the house up there
-  if (!g.shift){ if (camera.position.z >= GAR.end - G.top + 0.6 && camera.position.y <= G.y + G.rise + GAR.clear + 0.05) garageSwap(); }
+  // the step up into the city: once the camera is on the level stretch and under the first floor of the house up there; then
+  // the vehicle waits at the traffic light before the shut door
+  if (!g.shift){ if (camera.position.z >= GAR.end - G.top + 0.6 && camera.position.y <= G.y + G.rise + GAR.clear + 0.05){ garageSwap(); garageWaitBegin(); return; } }
   else garageShutter(ease(clamp(g.t / T.door, 0, 1)));
   if (done) garageToStreet(true);
 }
@@ -9282,11 +9405,33 @@ function storyGameOver(reason){
 }
 
 // Compiles the shaders of everything in the scene, hidden objects included, before they are first seen
-function warmUp(){
+function warmUp(sc = scene, cam = camera){
   const hidden = [];
-  scene.traverse(o => { if (!o.visible && !o.isLight){ hidden.push(o); o.visible = true; } });
-  try { renderer.compile(scene, camera); } catch (e) {}
+  sc.traverse(o => { if (!o.visible && !o.isLight){ hidden.push(o); o.visible = true; } });
+  try { renderer.compile(sc, cam); } catch (e) {}
   hidden.forEach(o => { o.visible = false; });
+}
+// ### Loaded ahead on the heist page, once everything has loaded (ASSETS): the shaders of the world and of your hands are
+// ### built again with all that has come in, and every picture goes to the graphics card now, also those of what is out of
+// ### sight (the garage and its tunnel, the figure on the motorcycle). Otherwise each would be built or sent in the first
+// ### frames after the tunnel, and hold the picture still just as the player arrives. (Opened on its own, the page does
+// ### not do this: it would hold the menu still while the player types a name.)
+function warmAll(){
+  warmUp(); warmUp(walker.scene, walker.handCam);
+  const sent = new Set(), send = t => {
+    if (!t || !t.isTexture || t.isCubeTexture || t.isRenderTargetTexture || sent.has(t) || !t.image || t.image.complete === false) return;
+    sent.add(t);
+    try { renderer.initTexture(t); } catch (e) {}
+  };
+  for (const sc of [scene, walker.scene]) sc.traverse(o => { for (const m of [].concat(o.material || [])){ for (const k in m) send(m[k]); if (m.uniforms) for (const k in m.uniforms) send(m.uniforms[k].value); } });
+}
+// ### Draws the picture once, as frame() would, without moving anything: loaded ahead on the heist page, the garage is drawn
+// ### once while it waits, so its first frame after the tunnel has nothing left to build or send.
+function drawOnce(){
+  garageLight();
+  sky.position.copy(camera.position);
+  if (composer && GFX[gfx].post) composer.render(); else renderer.render(scene, camera);
+  if (garage.on) walker.drawHands(scene.environment);
 }
 
 // ---------- Loop ----------
@@ -9400,6 +9545,14 @@ else {
   // ### Loaded ahead by the heist page: prepared and standing still. When that page says go (only its message, from our own
   // ### address, counts, and only once), the escape time is read, the player arrives and the picture starts to move.
   heistPrepare();
+  // ready once everything has loaded and the garage has been drawn once (see warmAll and drawOnce); on a very slow
+  // connection after HEIST_READY_WAIT seconds at most, with what has arrived
+  const HEIST_READY_WAIT = 20, waitFrom = performance.now();
+  const ready = () => {
+    if (assetsBusy && performance.now() - waitFrom < HEIST_READY_WAIT * 1000) return setTimeout(ready, 250);
+    if (!heist.went){ try { warmAll(); drawOnce(); } catch (e) {} }
+    parent.postMessage({ shardHeist: 'ready' }, location.origin);
+  };
   addEventListener('message', e => {
     if (e.origin !== location.origin || e.source !== parent || !e.data || e.data.shardHeist !== 'go' || heist.went) return;
     heist.went = true;
@@ -9408,6 +9561,6 @@ else {
     clearGlare();
     requestAnimationFrame(frame);
   });
-  parent.postMessage({ shardHeist: 'ready' }, location.origin);
+  ready();
 }
 })();
