@@ -146,4 +146,4 @@ After Ending B, every action is refused except **Try again**, which starts a new
 | Volume slider | On the pause card, 0 to 100 %. It is kept for the next visit |
 | `Enter` | Confirm the main button on a card |
 
-- **Side steps.** Walking sideways (A / D or the left and right arrow keys), your body keeps facing the way you look: one leg steps out to the side with the knee bending in front of you, the other closes. Only at a slant do the legs turn the way you go.
+- **Side steps.** Walking sideways (A / D or the left and right arrow keys), your body keeps facing the way you look: the leg on the side you go to steps out with the knee bending in front of you, the other closes up beside it, and the feet never cross. Both boots stay flat on the floor. A side step is short (about 0.3 m), so straight sideways you walk at about two thirds of your walking speed. Only at a slant do the legs turn the way you go, at full speed.
