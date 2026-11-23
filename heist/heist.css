@@ -14,3 +14,11 @@
 #rooms iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
 #rooms iframe.under{visibility:hidden}
 body.heist-page.playing{overflow:hidden}
+/* the heist leaderboard: under the driver name on a narrow window, beside it on a wide one, so it is seen without scrolling */
+.heist-board{display:grid;gap:14px;align-content:start;max-width:640px}
+.heist-board .lb{align-content:start}
+@media (min-width:1080px){
+  .heist-page .start-wrap{max-width:1180px;grid-template-columns:minmax(0,1fr) minmax(340px,420px);column-gap:40px;align-items:start}
+  .heist-page .start-wrap>*{grid-column:1}
+  .heist-page .heist-board{grid-column:2;grid-row:1 / span 3;padding-top:clamp(0px,6vw,64px)}
+}

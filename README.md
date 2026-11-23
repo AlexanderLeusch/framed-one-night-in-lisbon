@@ -75,7 +75,8 @@ The repository has one folder per room, and one folder for each kind of supporti
 
 ```
 shard-heist/
-├── index.html               START PAGE: the whole heist, then each room on its own (no script)
+├── index.html               START PAGE: one button, "Start the game", and a look into the game (no script)
+├── start/                   the four pictures of the game the start page shows
 ├── heist/                   THE HEIST PAGE: the driver name for both rooms, then both rooms on one page
 │   ├── index.html           the name box and the place for the two frames
 │   ├── heist.js             the driver (room 2's online account), room 1 in a frame, room 2 loaded ahead under it
@@ -158,7 +159,7 @@ shard-heist/
 
 ## Testing
 
-`npm test` runs 207 tests in Node (47 of them for the escape room), and `npm run test:browser` runs 24 more in headless Chrome (8 of them in the escape room, 1 on the start page, 1 on the heist page). CI runs all of them, plus the SRI check and the 36 pytest checks of `original-solo-project/`, on every push to `main` and on every pull request. They cover:
+`npm test` runs 211 tests in Node (47 of them for the escape room), and `npm run test:browser` runs 24 more in headless Chrome (8 of them in the escape room, 1 on the start page, 1 on the heist page). CI runs all of them, plus the SRI check and the 36 pytest checks of `original-solo-project/`, on every push to `main` and on every pull request. They cover:
 
 - **Escape room:** both endings and the jammed-door grace minute; refused actions (walking where there is no exit, taking an item twice, the car key before the tile is off, the door without the mop, lock wheels that do not exist, anything before the briefing or after an ending) return the unchanged state; wrong codes cost 30 s but never take the clock below zero; warnings sound once; tampered saved games are rejected; in the browser: briefing, refused action, save and continue after a reload, a wrong code and then Ending A (down the ladder, the door refused from the foot of it, the walk to it and the door opened).
 - **Accepted actions:** each menu action in the states whose cards show it; valid map and vehicle picks; restoring a valid saved selection; finishing every story act; both story endings.

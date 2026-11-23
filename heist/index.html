@@ -26,11 +26,16 @@
     <div class="m-label" id="whoTitle"><span>01</span>Driver · your name on the leaderboard, in both rooms</div>
     <div id="whoBox"><p class="heist-wait">One moment…</p></div>
   </section>
+  <!-- the heist leaderboard, before anything is played: everybody's best heist (online), or the heists of this device -->
+  <section class="heist-board" aria-labelledby="boardTitle">
+    <div class="m-label" id="boardTitle"><span>02</span>Heist leaderboard · the times to beat</div>
+    <div id="boardBox" class="lb"><p class="heist-wait">Loading the leaderboard…</p></div>
+  </section>
   <p class="start-foot"><a href="../">Back to the start page</a></p>
 </main>
 <!-- the two rooms, each in its own frame (made by heist.js); room 2 stays out of sight until room 1 is left -->
 <div id="rooms" hidden></div>
-<noscript><p class="heist-noscript">The heist needs JavaScript. You can still play each room on its own from the <a href="../">start page</a>.</p></noscript>
+<noscript><p class="heist-noscript">The heist needs JavaScript. Please switch it on and open this page again, or go back to the <a href="../">start page</a>.</p></noscript>
 <script src="../room-2-chase/js/core.js"></script>
 <script src="../room-2-chase/js/online.js"></script>
 <script src="heist.js"></script>

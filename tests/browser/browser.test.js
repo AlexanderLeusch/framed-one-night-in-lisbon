@@ -411,15 +411,23 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await send('Emulation.clearDeviceMetricsOverride');
     });
 
-    await escape('the start page leads to both rooms, in playing order, and runs no script', async () => {
+    await escape('the start page has one way in, the heist page, shows the game on its monitor and runs no script', async () => {
       errors.length = 0;
       await send('Page.navigate', { url: base });
-      await waitFor("!!document.querySelector('.start-rooms')", 15000, 'start page');
+      await waitFor("!!document.querySelector('.start-heist')", 15000, 'start page');
       // the stylesheet may arrive a moment after the markup
-      await waitFor("getComputedStyle(document.querySelector('.start-room b')).fontFamily.includes('Big Shoulders')", 10000, 'start page stylesheet').catch(() => {});
-      assert.equal(await evaluate("[...document.querySelectorAll('.start-room')].map(a => a.getAttribute('href')).join()"), 'room-1-escape/,room-2-chase/');
+      await waitFor("getComputedStyle(document.querySelector('.start-heist')).fontFamily.includes('Big Shoulders')", 10000, 'start page stylesheet').catch(() => {});
+      assert.equal(await evaluate("[...document.querySelectorAll('main a')].map(a => a.getAttribute('href')).join()"), 'heist/,https://github.com/AlexanderLeusch/framed-one-night-in-lisbon', 'one button, and the link to the source');
+      assert.match(await text('.start-heist'), /Start the game/);
       assert.equal(await evaluate("document.scripts.length"), 0, 'no script on the start page');
-      assert.equal(await evaluate("getComputedStyle(document.querySelector('.start-room b')).fontFamily.includes('Big Shoulders')"), true, 'the shared fonts load');
+      assert.equal(await evaluate("getComputedStyle(document.querySelector('.start-heist')).fontFamily.includes('Big Shoulders')"), true, 'the shared fonts load');
+      // the four pictures of the game have loaded and lie in the monitor
+      await waitFor("[...document.querySelectorAll('.peek img')].every(i => i.complete)", 15000, 'the pictures');
+      assert.equal(await evaluate("[...document.querySelectorAll('.peek img')].filter(i => i.naturalWidth === 1600 && i.naturalHeight === 900).length"), 4);
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, 'nothing sticks out sideways');
+      // the button leads to the heist page
+      await click('.start-heist');
+      await waitFor("location.pathname.endsWith('/heist/') && !!document.getElementById('boardBox')", 15000, 'the heist page');
       assert.deepEqual(errors, []);
     });
 
@@ -442,6 +450,10 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await give('<>');
       await waitFor("/Enter a driver name/.test((document.querySelector('.heist-msg') || {}).textContent || '')", 5000, 'an empty name is refused');
       assert.equal(await evaluate("document.querySelectorAll('#rooms iframe').length"), 0, 'no room is loaded before the heist is started');
+      // the heist leaderboard is there before anything is played (the stand-in's online board is empty)
+      await waitFor("/Online/.test((document.querySelector('#boardBox .lb-where') || {}).textContent || '')", 15000, 'the online heist board');
+      assert.match(await text('#boardBox'), /No heist yet/);
+      assert.ok(supa.calls.includes('GET /rest/v1/heist_board'), 'the board was asked for');
       // accepted: the name goes online, becomes the driver of this device, and room 1 opens in its frame
       await give('Alex');
       await waitFor("document.querySelectorAll('#rooms iframe').length >= 1", 15000, 'room 1 in its frame');
