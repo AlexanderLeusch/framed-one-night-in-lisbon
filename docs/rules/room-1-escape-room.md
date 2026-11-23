@@ -8,13 +8,13 @@ Open the hatch in the floor of the toilet stall and climb out **before the clock
 
 ## Story
 
-The briefing is a short series of cards; **Next** and **Back** move between them.
+The briefing is a short series of cards, each only a few lines long; **Next** and **Back** move between them.
 
-1. **The front page.** *The Lisbon Times* of Monday 16 April 2012: the **Starfall necklace**, lent by the Ashford family to the Museu de Marinha for an exhibition marking 100 years since the Titanic sank, vanished from its glass case on the night of the centenary. No alarm sounded, and a detective was put on the case.
-2. **Who you are.** Three weeks ago you were that detective. The trail ended at your own door: the necklace's velvet box was hidden in your car. Tonight you are **inmate 4471**, convicted of the theft: someone framed you. Your oldest friend on the force kept digging and found the proof that clears your name, but the people who framed you came after him. Before he disappeared from Lisbon, he hid the evidence across the city, in places only you would know to look.
+1. **The front page.** *The Lisbon Times* of Monday 16 April 2012: the **Starfall necklace**, on show at the Museu de Marinha for 100 years since the Titanic sank, vanished from its glass case. No alarm sounded, and a detective was put on the case.
+2. **Who you are.** You were that detective, until the trail ended at your own door: the necklace's box was hidden in your car. Now you are **inmate 4471**: someone framed you. Your oldest friend on the force found the proof of your innocence, then vanished; he hid it across Lisbon, where only you would look. Get out, find it, and prove your innocence.
 3. **The door.** Officer Hale walks you to washroom 2. In a short scene in the room you turn round to the open door, see him in the corridor light, and watch him swing the door shut and lock it. Through the door he says: "Your ten minutes have begun. Not a second more." He waits outside.
-4. **The rumour.** Inmates whisper about a hatch in the floor of this washroom, locked with a four-digit code. Three spots in the room hide a car key, the first two digits and the last two digits of the code, each behind a short Titanic mini game.
-5. **How to play:** the controls.
+4. **The rumour.** A hatch in the floor is locked with a four-digit code. Three Titanic mini games hide a car key and the two halves of the code.
+5. **How to play:** the controls in a few lines (walking, looking, markers, mini games, pause) and the cost of a wrong code.
 
 The clock only starts when the player presses **Start the clock** after the briefing.
 
