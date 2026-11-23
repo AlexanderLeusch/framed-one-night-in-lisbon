@@ -49,7 +49,7 @@ A 3D police-chase driving game that runs in any modern browser. Pick a getaway v
 | Map | Lisbon's Baixa (real street names, Arco da Rua Augusta, traffic lights, 26 AI cars, 2 buses, 4 motorcycles, 3 trams) |
 | Vehicles | Muscle coupe (balanced), Superbike in gloss black (fastest, most agile), Tractor unit in white, modelled on a MAN TGX (slowest, toughest, best at ramming) |
 | Story mode | *The Necklace Job*, after the escape: one night in Lisbon, Officer Hale on the radio, a hidden letter, 3 endings. Which one you get depends on whether you found the letter |
-| Systems | Seven synthesised radio stations, hills on every map, wanted stars and a police helicopter, visible damage, police AI with a bust meter, crash damage and repair kits, synthesised engine sounds, map-boundary force field, radar, Ultra/Balanced graphics |
+| Systems | Seven synthesised radio stations, hills, wanted stars and a police helicopter, visible damage, police AI with a bust meter, crash damage and repair kits, synthesised engine sounds, map-boundary force field, radar, Ultra/Balanced graphics |
 | Controls | `W A S D` or arrow keys to drive, `Space` handbrake, hold `C` to look back, `E` nitro (a charge for every third pickup), `P` / `Esc` pause, `M` map (Lisbon), `N` sound, `R` radio, volume sliders for game and music in the menu and the pause, `Enter` confirms. On phones: touch pads (brake and gas together are the handbrake, the round button looks back, the flame button fires nitro), and steering by tilting the phone sideways |
 
 ## Run it locally
@@ -72,7 +72,7 @@ Opening `index.html`, `room-1-escape/index.html` or `room-2-chase/index.html` di
 The repository has one folder per room, and one folder for each kind of supporting work. Each room is a complete web page on its own.
 
 ```
-shard-heist/
+framed-one-night-in-lisbon/
 ├── index.html               START PAGE: one button, "Start the game", and a look into the game (no script)
 ├── start/                   the four pictures of the game the start page shows
 ├── heist/                   THE HEIST PAGE: the driver name for both rooms, then both rooms on one page
@@ -192,13 +192,13 @@ The game needs no server of its own. The outside services are the CDN for three.
 
 ## Limits
 
-- **Lisbon:** the map is a simplified Baixa: square blocks, 7 streets each way, and some real streets left out. It has hills, which the real Baixa does not: a game decision. The houses follow the Pombaline pattern and the landmarks are modelled freely from descriptions, not from plans. It is recognisable, not surveyed. The other two maps are not Lisbon yet.
+- **Lisbon:** the map is a simplified Baixa: square blocks, 7 streets each way, and some real streets left out. It has hills, which the real Baixa does not: a game decision. The houses follow the Pombaline pattern and the landmarks are modelled freely from descriptions, not from plans. It is recognisable, not surveyed.
 - **Look and sound:** procedural geometry, synthesised engines and the radio are stylised; they do not look or sound like photos or recordings. Sound was checked by measurement (frequency, level, spectrum), so it should also be judged by ear.
 - **Performance:** Ultra graphics (bloom, large shadow maps) needs a decent GPU; phones start in Balanced. When the frame rate stays under 48 per second, the resolution drops by itself, down to 60 %. Frame rates were only measured in software rendering, not on a real phone.
 - **AI:** traffic never changes lanes and keeps its speed on hills; police ignore traffic lights and can take detours in the city.
 - **Physics:** arcade model with collision circles; no tyre grip or mass transfer.
 - **Structure:** `game.js` is one large closure (about 5,100 lines) whose sections share variables, so it is harder to work on in parallel than separate modules would be.
-- **Testing:** the browser test checks the main workflows, but not long play sessions, every map end to end, or sound quality, and the CI browser renders in software.
+- **Testing:** the browser test checks the main workflows, but not long play sessions, a whole run end to end, or sound quality, and the CI browser renders in software.
 - **Online leaderboard:** the run time is measured in the player's browser, so a player who changes the page could send a fast time that the game did not really drive; the database only refuses impossible times. Proving a time would need the server to check the run itself. A name-only driver lives in one browser: clearing the site data or signing out ends it (its times stay on the board). The free Supabase project pauses after a week without use and must be woken in its dashboard before a demo.
 - **Persistence:** best times and the boards of this device live in one browser only and can be edited by the player.
 
