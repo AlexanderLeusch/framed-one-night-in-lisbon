@@ -22,6 +22,10 @@ function findChrome(){
 
 const CHROME = findChrome();
 const LOAD_MS = 120000;
+// ### How long a step of the online board may take. Each one is several requests answered by the stand-in below, and in
+// ### headless Chrome without a graphics card that took 2 to 7.5 s when measured (it failed CI at 5 s). A wait ends as soon
+// ### as its condition holds, so a longer limit costs no time when the step works.
+const ONLINE_MS = 30000;
 // which part of the workflows to run: 'chase' (room 2), its two halves 'chase-drive' and 'chase-pages', 'escape', or everything
 // when it is not set (see the small files beside this one, one per part)
 const PART = process.env.BROWSER_PART || '';
@@ -356,23 +360,23 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       assert.match(await acc(), /Enter a driver name/, 'rejected: a name that is empty after cleaning');
       assert.equal(supa.calls.length, 0, 'nothing was sent');
       await play('taken', 'click');
-      await waitFor("/taken/.test(document.querySelector('#card [data-account]').innerText)", 5000, 'taken message');
+      await waitFor("/taken/.test(document.querySelector('#card [data-account]').innerText)", ONLINE_MS, 'taken message');
       assert.equal(await evaluate("localStorage.getItem('shard-heist-session')"), null, 'rejected: no account is made for a taken name');
       await play('  Alex  ', 'enter');
-      await waitFor("/Online as Alex/.test(document.querySelector('#card [data-account]').innerText)", 5000, 'signed in as Alex');
+      await waitFor("/Online as Alex/.test(document.querySelector('#card [data-account]').innerText)", ONLINE_MS, 'signed in as Alex');
       assert.ok(await evaluate(menuReady), 'Enter in the name field does not start a run');
       assert.equal(await evaluate("localStorage.getItem('shard-heist-driver')"), 'Alex');
-      await waitFor("/Online/.test(document.querySelector('#card [data-lb-menu]').textContent) && /img src/.test(document.querySelector('#card [data-lb-menu]').textContent)", 5000, 'online board');
+      await waitFor("/Online/.test(document.querySelector('#card [data-lb-menu]').textContent) && /img src/.test(document.querySelector('#card [data-lb-menu]').textContent)", ONLINE_MS, 'online board');
       assert.equal(await evaluate("!document.querySelector('#card img[src=\"x\"]') && !window.__xss"), true, 'rejected: HTML in an online name is shown as text');
       assert.ok(!supa.calls.some(c => c.startsWith('POST /auth/v1/signup') && supa.calls.indexOf(c) < supa.calls.indexOf('GET /rest/v1/drivers')), 'the name is checked before an account is made');
       await load();
       await waitFor("/Online as Alex/.test(document.querySelector('#card [data-account]').innerText)", 60000, 'still signed in after a reload');
       await click('#card [data-acc="out"]');
-      await waitFor("!!document.querySelector('#card [data-acc-field=\"play\"]')", 5000, 'signed out');
+      await waitFor("!!document.querySelector('#card [data-acc-field=\"play\"]')", ONLINE_MS, 'signed out');
       assert.equal(await evaluate("localStorage.getItem('shard-heist-session')"), '');
       supa.down = true;
       await play('Bea', 'click');
-      await waitFor("/not reachable/.test(document.querySelector('#card [data-account]').innerText)", 10000, 'offline message');
+      await waitFor("/not reachable/.test(document.querySelector('#card [data-account]').innerText)", ONLINE_MS, 'offline message');
       assert.equal(await evaluate("localStorage.getItem('shard-heist-driver')"), 'Bea', 'offline: the name becomes a driver of this device');
       supa.down = false;
       // the failed requests of the offline step are expected; anything else would still fail the test
