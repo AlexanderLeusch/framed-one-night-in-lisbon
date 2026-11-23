@@ -233,6 +233,10 @@ The street names and their order were checked against [OpenStreetMap](https://ww
 
 The team's working rules for people and coding agents are in [AGENTS.md](AGENTS.md): the stack, the run and test commands, branches and reviews, what to do when `main` breaks, and what an agent must never do. `CLAUDE.md` points there, so every agent follows the same rules. [docs/course-guides.md](docs/course-guides.md) checks the project against the course's team project page and its ten guides, with the points that are still open.
 
+### Backup
+
+The whole repository (every branch, the full history) is mirrored into a second, private GitHub repository, `framed-one-night-in-lisbon-backup`, which only the team can open. A scheduled task on the repository owner's computer refreshes the mirror by itself every three days (and catches up if the computer was off); it can also be refreshed by hand at any time. A local Git bundle of the same state is kept as a second copy. The mirror runs no CI and publishes nothing, so a mistake on `main` (a force push, a deleted branch) can be undone from it.
+
 ## Credits
 
 All radio music is composed and synthesised by the game at run time, so there are no music files or licences. The tunes are generated from seeded random walks. The classical station plays J. S. Bach's Prelude in C (BWV 846) and the Ode to Joy from Beethoven's Ninth Symphony, both in the public domain.
