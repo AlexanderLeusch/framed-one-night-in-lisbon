@@ -9,7 +9,7 @@
    ###    so there is nothing to wait for. If room 2 is still loading by then, it is shown as it is, in the glare of the headlights,
    ###    and begins the moment it is ready: what has been loaded is never thrown away. Only a phone, which has too little
    ###    memory for both worlds at once, loads room 2 after room 1. Both frames share the window's time, so while room 2
-   ###    builds its world, room 1 is told so ('busy', then 'calm' once room 2 has loaded): its opening scene, where Officer
+   ###    builds its world, room 1 is told so ('busy', then 'calm' once room 2 is ready): its opening scene, where Officer
    ###    Hale shuts the door, waits for that and then plays without a stutter.
    ### 3. The leaderboard. The heist board is shown beside the name, before anything is played: the heists of this device at
    ###    once, then everybody's best heist from the online board when it answers. The player's own row is marked.
@@ -142,8 +142,9 @@
         if (state.left || frame2 || !frame1) return;
         tellRoomOne('busy');
         frame2 = makeFrame(ROOM2_WAIT, 'Room 2 · The chase', true); rooms.insertBefore(frame2, frame1);
-        // loaded (or failed to): room 1 may play its scenes again
-        frame2.addEventListener('load', () => tellRoomOne('calm'), { once: true });
+        // room 2 is ready (it has loaded everything and drawn the garage once): room 1 may play its scenes again. Should it
+        // never say so (it failed to load), room 1 is told a while after the page has loaded
+        frame2.addEventListener('load', () => setTimeout(() => tellRoomOne('calm'), 20000), { once: true });
       }, 2500);
     }, { once: true });
   }
@@ -171,7 +172,7 @@
   addEventListener('message', e => {
     if (e.origin !== location.origin || !e.data || typeof e.data.shardHeist !== 'string') return;
     if (frame2 && e.source === frame2.contentWindow && e.data.shardHeist === 'ready'){
-      state.ready = true; rooms.dataset.ready = '1';
+      state.ready = true; rooms.dataset.ready = '1'; tellRoomOne('calm');
       // the player is already waiting in the glare: begin at once
       if (state.left) frame2.contentWindow.postMessage({ shardHeist: 'go' }, location.origin);
     }
