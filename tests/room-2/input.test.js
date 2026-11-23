@@ -10,6 +10,9 @@ const allowedIn = (action, story) => STATES.filter(state => Core.actionAllowed(a
 test('accepted: each menu action works in the states whose cards show it', () => {
   assert.deepEqual(allowedIn('go', null), ['menu']);
   assert.deepEqual(allowedIn('resume', null), ['pause']);
+  // drive out of the garage door at green: only while in the garage
+  assert.equal(Core.actionAllowed('drive-out', { state: 'garage', story: null }), true);
+  assert.deepEqual(allowedIn('drive-out', null), []);
   assert.deepEqual(allowedIn('again', null), ['pause', 'done', 'over']);
   assert.deepEqual(allowedIn('menu', null), ['menu', 'pause', 'done', 'over']);
   assert.deepEqual(allowedIn('story', null), ['menu']);
