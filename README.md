@@ -127,7 +127,7 @@ framed-one-night-in-lisbon/
 │
 ├── docs/                    documents
 │   ├── rules/               the rules of both rooms and all settings (Markdown, HTML, Rules.pdf)
-│   ├── code-guide/          the Code Guide: architecture and every code section (HTML, PDF)
+│   ├── code-guide/          the Code Guide: architecture and code sections of the chase, a snapshot of 4 November 2026 (HTML, PDF)
 │   └── course-guides.md     how the project follows the course guides
 │
 ├── tools/                   serve.js (dev server), check-sri.js (library hashes), build-rules.js (rules → HTML)

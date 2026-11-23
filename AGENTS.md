@@ -69,5 +69,5 @@ The game has none today. If a feature needs a key: put it in `.env` (already in 
 
 - `README.md`: live URL, team members with student numbers, run and test commands, how it is built and why, tests, security, limits.
 - `docs/rules/*.md` and `docs/rules/rules.html` (+ `docs/rules/Rules.pdf`): the rules of both rooms and all settings.
-- `docs/code-guide/code-guide.html` (+ `docs/code-guide/Code-Guide.pdf`): architecture and code sections.
+- `docs/code-guide/code-guide.html` (+ `docs/code-guide/Code-Guide.pdf`): architecture and code sections of the chase, a snapshot of 4 November 2026 (a note at its top gives today's numbers).
 - `docs/course-guides.md`: how the project follows the course guides.
