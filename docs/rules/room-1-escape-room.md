@@ -144,3 +144,5 @@ After Ending B, every action is refused except **Try again**, which starts a new
 | `M` | Sound on or off |
 | Volume slider | On the pause card, 0 to 100 %. It is kept for the next visit |
 | `Enter` | Confirm the main button on a card |
+
+- **Side steps.** Walking sideways (A / D or the left and right arrow keys), your body keeps facing the way you look: one leg steps out to the side with the knee bending in front of you, the other closes. Only at a slant do the legs turn the way you go.

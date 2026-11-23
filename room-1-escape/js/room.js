@@ -5743,7 +5743,9 @@ function leaveLadder(){
 // ### your thighs. It is the body from the ladder (buildBody), standing on its own feet. The boots stay planted where they
 // ### stand while you walk over them: at every footfall (as you hear it) one lands in front of you, heel first, while the
 // ### other rolls up onto its toes behind you and swings through, lifted clear of the floor, and the knees bend as they
-// ### would. Walking sideways your legs turn the way you go and your chest half way; walking backwards you step back.
+// ### would. Walking sideways you side-step: hips and feet keep facing the way you look, one leg steps out to the side with
+// ### the knee coming up in front of you, the other closes; walking at a slant your legs turn the way you go and your chest half
+// ### way; walking backwards you step back.
 // ### Standing, the legs stay put while you look round, until your head turns so far that they take a step or two to face
 // ### the same way; when you stop, the feet come together in a step or two. Kneeling at the hatch, you kneel, your hands
 // ### on your thighs. As you look down, your hands leave the bottom of the picture and hang at your sides. The head bends
@@ -5752,11 +5754,14 @@ function leaveLadder(){
 // ### legs still step (you still walk), but the hands hold still as before.
 const STAND = { torso: .52, hipW: .095, thigh: .42, shin: .385, ankle: .111, tilt: -.1, apart: .1, out: .12, lead: .22 };
 const LEG = STAND.thigh + STAND.shin;
+// side-stepping: from how far across the way you look the walk counts as sideways, to how far (beyond that you walk
+// backwards), in radians, and how much higher the foot is lifted than in a step forward
+const SIDE_STEP = { from: .95, to: 2.2, lift: 1.7 };
 // the two points a boot rocks on: the ball of the foot under the sole and the back of the heel (the boot's own space,
 // ankle at the origin); STAND.tilt stands the boot so its heel and toe both touch the floor, the ankle STAND.ankle above it
 const BALL = new THREE.Vector3(0, -.093, -.15), HEEL = new THREE.Vector3(0, -.112, .08);
 const foot = () => ({ g: new THREE.Vector3(), yaw: 0, phi: 0, swing: null, landed: 0, ankle: new THREE.Vector3(), q: new THREE.Quaternion() });
-const WALKER = { at: null, vel: new THREE.Vector3(), walking: false, turning: false, legYaw: 0, torsoYaw: 0, sleeves: false,
+const WALKER = { at: null, vel: new THREE.Vector3(), walking: false, turning: false, side: false, legYaw: 0, torsoYaw: 0, sleeves: false,
   feet: { r: foot(), l: foot() },
   // this frame's joints in the room, for the meshes and the shadow
   J: { eye: new THREE.Vector3(), neck: new THREE.Vector3(), hips: new THREE.Vector3(), hip: [new THREE.Vector3(), new THREE.Vector3()], knee: [new THREE.Vector3(), new THREE.Vector3()],
@@ -5814,9 +5819,13 @@ function poseBody(dt, show){
   if (jump) Wk.legYaw = view;
   else if (walking){
     const travel = Math.atan2(Wk.vel.x, -Wk.vel.z), rel = wrapAngle(travel - view);
-    Wk.legYaw += wrapAngle((Math.abs(rel) < 2 ? travel : travel + Math.PI) - Wk.legYaw) * (1 - Math.exp(-dt * 7));
+    // sideways (more across than along) you side-step: hips and feet keep facing the way you look, and the legs step out
+    // to the side and close again, as a person does; they do not turn to walk the way you go
+    Wk.side = Math.abs(rel) > SIDE_STEP.from && Math.abs(rel) < SIDE_STEP.to;
+    Wk.legYaw += wrapAngle((Wk.side ? view : Math.abs(rel) < 2 ? travel : travel + Math.PI) - Wk.legYaw) * (1 - Math.exp(-dt * 7));
     Wk.turning = false;
   } else {
+    Wk.side = false;
     const off = wrapAngle(view - Wk.legYaw);
     if (Math.abs(off) > .75 || crouch > .3) Wk.turning = true;
     if (Wk.turning){ Wk.legYaw += off * (1 - Math.exp(-dt * 5)); if (Math.abs(off) < .06) Wk.turning = false; }
@@ -5836,7 +5845,8 @@ function poseBody(dt, show){
     if (!Wk.walking) cam.stride = Math.floor(cam.stride / .8) * .8;   // the first step starts now
     const steps = cam.stride / .8, n = Math.floor(steps), i = n % 2 ? 1 : 0, f = F[keys[i]], o = F[keys[1 - i]];
     if (o.swing) landFoot(o);
-    if (!f.swing || f.swing.n !== n){ startSwing(f, n, 0); f.swing.lift = .07 + .03 * gait; }
+    // (side-stepping, the foot is lifted higher: the knee comes up in front of you, where you see it)
+    if (!f.swing || f.swing.n !== n){ startSwing(f, n, 0); f.swing.lift = (.07 + .03 * gait) * (Wk.side ? SIDE_STEP.lift : 1); }
     const s = f.swing, dir = _bv.copy(Wk.vel).normalize();
     s.u = steps - n;
     footClear(s.to.copy(homes[i]).addScaledVector(dir, STAND.lead * Math.max(.4, gait)));
@@ -5874,7 +5884,8 @@ function poseBody(dt, show){
       if (s.rate && s.u >= 1) landFoot(f);
     } else {
       // a planted foot: after landing the toes slap down; walking, it rolls up onto its toes as it falls behind you
-      const behind = -_bv.subVectors(f.g, hip).setY(0).dot(fwdL), lift = walking ? -clamp((behind - .1) / .32, 0, 1) * .7 : 0;
+      // (side-stepping, "behind" is the side you come from: the foot you push off with rolls onto its toes)
+      const behind = -_bv.subVectors(f.g, hip).setY(0).dot(Wk.side ? _bw.copy(Wk.vel).setY(0).normalize() : fwdL), lift = walking ? -clamp((behind - .1) / .32, 0, 1) * .7 : 0;
       f.phi += (lift - f.phi) * (1 - Math.exp(-dt * (f.phi > lift ? 9 : 14)));
       footPose(f.g, f.yaw, f.phi, fy, f.ankle, f.q);
       // far behind, it rolls further onto its toes rather than leave the floor

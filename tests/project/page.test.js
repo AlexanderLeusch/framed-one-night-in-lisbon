@@ -639,6 +639,22 @@ test('on the motorcycle the hands hold the grips, a digital display shows speed 
   assert.match(game, /warming = true;\s*try \{/); assert.match(game, /finally \{\s*warming = false;/);
 });
 
+// ---------- Room 1: side-stepping ----------
+test('room 1: walking sideways is a side step, with the hips facing the way you look', () => {
+  const room = read('room-1-escape/js/room.js');
+  const S = room.match(/const SIDE_STEP = \{ from: ([\d.]+), to: ([\d.]+), lift: ([\d.]+) \};/).slice(1).map(Number);
+  // sideways is what lies more across than along the way you look: 90 degrees is inside, straight ahead and straight back are not
+  assert.ok(S[0] > 0.6 && S[0] < Math.PI / 2 && S[1] > Math.PI / 2 && S[1] < 2.6, 'from ' + S[0] + ' to ' + S[1]);
+  assert.ok(S[2] > 1, 'the foot is lifted higher than in a step forward, so the knee is seen to bend');
+  // side-stepping, the legs do not turn the way you go: they keep facing the way you look
+  assert.match(room, /Wk\.side = Math\.abs\(rel\) > SIDE_STEP\.from && Math\.abs\(rel\) < SIDE_STEP\.to;/);
+  assert.match(room, /wrapAngle\(\(Wk\.side \? view : Math\.abs\(rel\) < 2 \? travel : travel \+ Math\.PI\) - Wk\.legYaw\)/);
+  assert.match(room, /f\.swing\.lift = \(\.07 \+ \.03 \* gait\) \* \(Wk\.side \? SIDE_STEP\.lift : 1\);/);
+  // standing still it is no side step
+  assert.match(room, /\} else \{\s*Wk\.side = false;/);
+  assert.doesNotMatch(room, /__dbg/);
+});
+
 // ---------- Room 1: the hatch opens without a hitch ----------
 test('room 1 makes the opening of the hatch ready while the briefing is read', () => {
   const room = read('room-1-escape/js/room.js');
