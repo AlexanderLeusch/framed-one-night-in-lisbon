@@ -280,6 +280,8 @@
       case 'board': case 'street': case 'drive-out': return state === 'garage';
       case 'act': return !!story && (state === 'menu' || state === 'done');
       case 'retry-act': return !!story && (state === 'over' || state === 'pause');
+      // the end screen after the whole night: play it all again from room 1, or leave for the start page
+      case 'night': case 'exit': return state === 'done';
       default: return false;
     }
   }

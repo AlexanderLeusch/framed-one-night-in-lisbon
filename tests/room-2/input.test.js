@@ -20,6 +20,9 @@ test('accepted: each menu action works in the states whose cards show it', () =>
   assert.deepEqual(allowedIn('story', story), ['menu', 'done'], 'the story can be played again from its ending');
   assert.deepEqual(allowedIn('act', story), ['menu', 'done']);
   assert.deepEqual(allowedIn('retry-act', story), ['pause', 'over']);
+  // after the whole night: everything again from room 1, or out to the start page; only from the end screen
+  assert.deepEqual(allowedIn('night', null), ['done']);
+  assert.deepEqual(allowedIn('exit', null), ['done']);
 });
 
 test('rejected: nothing on a card can run while driving', () => {

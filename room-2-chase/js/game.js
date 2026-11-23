@@ -7209,7 +7209,18 @@ function finish(){
     <div class="actions">
       <button class="btn" data-action="again">Drive again <small class="desk-only">Enter</small></button>
       <button class="btn ghost" data-action="menu">Change vehicle</button>
+      ${heist.last ? '<button class="btn ghost" data-action="night">Play the whole night again</button><button class="btn ghost" data-action="exit">Exit</button>' : ''}
     </div>`, 'result');
+}
+// ### After the whole night (room 1 and the drive), the end screen also offers the whole night again, from the start of room 1
+// ### on the heist page, and the way out to the start page. Both leave this page: the heist page holds this one in a frame, so it
+// ### is that page which goes. A time still being sent to the online boards is waited for (3 s at most), so it is not lost.
+async function leaveHeist(where){
+  const url = new URL(where === 'night' ? '../heist/' : '../', location.href).href;
+  const until = performance.now() + 3000;
+  while (((heist.net && heist.net.pending) || (online.rank && online.rank.pending)) && performance.now() < until) await new Promise(r => setTimeout(r, 100));
+  const top = window.parent !== window ? window.parent : window;
+  try { top.location.assign(url); } catch (e) { location.assign(url); }
 }
 
 // ### Ends a run that failed: busted, wrecked or out of time.
@@ -7425,6 +7436,7 @@ card.addEventListener('click', e => {
   else if (a === 'story') showStoryIntro();
   else if (a === 'act') startStoryAct(story.act, true);
   else if (a === 'retry-act') startStoryAct(Core.retryAct(story));
+  else if (a === 'night' || a === 'exit') leaveHeist(a);
 });
 $('btnPause').addEventListener('click', e => { e.currentTarget.blur(); if (state === 'play') pause(); else if (state === 'pause') resume(); });
 function toggleSound(){
