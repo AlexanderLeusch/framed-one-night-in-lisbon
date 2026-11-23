@@ -7211,12 +7211,8 @@ function finish(){
     <section class="lb" data-board="${mode}"${boardSection(mode) ? '' : ' hidden'}>${boardSection(mode)}</section>
     <div class="actions">
       <button class="btn" data-action="again">Drive again <small class="desk-only">Enter</small></button>
-<<<<<<< HEAD
-      <button class="btn ghost" data-action="menu">Change vehicle</button>
-      ${heist.last ? '<button class="btn ghost" data-action="night">Play the whole night again</button><button class="btn ghost" data-action="exit">Exit</button>' : ''}
-=======
       <button class="btn ghost" data-action="garage">Change vehicle</button>
->>>>>>> 699f195 (Room 2: Change vehicle goes to the garage; every further drive of the night ends in a total time)
+      ${heist.last ? '<button class="btn ghost" data-action="night">Play the whole night again</button><button class="btn ghost" data-action="exit">Exit</button>' : ''}
     </div>`, 'result');
 }
 // ### After the whole night (room 1 and the drive), the end screen also offers the whole night again, from the start of room 1
