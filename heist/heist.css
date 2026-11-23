@@ -4,7 +4,7 @@
 .heist-wait{margin:0;font-family:var(--f-mono);font-size:13px;color:var(--muted)}
 .heist-msg{margin:0;font-family:var(--f-mono);font-size:13px;line-height:1.5;color:var(--muted)}
 .heist-msg.bad{color:var(--stop)}
-.heist-go{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.heist-go{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:20px}
 .heist-go .btn{font-size:20px;padding:14px 24px}
 .heist-noscript{max-width:640px;margin:0 auto;padding:0 20px 40px;font-family:var(--f-body);color:var(--muted)}
 .heist-noscript a{color:var(--ink)}

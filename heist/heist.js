@@ -52,10 +52,10 @@
     const msg = state.msg ? `<p class="heist-msg${state.bad ? ' bad' : ''}" role="status">${esc(state.msg)}</p>` : '';
     if (state.name){
       box.innerHTML = `<div class="acc on"><p>${state.online ? 'Online as' : 'Driving as'} <b>${esc(state.name)}</b> · ${state.online ? 'your times go on the online leaderboards of room 2 and of the heist.' : 'your times stay on this device.'}</p><button type="button" class="drv" data-do="other"${dis}>Not you?</button></div>
-        ${msg}<div class="heist-go"><button type="button" class="btn" data-do="start"${dis}>Start the heist <small>Enter</small></button></div>`;
+        ${msg}<div class="heist-go"><button type="button" class="btn" data-do="start"${dis}>Let's start <small>Enter</small></button></div>`;
     } else {
       box.innerHTML = `<div class="acc"><p>Type a driver name and you are on the online leaderboard. No email, no password. The name counts in both rooms.</p>
-        <span class="drv-new"><input type="text" class="drv-input" id="whoName" maxlength="${Core.NAME_MAX}" placeholder="Your driver name" aria-label="Your driver name" autocomplete="nickname" spellcheck="false"><button type="button" class="drv-add" data-do="name"${dis}>Start the heist</button></span>${msg}</div>
+        <span class="drv-new"><input type="text" class="drv-input" id="whoName" maxlength="${Core.NAME_MAX}" placeholder="Your driver name" aria-label="Your driver name" autocomplete="nickname" spellcheck="false"><button type="button" class="drv-add" data-do="name"${dis}>Let's start</button></span>${msg}</div>
         <div class="heist-go"><button type="button" class="drv" data-do="start"${dis}>Play without a name</button></div>`;
     }
     const first = box.querySelector(state.name ? '.btn' : '#whoName');
