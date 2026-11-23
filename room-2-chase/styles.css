@@ -217,6 +217,13 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-display);overflow
 .guide.kit .g-arrow{fill:#4ef0a0;filter:drop-shadow(0 0 6px rgba(78,240,160,.7))}
 .guide.kit b{font-size:16px}
 /* the map of the evidence before a Lisbon run */
+/* the traffic light at the garage door, on the map card: the lamp that is on glows */
+.gar-wait{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.gar-wait .l{width:14px;height:14px;border-radius:50%;background:#2a2d33}
+.gar-wait[data-light="red"] .r{background:#ff3a30;box-shadow:0 0 10px #ff3a30}
+.gar-wait[data-light="yellow"] .y{background:#ffb21e;box-shadow:0 0 10px #ffb21e}
+.gar-wait[data-light="green"] .g{background:#35e07a;box-shadow:0 0 10px #35e07a}
+.gar-wait b{margin-left:6px;color:var(--ink);font-weight:600}
 .ov-map{display:block;width:min(100%,58vh);aspect-ratio:1;margin:0 auto;border-radius:14px;border:1px solid var(--line);background:#0e1022}
 #touch.tilt .grp:first-child{visibility:hidden}
 .pad{--p:0;position:relative;overflow:hidden;pointer-events:auto;width:72px;height:72px;border-radius:18px;border:1px solid var(--line);background:var(--glass);color:var(--ink);display:grid;place-items:center;font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);touch-action:none}

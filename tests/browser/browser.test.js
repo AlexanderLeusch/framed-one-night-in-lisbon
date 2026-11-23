@@ -199,19 +199,21 @@ test('browser workflows', { skip: !CHROME && 'no Chrome or Edge found (set CHROM
       await click('[data-action="board"]');
       await waitFor("document.getElementById('overlay').hidden", 10000, 'the garage card to go away');
       await key('keydown', 'KeyW');
-      // about 15 s of game time (the walk, getting in, 50 m up the ramp, then the vehicle drives itself out through the roller
-      // door and into the street); a slow CI machine draws only a few frames a second, and fewer still once the city is drawn.
+      // about 15 s of game time (the walk, getting in, 50 m up the ramp, then the vehicle drives itself to the traffic light
+      // before the roller door); a slow CI machine draws only a few frames a second, and fewer still once the city is drawn.
       // CI machines differ: the same drive took 231 s on one and more than 300 s on a slower one, so it gets 10 minutes
-      await waitFor("!!document.getElementById('ovMap')", 600000, 'the map of the evidence on the street');
-      assert.ok(await evaluate("!document.getElementById('hud').classList.contains('off')"), 'the HUD is back on the street');
+      await waitFor("!!document.getElementById('ovMap')", 600000, 'the map of the evidence at the garage door');
+      assert.ok(await evaluate("!document.getElementById('hud').classList.contains('off')"), 'the HUD is back at the door');
       await key('keyup', 'KeyW');
       assert.match(await text('#card h2'), /Where the evidence is/);
       assert.match(await evaluate("document.getElementById('ovMap').getAttribute('aria-label')"), /Photos.*Fingerprints.*Torch.*Lockpick.*Clothes.*Balaclava/);
+      assert.match(await text('#garWait'), /Green in \d+ s|Almost ready|Green: the door opens/, 'the traffic light at the door');
       const clock0 = await text('#time'); await sleep(1500);
       assert.equal(await text('#time'), clock0, 'the clock waits while the map is open');
-      await click('[data-action="resume"]');
-      await waitFor(playing, 30000, 'run to start');
-      await waitFor("!document.getElementById('guide').hidden", 10000, 'the guide arrow');
+      // drive out: at green the roller door rolls up and the vehicle drives itself out into the street, then the run begins
+      await click('[data-action="drive-out"]');
+      await waitFor(playing, 30000, 'the map to close');
+      await waitFor("!document.getElementById('guide').hidden", 600000, 'driven out onto the street: the guide arrow');
       assert.match(await text('#guideName'), /Photos|Fingerprints|Torch|Lockpick|Clothes|Balaclava/);
       const t0 = await text('#time');
       await key('keydown', 'KeyW');

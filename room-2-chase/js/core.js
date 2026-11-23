@@ -276,8 +276,8 @@
       case 'again': return state === 'done' || state === 'over' || state === 'pause';
       case 'resume': return state === 'pause';
       case 'menu': return state === 'menu' || state === 'pause' || state === 'done' || state === 'over' || state === 'garage';
-      // the garage card: get into the chosen vehicle, or go straight to the street
-      case 'board': case 'street': return state === 'garage';
+      // the garage card: get into the chosen vehicle, or go straight to the street; at the door, drive out at green
+      case 'board': case 'street': case 'drive-out': return state === 'garage';
       case 'act': return !!story && (state === 'menu' || state === 'done');
       case 'retry-act': return !!story && (state === 'over' || state === 'pause');
       default: return false;
