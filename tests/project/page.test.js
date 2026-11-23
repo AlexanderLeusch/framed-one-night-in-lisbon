@@ -597,6 +597,20 @@ test('the game loads behind the heist page with a loading bar, and room 2 is mad
   assert.match(room, /\(nextDoorBusy && waited < NEXT_DOOR_WAIT\)/);
 });
 
+// ---------- The end screen after the whole night: one leaderboard ----------
+test('after the whole night the end screen shows only the leaderboard of both rooms together', () => {
+  const section = game.match(/function boardSection\(m\)\{[\s\S]*?\n\}/)[0];
+  // the board of the drive alone is left out; only the field for a driver name stays, when one is needed
+  assert.match(section, /if \(heist\.last\) return ask;\s*return `<div class="eyebrow">Leaderboard/);
+  // an empty box is not shown, also after a name has been given
+  assert.match(game, /function drawBoardBox\(lb\)\{\s*lb\.innerHTML = boardSection\(lb\.dataset\.board\);\s*lb\.hidden = !lb\.innerHTML;/);
+  assert.match(game, /data-board="\$\{mode\}"\$\{boardSection\(mode\) \? '' : ' hidden'\}>/);
+  assert.match(read('room-2-chase/styles.css'), /\.lb\[hidden\]\{display:none\}/);
+  // the board of both rooms is still there, and the drive is still recorded on its own board
+  assert.match(game, /\$\{heist\.last \? `<section class="lb heist" data-heist>\$\{heistSection\(\)\}<\/section>` : ''\}/);
+  assert.match(game, /if \(lb\)\{ recordPending\(\); drawBoardBox\(lb\); \}/);
+});
+
 // ---------- Room 1: the hatch opens without a hitch ----------
 test('room 1 makes the opening of the hatch ready while the briefing is read', () => {
   const room = read('room-1-escape/js/room.js');

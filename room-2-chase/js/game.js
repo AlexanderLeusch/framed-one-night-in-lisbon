@@ -6262,7 +6262,16 @@ function boardSection(m){
     head = `<p class="lb-head">${head} All time: place <b>${lastRank.rank}</b> of ${n}${lastRank.monthRank ? ` · This month: place <b>${lastRank.monthRank}</b>${lastRank.monthRank === 1 && lastRank.monthBest ? ': you lead the month' : ''}` : ''}.</p>`;
   }
   const ask = !driver && pendingRun ? `<div class="lb-ask"><span>Enter a driver name to put this time on the ${net ? 'online ' : ''}leaderboard</span>${net ? quickField('Save time', '') : nameField('Your name', 'Save time')}</div>${net && online.msg && online.bad ? `<p class="lb-head bad">${esc(online.msg)}</p>` : ''}` : '';
+  // after the whole night (room 1 and room 2) the end screen shows one leaderboard, that of both rooms together (see
+  // heistSection): the board of the drive alone is left out, and only the field for a driver name stays, if one is needed.
+  // The drive is still kept on its own board, and is seen there in the menu.
+  if (heist.last) return ask;
   return `<div class="eyebrow">Leaderboard · ${MODES[m].title}</div>${head}${ask}${boardPanels(m)}`;
+}
+// ### Draws the board of the map on the end screen; with nothing to show (see boardSection) its box is not there at all.
+function drawBoardBox(lb){
+  lb.innerHTML = boardSection(lb.dataset.board);
+  lb.hidden = !lb.innerHTML;
 }
 // ### Reads the name field next to the button (or the field itself) and creates the driver.
 function addDriverFrom(el){
@@ -6276,7 +6285,7 @@ function refreshDriverViews(){
   const sec = card.querySelector('[data-drivers]');
   if (sec) sec.innerHTML = driverSection();
   const lb = card.querySelector('[data-board]');
-  if (lb){ recordPending(); lb.innerHTML = boardSection(lb.dataset.board); }
+  if (lb){ recordPending(); drawBoardBox(lb); }
   const hs = card.querySelector('[data-heist]');
   if (hs) hs.innerHTML = heistSection();
 }
@@ -6293,7 +6302,7 @@ function redrawBoards(){
   const mb = card.querySelector('[data-lb-menu]');
   if (mb) mb.innerHTML = `<div class="eyebrow">Leaderboard · ${MODES[sel.mode].title}</div>${boardPanels(sel.mode)}`;
   const lb = card.querySelector('[data-board]');
-  if (lb) lb.innerHTML = boardSection(lb.dataset.board);
+  if (lb) drawBoardBox(lb);
   const hs = card.querySelector('[data-heist]');
   if (hs) hs.innerHTML = heistSection();
 }
@@ -7189,7 +7198,7 @@ function finish(){
     </div>
     ${lostStar ? '<p class="note">One star lost for heavy damage (over 50 %).</p>' : ''}
     ${heist.last ? `<section class="lb heist" data-heist>${heistSection()}</section>` : ''}
-    <section class="lb" data-board="${mode}">${boardSection(mode)}</section>
+    <section class="lb" data-board="${mode}"${boardSection(mode) ? '' : ' hidden'}>${boardSection(mode)}</section>
     <div class="actions">
       <button class="btn" data-action="again">Drive again <small class="desk-only">Enter</small></button>
       <button class="btn ghost" data-action="menu">Change vehicle</button>
@@ -9406,8 +9415,10 @@ function storyGameOver(reason){
 
 // Compiles the shaders of everything in the scene, hidden objects included, before they are first seen
 function warmUp(sc = scene, cam = camera){
-  // loaded ahead on the heist page, the world is made ready in small steps instead (see warmSteps)
-  if (HEIST_WAIT && !heist.went) return;
+  // loaded ahead on the heist page, the world is made ready in small steps instead (see warmSteps); once that has been
+  // done there is nothing left to build, and building the shaders here a second time (for the screen, which Ultra does not
+  // draw to) held "Drive again" still for seconds
+  if ((HEIST_WAIT && !heist.went) || stepsDone) return;
   const hidden = [];
   sc.traverse(o => { if (!o.visible && !o.isLight){ hidden.push(o); o.visible = true; } });
   try { renderer.compile(sc, cam); } catch (e) {}
@@ -9425,6 +9436,7 @@ function warmUp(sc = scene, cam = camera){
 // ### their number is part of every shader. The canvas is out of sight meanwhile (under room 1, or behind the glare).
 // ### It is a generator: each step is one drawing. warmInSteps takes a breath between steps, so the room on top keeps
 // ### moving and answering; warmNow runs them through at once. At the end all is put back as it was.
+let stepsDone = false;
 function* warmSteps(){
   const all = [], drawn = o => o.isMesh || o.isPoints || o.isLine || o.isSprite;
   const seen = o => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
@@ -9447,6 +9459,7 @@ function* warmSteps(){
       batch.push(a); fresh = fresh || isNew;
     }
     if (batch.length){ flush(); yield 1; }
+    stepsDone = true;
   } finally {
     for (const a of all){ a.o.visible = a.visible; a.o.frustumCulled = a.culled; a.o.layers.mask = a.mask; }
   }
