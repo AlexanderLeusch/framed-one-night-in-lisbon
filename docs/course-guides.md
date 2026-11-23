@@ -1,6 +1,6 @@
-# How Shard Heist follows the course guides
+# How Framed: One Night in Lisbon follows the course guides
 
-> Checked on 10 November 2026 against the team project page and the ten guides of the course wiki (https://2477-introduction-programming.gitlab.io/wiki/). ✅ done · ⚠️ partly, or needs the team · ❌ missing. The open points are collected at the end.
+> Checked on 10 November 2026 against the team project page and the ten guides of the course wiki (https://2477-introduction-programming.gitlab.io/wiki/); the open points were updated on 23 November 2026. ✅ done · ⚠️ partly, or needs the team · ❌ missing. The open points are collected at the end.
 
 ## Team project requirements
 
@@ -12,8 +12,8 @@
 | `README.md` has the deployed URL | ✅ | Top of the README |
 | `README.md` has the **names and student numbers of all members** | ✅ | README, section "Team": five members with student numbers and their main room |
 | `README.md` has the commands to run the app and its tests | ✅ | "Run it locally" |
-| Every member contributes code to the repository | ⚠️ | Commits by Alexander, Marco, Jasper and Louisa. Sarah's changes arrive through her pull requests, but their commits carry the author name "Claude": set `git config user.name` / `user.email` so they count under her name |
-| Team of 3 to 4 students | ⚠️ | The team has five members: clear the size with the teaching staff |
+| Every member contributes code to the repository | ✅ | All five members have commits under their own GitHub accounts |
+| Team of 3 to 4 students | ✅ | The team has five members; the teaching staff confirmed that five is fine |
 | Live demo at the deployed URL | ✅ | Nothing to wake up: static hosting does not sleep |
 | Walkthrough: data, tests, unavailable API | ✅ | README: "Security", "Testing", "When something is unavailable"; `docs/rules/settings.md` lists all stored data |
 
@@ -21,7 +21,7 @@
 
 | Guide point | Status | Where / how |
 |---|---|---|
-| A stack other than Python needs the teaching staff's approval | ⚠️ | The game is plain JavaScript. **Confirm the approval with the teaching staff** (or note when it was given) |
+| A stack other than Python needs the teaching staff's approval | ✅ | The game is plain JavaScript; the teaching staff approved the stack in class |
 | The stack fits the interface (games need more than Streamlit) | ✅ | 3D games with real-time input; README "Why it is built this way" |
 | Every member can explain it | ⚠️ | No framework and no build step keep it small; every member should read README, AGENTS.md and the Code Guide |
 | Stack, run and test commands recorded in `AGENTS.md` | ✅ | `AGENTS.md` |
@@ -108,8 +108,5 @@
 
 ## Open points for the team
 
-1. Confirm the **teaching staff's approval** of the JavaScript stack.
-2. **Review every pull request** by a second member before merging (`AGENTS.md`).
-3. Sarah: set your own **git name and email**, so your commits count under your name.
-4. The team has five members: clear the **team size** (3 to 4) with the teaching staff.
-5. Optional: track the remaining work as **GitHub issues**.
+1. **Review every pull request** by a second member before merging (`AGENTS.md`).
+2. Optional: track the remaining work as **GitHub issues**.
