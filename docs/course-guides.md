@@ -91,7 +91,7 @@
 | Guide point | Status | Where / how |
 |---|---|---|
 | How work is split, who owns shared files | ✅ | `AGENTS.md`: one owner at a time for `core.js`, `game.js`, `rules.js`, `room.js`, `AGENTS.md` |
-| **A second person reviews every change before `main`** | ❌ | Pull requests #1–#14 were merged without a review, and some changes went straight to `main`. From now on: `AGENTS.md` rule 2 |
+| **A second person reviews every change before `main`** | ⚠️ | Until 23 November pull requests were merged without a review, and some changes went straight to `main`. Since 23 November a ruleset on `main` enforces a pull request with all checks green, and the approval of a code owner for `.github/` and `supabase/`; a review of every change is phase 2 ([SECURITY.md](../SECURITY.md)) |
 | Rule when `main` breaks | ✅ | `AGENTS.md` rule 4 |
 | Track the work (GitHub issues or a shared list) | ⚠️ | No issues so far. One issue per feature or bug, linked to its pull request, would show who did what |
 | Small, short-lived branches | ✅ | Pull requests are small and merged within a day |

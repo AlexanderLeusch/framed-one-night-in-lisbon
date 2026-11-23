@@ -1,0 +1,20 @@
+# Dependabot: opens a pull request when a newer version of something we depend on is published.
+# The pull request runs the full CI like any other change and still needs the usual review; nothing merges by itself.
+# - github-actions: the workflow pins every action to a commit hash, which never updates on its own. Dependabot
+#   moves the hash and the version comment forward together.
+# - uv: the original Python project (original-solo-project/uv.lock). CI's pip-audit already fails on a known
+#   vulnerability; this adds the fix as a ready pull request.
+# three.js comes from a CDN with an integrity hash, so Dependabot cannot see it; it is checked by hand (SECURITY.md).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: uv
+    directory: /original-solo-project
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
