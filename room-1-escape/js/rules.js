@@ -45,7 +45,7 @@
     tunnel: { title: 'The Tunnel', text: 'A ladder into the dark. Somewhere below, water drips.', exits: [], hotspots: [] }
   };
   const ENDINGS = {
-    A: { title: 'Ending A · Out', text: 'The lock clicks. You lower yourself into the dark and pull the hatch shut above you. Taped to the ladder is a note in neat handwriting: “Took you long enough. The car is waiting. Do you have the key? — H.” Officer Hale wanted you out. The question is why.' },
+    A: { title: 'Ending A · Out', text: 'The lock clicks. You lower yourself into the dark and pull the hatch shut above you. Taped to the ladder is a note in neat handwriting: “Took you long enough. The car is waiting. Do you have the key?” Officer Hale wanted you out. The question is why.' },
     B: { title: 'Ending B · Back to the cell', text: 'The door bangs open. Officer Hale and two officers drag you back to cell 4471. The hatch stays shut, and so does the case.' }
   };
 

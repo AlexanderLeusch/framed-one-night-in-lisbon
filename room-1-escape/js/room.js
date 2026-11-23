@@ -3157,8 +3157,7 @@ const tbox = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.Box
     grime(g, w, h, 6, 'rgba(120,96,60,.2)', 60, false);
     g.fillStyle = 'rgba(220,214,190,.8)'; g.fillRect(w * .38, 0, w * .24, 26);   // the tape
     g.fillStyle = '#23262c'; g.font = 'italic 600 34px Georgia, serif';
-    ['Took you long enough.', 'The car is waiting.', 'Do you have the key?', 'YES      NO'].forEach((l, i) => g.fillText(l, 22, 76 + i * 52));
-    g.fillText('— H.', w - 110, 76 + 3 * 52);
+    ['Took you long enough.', 'The vehicle is waiting.', 'Do you have the key?', 'YES      NO'].forEach((l, i) => g.fillText(l, 22, 76 + i * 52));
   }) }));
   note.position.set(x - .21, -1.05, TUN.ladderZ + .024); note.rotation.z = .06; room.add(note);
   // two old bulbs on the walls, in wire cages
@@ -5378,7 +5377,7 @@ function tunnelEnd(on){
 // ### Hale's note on the ladder, as a card: do you have the key? The climb waits for the answer.
 function showKeyAsk(){
   showCard(`<div class="eyebrow">A note taped to the ladder</div><h2>Do you have the <em>key</em>?</h2>
-    <div class="paper">Took you long enough. The car is waiting. Do you have the key? — H.</div>
+    <div class="paper">Took you long enough. The vehicle is waiting. Do you have the key?</div>
     <div class="actions"><button class="btn" data-do="key-yes">Yes</button><button class="btn ghost" data-do="key-no">No</button></div>`);
 }
 // ### The answer to the note. Yes: down you go. No: you climb back up (with reduced motion you are simply up again).
