@@ -5166,6 +5166,20 @@ function warmOpening(){
   // after this frame has been drawn, all is put back as it was
   return () => { [hall.visible, doorLight.visible, hale.g.visible] = was; shadowsMoved(); };
 }
+// ### The hatch is made ready the same way, in the frame after the briefing scene: when the lid opens, the two bulbs of the
+// ### tunnel and the headlights behind its door are switched on, and three more lights change the shader of every lit
+// ### surface in the room. Built at that moment, they held the picture still for seconds just as the lid began to move.
+// ### warmHatch() draws one frame with those lights in the scene (at no brightness, so nothing shows), with the dust and the
+// ### tunnel door, while the first cards are read; the lid then opens without a hitch. Not while the briefing scene plays
+// ### (the door light is on then, which is a different set of lights) and not once the hatch is open.
+let hatchWarm = false;
+function warmHatch(){
+  hatchWarm = true;
+  const was = [tunnelLight.visible, tunnelLight2.visible, nightLight.visible, dust.pts.visible, TDOOR.pivot.visible];
+  tunnelLight.visible = tunnelLight2.visible = nightLight.visible = dust.pts.visible = true; tunnelEnd(true);
+  renderer.compile(scene, camera);
+  return () => { [tunnelLight.visible, tunnelLight2.visible, nightLight.visible, dust.pts.visible] = was; tunnelEnd(was[4]); };
+}
 addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== parent || !e.data) return;
   if (e.data.shardHeist === 'busy') nextDoorBusy = true;
@@ -6067,7 +6081,8 @@ function frame(now){
   if (!mini){
     if (sizeDirty){ sizeDirty = false; renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); WATER.resize(); MIRROR.resize(); }
     // all of the room has arrived: the briefing scene is made ready (see warmOpening)
-    const warmed = !openingWarm && !assetsBusy ? warmOpening() : null;
+    // (and, a frame later, the opening of the hatch: see warmHatch)
+    const warmed = assetsBusy ? null : !openingWarm ? warmOpening() : !hatchWarm && cineT < 0 && hatchAnim < 0 ? warmHatch() : null;
     camera.updateMatrixWorld();
     WATER.update(clock, dt);
     MIRROR.update(clock);

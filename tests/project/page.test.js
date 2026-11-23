@@ -572,6 +572,21 @@ test('the heist page holds both rooms, and the rooms still load nothing of each 
   assert.match(js, /<span class="lb-name">' \+ esc\(r\.name\) \+ '<\/span>/);
 });
 
+// ---------- Room 1: the hatch opens without a hitch ----------
+test('room 1 makes the opening of the hatch ready while the briefing is read', () => {
+  const room = read('room-1-escape/js/room.js');
+  // one frame is drawn early with the lights the open hatch switches on, so their shaders are not built as the lid moves
+  const warm = room.match(/function warmHatch\(\)\{[\s\S]*?\n\}/)[0];
+  assert.match(warm, /tunnelLight\.visible = tunnelLight2\.visible = nightLight\.visible = dust\.pts\.visible = true; tunnelEnd\(true\);/);
+  assert.match(warm, /renderer\.compile\(scene, camera\);/);
+  assert.match(warm, /= was; tunnelEnd\(was\[4\]\);/, 'and all is put back as it was');
+  // the same lights are the ones Ending A switches on
+  assert.match(room, /function endingA\(\)\{[\s\S]*?tunnelLight\.visible = tunnelLight2\.visible = nightLight\.visible = dust\.pts\.visible = true; tunnelEnd\(true\);/);
+  // after the briefing scene has been made ready, never while it plays, and not once the hatch is open
+  assert.match(room, /!openingWarm \? warmOpening\(\) : !hatchWarm && cineT < 0 && hatchAnim < 0 \? warmHatch\(\) : null/);
+  assert.doesNotMatch(room, /__dbg/);
+});
+
 // ---------- The start page: one way in, and a look into the game ----------
 test('the start page has one button, to the heist page, shows pictures of the game and runs no script', () => {
   const start = read('index.html');
