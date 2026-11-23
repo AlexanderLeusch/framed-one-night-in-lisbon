@@ -2,11 +2,7 @@
 
 *Framed: One Night in Lisbon* is a two-room browser game (its working title was *Shard Heist*, which the repository carried until 20 November 2026; the code still uses it in the names of saved values). **Room 1, *Plot Twist: Cell Block D***, is a 3D prison escape room: find the code for the hatch in the washroom floor before the guard comes back. **Room 2, *The Chase***, is the 3D police chase that follows. A start page leads to both rooms.
 
-| Page | Play |
-|---|---|
-| Start page (both rooms) | https://alexanderleusch.github.io/framed-one-night-in-lisbon/ |
-| 1 · Escape room | https://alexanderleusch.github.io/framed-one-night-in-lisbon/room-1-escape/ |
-| 2 · Police chase | https://alexanderleusch.github.io/framed-one-night-in-lisbon/room-2-chase/ |
+**▶ Play the game:** https://alexanderleusch.github.io/framed-one-night-in-lisbon/ (start page, leads to both rooms)
 
 Both rooms take place on the same night and share one design system (the same fonts, panels, buttons and cards), with orange as the accent of the prison and cyan as the accent of the chase. Room 2's story starts where room 1 ends: inmate 4471 is on the run, and Officer Hale helps over the radio.
 
@@ -27,6 +23,8 @@ The folder `original-solo-project/` holds the original solo project *Plot Twist:
 ## Room 1 · Plot Twist: Cell Block D
 
 You were the detective on the Ashford necklace case; now you are inmate 4471, convicted of the theft. Officer Hale locks you in washroom 2 for ten minutes. A hatch in the floor is held shut by a four-digit combination lock, and the code is hidden in the room.
+
+**Play:** https://alexanderleusch.github.io/framed-one-night-in-lisbon/room-1-escape/
 
 | | |
 |---|---|
